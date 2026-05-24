@@ -71,16 +71,16 @@
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "2.0.1",
+            "version": "2.0.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "aa02b615c55f076f12a3447ed251b2663a0edf89"
+                "reference": "348b400185bdb252a0e143a7638aa0a272f1440a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/aa02b615c55f076f12a3447ed251b2663a0edf89",
-                "reference": "aa02b615c55f076f12a3447ed251b2663a0edf89",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/348b400185bdb252a0e143a7638aa0a272f1440a",
+                "reference": "348b400185bdb252a0e143a7638aa0a272f1440a",
                 "shasum": ""
             },
             "require": {
@@ -126,9 +126,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/2.0.1"
+                "source": "https://github.com/andydefer/laravel-logger/tree/2.0.2"
             },
-            "time": "2026-05-24T21:34:21+00:00"
+            "time": "2026-05-24T22:14:46+00:00"
         },
         {
             "name": "andydefer/php-records",

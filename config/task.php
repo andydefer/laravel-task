@@ -37,8 +37,11 @@ return [
     | Configuration for the task poller directive
     |
     */
+
     'poller' => [
         'default_duration' => 60,
-        'graceful_timeout' => 30, // Max seconds to wait for running tasks
+        'graceful_timeout' => 30,
+        'use_sequential_mode' => env('TASKS_USE_SEQUENTIAL_MODE', true),
+        'lock_path' => env('TASKS_LOCK_PATH', null),
     ],
 ];

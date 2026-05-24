@@ -32,7 +32,7 @@ final class RunTaskDirective extends AbstractDirective
 
     public function getSignature(): string
     {
-        return 'run-task {--duration=60 : Max execution time in seconds} {--dry-run : Simulate without executing}';
+        return 'run-task {--duration=60 : Max execution time in seconds} {--dry-run : Simulate without executing} {--no-fork : Disable forking (sequential execution)} {--lock-path= : Custom lock file path}';
     }
 
     public function getDescription(): string
@@ -57,6 +57,8 @@ final class RunTaskDirective extends AbstractDirective
     {
         $duration = (int) $this->option('duration');
         $dryRun = $this->hasOption('dry-run');
+        $noFork = $this->hasOption('no-fork');
+        $lockPath = $this->option('lock-path');
 
         if ($dryRun) {
             $this->warn('Dry run mode - no tasks will be executed');
@@ -64,12 +66,21 @@ final class RunTaskDirective extends AbstractDirective
 
         $this->info("Starting task poller for {$duration} seconds...");
 
+        $useSequentialMode = $noFork || !function_exists('pcntl_fork');
+
+        if ($useSequentialMode && !$noFork) {
+            $this->warn('pcntl_fork not available, falling back to sequential mode');
+        }
+
         $manager = new ProcessManager(
             runner: $this->runner,
             storage: $this->storage,
             logger: $this->logger,
             validator: $this->validator,
+            lockPath: $lockPath ?: null,
+            useSequentialMode: $useSequentialMode,
         );
+
         $manager->run($duration, $dryRun);
 
         $this->info('Task poller finished');
