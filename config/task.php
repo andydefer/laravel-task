@@ -44,4 +44,9 @@ return [
         'use_sequential_mode' => env('TASKS_USE_SEQUENTIAL_MODE', true),
         'lock_path' => env('TASKS_LOCK_PATH', null),
     ],
+
+    'grace_period' => [
+        'enabled' => env('TASKS_GRACE_PERIOD_ENABLED', true),
+        'seconds' => env('TASKS_GRACE_PERIOD_SECONDS', 86400), // 24 heures
+    ],
 ];

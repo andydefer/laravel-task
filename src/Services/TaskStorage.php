@@ -34,7 +34,7 @@ class TaskStorage
     private function ensureDirectories(): void
     {
         foreach ([$this->pendingPath, $this->recurringPath, $this->completedPath] as $path) {
-            if (! is_dir($path)) {
+            if (!is_dir($path)) {
                 mkdir($path, 0755, true);
             }
         }
@@ -45,7 +45,7 @@ class TaskStorage
     public function savePending(TaskRecord $task): void
     {
         $filePath = $this->pendingPath . '/' . $task->id . '.json';
-        file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
+        file_put_contents($filePath, json_encode($this->taskToArray($task), JSON_PRETTY_PRINT));
     }
 
     public function findPending(): TypedCollection
@@ -78,7 +78,7 @@ class TaskStorage
         $date = date('Y-m-d');
         $completedDir = $this->completedPath . '/' . $date;
 
-        if (! is_dir($completedDir)) {
+        if (!is_dir($completedDir)) {
             mkdir($completedDir, 0755, true);
         }
 
@@ -95,7 +95,7 @@ class TaskStorage
     public function saveRecurring(RecurringTaskRecord $task): void
     {
         $filePath = $this->recurringPath . '/' . $task->signature . '.json';
-        file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
+        file_put_contents($filePath, json_encode($this->recurringTaskToArray($task), JSON_PRETTY_PRINT));
     }
 
     public function findRecurring(): TypedCollection
@@ -119,7 +119,7 @@ class TaskStorage
     {
         $filePath = $this->recurringPath . '/' . $signature . '.json';
 
-        if (! file_exists($filePath)) {
+        if (!file_exists($filePath)) {
             return null;
         }
 
@@ -211,7 +211,7 @@ class TaskStorage
 
     private function arrayToTask(array $data): TaskRecord
     {
-        $payloadCollection = new MixedPayloadCollection;
+        $payloadCollection = new MixedPayloadCollection();
         foreach ($data['payload']['payload'] as $item) {
             $payloadCollection->add($item);
         }
@@ -235,12 +235,13 @@ class TaskStorage
             attempts: $data['attempts'],
             maxAttempts: $data['max_attempts'],
             lastError: $data['last_error'] ?? null,
+            enforceExactSchedule: $data['enforce_exact_schedule'] ?? false,
         );
     }
 
     private function arrayToRecurringTask(array $data): RecurringTaskRecord
     {
-        $payloadCollection = new MixedPayloadCollection;
+        $payloadCollection = new MixedPayloadCollection();
         foreach ($data['payload']['payload'] as $item) {
             $payloadCollection->add($item);
         }
@@ -264,5 +265,49 @@ class TaskStorage
             failureCount: $data['failure_count'],
             lastError: $data['last_error'] ?? null,
         );
+    }
+
+    private function taskToArray(TaskRecord $task): array
+    {
+        return [
+            'id' => $task->id,
+            'signature' => $task->signature,
+            'class' => $task->class,
+            'payload' => [
+                'type' => $task->payload->type,
+                'payload' => $task->payload->payload->toArray(),
+            ],
+            'mode' => $task->mode->value,
+            'status' => $task->status->value,
+            'created_at' => $task->createdAt,
+            'start_at' => $task->startAt,
+            'end_at' => $task->endAt,
+            'delay_seconds' => $task->delaySeconds,
+            'attempts' => $task->attempts,
+            'max_attempts' => $task->maxAttempts,
+            'last_error' => $task->lastError,
+            'enforce_exact_schedule' => $task->enforceExactSchedule,
+        ];
+    }
+
+    private function recurringTaskToArray(RecurringTaskRecord $task): array
+    {
+        return [
+            'signature' => $task->signature,
+            'class' => $task->class,
+            'payload' => [
+                'type' => $task->payload->type,
+                'payload' => $task->payload->payload->toArray(),
+            ],
+            'mode' => $task->mode->value,
+            'start_at' => $task->startAt,
+            'end_at' => $task->endAt,
+            'delay_seconds' => $task->delaySeconds,
+            'last_run_at' => $task->lastRunAt,
+            'next_run_at' => $task->nextRunAt,
+            'success_count' => $task->successCount,
+            'failure_count' => $task->failureCount,
+            'last_error' => $task->lastError,
+        ];
     }
 }

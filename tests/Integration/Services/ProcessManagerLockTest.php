@@ -145,9 +145,10 @@ final class ProcessManagerLockTest extends IntegrationTestCase
         );
 
         // Simuler l'acquisition du lock par le premier manager
+        // Depuis PHP 8.1, setAccessible() n'est plus nécessaire
         $reflection = new \ReflectionClass($manager1);
         $acquireMethod = $reflection->getMethod('acquireLock');
-        $acquireMethod->setAccessible(true);
+        // ⚠️ La ligne setAccessible(true) a été supprimée
         $acquired = $acquireMethod->invoke($manager1);
 
         $this->assertTrue($acquired, 'Le premier manager doit prendre le lock');
@@ -156,13 +157,14 @@ final class ProcessManagerLockTest extends IntegrationTestCase
         // Le second manager doit échouer à prendre le lock
         $reflection2 = new \ReflectionClass($manager2);
         $acquireMethod2 = $reflection2->getMethod('acquireLock');
-        $acquireMethod2->setAccessible(true);
+        // ⚠️ La ligne setAccessible(true) a été supprimée
         $acquired2 = $acquireMethod2->invoke($manager2);
 
         $this->assertFalse($acquired2, 'Le second manager ne doit pas prendre le lock');
 
         // Nettoyer
         $releaseMethod = $reflection->getMethod('releaseLock');
+        // ⚠️ La ligne setAccessible(true) a été supprimée
         $releaseMethod->invoke($manager1);
 
         $this->assertFileDoesNotExist($testLockPath, 'Le lock doit être libéré');

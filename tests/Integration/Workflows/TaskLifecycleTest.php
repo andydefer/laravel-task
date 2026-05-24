@@ -189,6 +189,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
             delaySeconds: 0,
             attempts: 0,
             maxAttempts: 3,
+            enforceExactSchedule: true,  // ← Force l'exécution exacte, pas de grâce
         );
 
         $this->storage->savePending($task);

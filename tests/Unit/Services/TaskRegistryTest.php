@@ -12,6 +12,7 @@ use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Services\TaskRegistry;
 use AndyDefer\Task\Services\TaskStorage;
 use AndyDefer\Task\Services\TaskValidator;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\UnitTestCase;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -20,9 +21,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 final class TaskRegistryTest extends UnitTestCase
 {
     private TaskRegistry $registry;
-
     private TaskStorage&MockObject $storage;
-
     private TaskValidator&MockObject $validator;
 
     protected function setUp(): void
@@ -37,7 +36,7 @@ final class TaskRegistryTest extends UnitTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection,
+            payload: new MixedPayloadCollection(),
         );
 
         $this->validator->method('validateTaskClass')->willReturn(false);
@@ -48,6 +47,52 @@ final class TaskRegistryTest extends UnitTestCase
             taskClass: 'InvalidClass',
             mode: TaskMode::SYNC,
             payload: $payload,
+        );
+    }
+
+    public function test_register_unique_task_with_enforce_exact_schedule(): void
+    {
+        $payload = new TaskPayloadRecord(
+            type: 'test',
+            payload: new MixedPayloadCollection(),
+        );
+
+        $this->validator->method('validateTaskClass')->willReturn(true);
+
+        $this->storage->expects($this->once())
+            ->method('savePending')
+            ->with($this->callback(function ($task) {
+                return $task->enforceExactSchedule === true;
+            }));
+
+        $this->registry->register(
+            taskClass: TestTask::class,
+            mode: TaskMode::SYNC,
+            payload: $payload,
+            enforceExactSchedule: true,
+        );
+    }
+
+    public function test_register_unique_task_without_enforce_exact_schedule(): void
+    {
+        $payload = new TaskPayloadRecord(
+            type: 'test',
+            payload: new MixedPayloadCollection(),
+        );
+
+        $this->validator->method('validateTaskClass')->willReturn(true);
+
+        $this->storage->expects($this->once())
+            ->method('savePending')
+            ->with($this->callback(function ($task) {
+                return $task->enforceExactSchedule === false;
+            }));
+
+        $this->registry->register(
+            taskClass: TestTask::class,
+            mode: TaskMode::SYNC,
+            payload: $payload,
+            enforceExactSchedule: false,
         );
     }
 }

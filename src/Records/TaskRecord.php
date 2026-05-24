@@ -26,5 +26,6 @@ final class TaskRecord extends AbstractRecord
         public readonly int $attempts,
         public readonly int $maxAttempts,
         public readonly ?string $lastError = null,
+        public readonly bool $enforceExactSchedule = false,  // ← NOUVEAU
     ) {}
 }

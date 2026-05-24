@@ -6,9 +6,12 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
+use AndyDefer\Logger\Collections\MixedPayloadCollection;
 use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\AbstractTask;
 use AndyDefer\Task\Enums\TaskStatus;
+use AndyDefer\Task\Records\GracePeriodRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRecord;
 
@@ -25,6 +28,9 @@ class TaskRunner
         if (!$this->validator->canRunTask($task)) {
             return false;
         }
+
+        // 🔥 Log si la tâche est exécutée pendant la période de grâce
+        $this->logGracePeriodIfNeeded($task);
 
         $className = $task->class;
 
@@ -64,6 +70,57 @@ class TaskRunner
             $this->markRecurringFailed($task, $e->getMessage());
             return false;
         }
+    }
+
+    private function logGracePeriodIfNeeded(TaskRecord $task): void
+    {
+        if (!$this->validator->isUniqueTaskWithGracePeriod($task)) {
+            return;
+        }
+
+        $endAtTimestamp = $task->endAt ? strtotime($task->endAt) : time();
+        $now = time();
+
+        if ($now > $endAtTimestamp) {
+            $delay = $now - $endAtTimestamp;
+
+            $payload = new MixedPayloadCollection();
+            $payload->add(
+                'task_executed_during_grace_period',
+                $task->id,
+                $task->signature,
+                $delay,
+                'seconds_late'
+            );
+
+            $this->logger->warning(new LogDataRecord(
+                type: 'task',
+                payload: $payload,
+            ));
+
+            // Optionnel : créer un record pour tracer
+            $graceRecord = new GracePeriodRecord(
+                taskId: $task->id,
+                signature: $task->signature,
+                originalEndAt: $endAtTimestamp,
+                executedAt: $now,
+                delaySeconds: $delay,
+            );
+
+            // Stocker le record si besoin (dans un fichier dédié)
+            $this->storeGracePeriodRecord($graceRecord);
+        }
+    }
+
+    private function storeGracePeriodRecord(GracePeriodRecord $record): void
+    {
+        $gracePath = storage_path('tasks/grace_period');
+        if (!is_dir($gracePath)) {
+            mkdir($gracePath, 0755, true);
+        }
+
+        $fileName = $gracePath . '/' . $record->taskId . '.json';
+        file_put_contents($fileName, json_encode($record->toArray(), JSON_PRETTY_PRINT));
     }
 
     private function instantiateTask(string $className, TaskRecord $task): AbstractTask

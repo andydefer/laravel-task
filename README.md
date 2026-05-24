@@ -8,29 +8,6 @@
 
 ---
 
-## Table des matières
-
-- [Introduction](#introduction)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Concepts fondamentaux](#concepts-fondamentaux)
-- [Créer votre première tâche](#créer-votre-première-tâche)
-- [Le cycle de vie d'une tâche](#le-cycle-de-vie-dune-tâche)
-- [Types de tâches](#types-de-tâches)
-- [Le payload : passer des paramètres typés](#le-payload--passer-des-paramètres-typés)
-- [Enregistrer une tâche](#enregistrer-une-tâche)
-- [Exécuter les tâches (Poller)](#exécuter-les-tâches-poller)
-- [Traitement des erreurs et réessais](#traitement-des-erreurs-et-réessais)
-- [Logging structuré](#logging-structuré)
-- [Tests unitaires](#tests-unitaires)
-- [Architecture technique](#architecture-technique)
-- [API Reference](#api-reference)
-- [Bonnes pratiques](#bonnes-pratiques)
-- [FAQ](#faq)
-- [Licence](#licence)
-
----
-
 ## Introduction
 
 ### Le problème
@@ -97,8 +74,10 @@ return [
 
     // Configuration du poller
     'poller' => [
-        'default_duration' => 60,      // Durée par défaut (secondes)
-        'graceful_timeout' => 30,      // Attente max avant kill
+        'default_duration' => 60,           // Durée par défaut (secondes)
+        'graceful_timeout' => 30,           // Attente max avant kill
+        'use_sequential_mode' => env('TASKS_USE_SEQUENTIAL_MODE', true),
+        'lock_path' => env('TASKS_LOCK_PATH', null),
     ],
 ];
 ```
@@ -107,6 +86,8 @@ return [
 
 ```env
 TASKS_STORAGE_PATH=/custom/tasks/path
+TASKS_USE_SEQUENTIAL_MODE=true
+TASKS_LOCK_PATH=/tmp/custom-lock.lock
 ```
 
 ---
@@ -603,75 +584,154 @@ final class ReportController extends Controller
 # Simulation (dry-run) - ne rien exécuter
 ./vendor/bin/directive run-task --dry-run
 
+# Désactiver le fork (mode séquentiel)
+./vendor/bin/directive run-task --no-fork
+
+# Chemin personnalisé pour le fichier de lock
+./vendor/bin/directive run-task --lock-path=/tmp/my-custom-lock.lock
+
 # Avec alias
 ./vendor/bin/directive task-run --duration=60
 ```
 
-### Fonctionnement du poller
+### Options de la directive
+
+| Option | Description | Défaut |
+|--------|-------------|--------|
+| `--duration` | Durée d'exécution (secondes) | `60` |
+| `--dry-run` | Simulation (n'exécute rien) | `false` |
+| `--no-fork` | Désactive le fork (mode séquentiel) | `false` |
+| `--lock-path` | Chemin personnalisé pour le fichier de lock | `storage/tasks/poller.lock` |
+
+---
+
+## Verrouillage et concurrence
+
+### ⚠️ Un seul poller à la fois
+
+Le système utilise un **verrouillage par fichier** pour empêcher l'exécution concurrente de plusieurs pollers.
+
+```bash
+# Premier poller - prend le lock
+./vendor/bin/directive run-task --duration=60
+
+# Second poller - sera bloqué (le lock est déjà pris)
+./vendor/bin/directive run-task --duration=60
+```
+
+### Fonctionnement du lock
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                          POLLER CYCLE                               │
+│                         LOCK MECHANISM                              │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  ┌──────────────┐     ┌──────────────────┐     ┌───────────────┐  │
-│  │ DÉMARRAGE    │────▶│  SCAN DES TÂCHES │────▶│ FORK + EXEC   │  │
-│  │ (duration)   │     │  (pending/)      │     │ (child proc)  │  │
-│  └──────────────┘     └──────────────────┘     └───────────────┘  │
-│         │                       │                       │          │
-│         ▼                       ▼                       ▼          │
-│  ┌──────────────┐     ┌──────────────────┐     ┌───────────────┐  │
-│  │ TIME LIMIT ? │     │  SCAN RÉCURRENTES│     │ WAIT & CLEAN  │  │
-│  │ (duration)   │     │  (recurring/)    │     │ (child proc)  │  │
-│  └──────────────┘     └──────────────────┘     └───────────────┘  │
-│         │                                                          │
-│         ▼                                                          │
-│  ┌──────────────┐                                                  │
-│  │ FIN (exit)   │                                                  │
-│  └──────────────┘                                                  │
+│  Poller 1                      Poller 2                            │
+│     │                              │                               │
+│     ▼                              ▼                               │
+│  ┌─────────┐                   ┌─────────┐                        │
+│  │ acquire │───┐               │ acquire │───┐                    │
+│  │ lock    │   │               │ lock    │   │                    │
+│  └─────────┘   │               └─────────┘   │                    │
+│       │        │                    │        │                    │
+│       ▼        │                    ▼        │                    │
+│  ┌─────────┐   │               ┌─────────┐   │                    │
+│  │ LOCK    │   │               │ LOCK    │   │                    │
+│  │ ACQUIRED│   │               │ BUSY    │◄──┘                    │
+│  └─────────┘   │               └─────────┘                        │
+│       │        │                    │                             │
+│       ▼        │                    ▼                             │
+│  ┌─────────┐   │               ┌─────────┐                        │
+│  │ execute │   │               │  exit   │                        │
+│  │ tasks   │   │               │ (skip)  │                        │
+│  └─────────┘   │               └─────────┘                        │
+│       │        │                                                  │
+│       ▼        │                                                  │
+│  ┌─────────┐   │                                                  │
+│  │ release │───┘                                                  │
+│  │ lock    │                                                      │
+│  └─────────┘                                                      │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
-### Gestion du timeout
+### Logs de verrouillage
+
+```json
+{"time":"2026-05-24T10:00:00Z","level":"info","data":{"type":"poller","payload":["lock_acquired"]}}
+{"time":"2026-05-24T10:00:01Z","level":"info","data":{"type":"poller","payload":["lock_busy","Another poller is already running"]}}
+{"time":"2026-05-24T10:00:30Z","level":"info","data":{"type":"poller","payload":["lock_released"]}}
+```
+
+### Bonnes pratiques pour la production
+
+```bash
+# Avec Supervisor (recommandé)
+command=/usr/bin/php /var/www/html/vendor/bin/directive run-task --duration=60
+
+# Avec cron (alternative)
+* * * * * cd /var/www/html && php vendor/bin/directive run-task --duration=55
+
+# Avec lock personnalisé
+./vendor/bin/directive run-task --lock-path=/tmp/my-app.lock --duration=60
+```
+
+---
+
+## Mode séquentiel (sans fork)
+
+### Pourquoi ?
+
+En hébergement mutualisé, la fonction `pcntl_fork()` est souvent désactivée pour des raisons de sécurité.
+
+### Activation automatique
+
+Le système détecte automatiquement si `pcntl_fork()` est disponible :
 
 ```php
-// Dans ProcessManager
-private function canStartNewTask(): bool
-{
-    if ($this->shuttingDown) {
-        return false;
-    }
-    
-    return (time() - $this->startTime) < $this->maxDuration;
+$useSequentialMode = $noFork || !function_exists('pcntl_fork');
+
+if ($useSequentialMode && !$noFork) {
+    $this->warn('pcntl_fork not available, falling back to sequential mode');
 }
 ```
 
-- Ne démarre PAS de nouvelle tâche si le temps est écoulé
-- Attend que les tâches en cours se terminent (timeout 30s)
-- Force l'arrêt (SIGKILL) après le délai de grâce
+### Utilisation manuelle
 
-### Installation en production
-
-Pour une exécution continue, utilisez **Supervisor** :
-
-```ini
-; /etc/supervisor/conf.d/laravel-task.conf
-[program:laravel-task]
-command=/usr/bin/php /var/www/html/vendor/bin/directive run-task --duration=60
-process_name=%(program_name)s_%(process_num)02d
-numprocs=1
-autostart=true
-autorestart=true
-user=www-data
-redirect_stderr=true
-stdout_logfile=/var/www/html/storage/logs/task-poller.log
+```bash
+# Forcer le mode séquentiel
+./vendor/bin/directive run-task --no-fork --duration=60
 ```
 
-Ou avec **cron** (exécution toutes les minutes) :
+### Configuration permanente
 
-```cron
-* * * * * cd /var/www/html && php vendor/bin/directive run-task --duration=55
+```env
+# .env
+TASKS_USE_SEQUENTIAL_MODE=true
+```
+
+```php
+// config/task.php
+'poller' => [
+    'use_sequential_mode' => env('TASKS_USE_SEQUENTIAL_MODE', true),
+],
+```
+
+### Comparaison des modes
+
+| Mode | Avantages | Inconvénients |
+|------|-----------|---------------|
+| **Fork** | Parallélisme, performances | Nécessite `pcntl_fork()`, plus complexe |
+| **Séquentiel** | Fonctionne partout, simple | Une tâche à la fois |
+
+### Exemple en hébergement mutualisé
+
+```bash
+# Configuration typique pour OVH, 1&1, Hostinger, etc.
+./vendor/bin/directive run-task --no-fork --duration=55
+
+# Ou via cron
+* * * * * cd /var/www/html && php vendor/bin/directive run-task --no-fork --duration=55
 ```
 
 ---
@@ -758,6 +818,9 @@ Le package logue automatiquement :
 - `task_completed` - Exécution réussie
 - `task_failed` - Exécution échouée
 - `task_output` - Messages `info()` et `error()`
+- `lock_acquired` - Verrouillage pris
+- `lock_released` - Verrouillage libéré
+- `lock_busy` - Verrouillage déjà pris
 
 ### Format des logs (JSONL)
 
@@ -773,7 +836,9 @@ Le package logue automatiquement :
 
 ```json
 {"time":"2026-05-24T10:00:00Z","level":"info","data":{"type":"poller","payload":["poller_started",60,false]}}
+{"time":"2026-05-24T10:00:01Z","level":"info","data":{"type":"poller","payload":["lock_acquired"]}}
 {"time":"2026-05-24T10:00:05Z","level":"info","data":{"type":"poller","payload":["waiting_for_tasks",1]}}
+{"time":"2026-05-24T10:00:30Z","level":"info","data":{"type":"poller","payload":["lock_released"]}}
 {"time":"2026-05-24T10:00:30Z","level":"info","data":{"type":"poller","payload":["poller_finished",30]}}
 ```
 
@@ -803,6 +868,9 @@ grep "task_failed" storage/logs/structured/2026-05-24/*.jsonl
 
 # Afficher les logs du poller
 grep "poller" storage/logs/structured/2026-05-24/*.jsonl
+
+# Afficher les logs de verrouillage
+grep "lock_" storage/logs/structured/2026-05-24/*.jsonl
 ```
 
 ---
@@ -902,6 +970,24 @@ public function test_register_creates_task(): void
 }
 ```
 
+### Tester le verrouillage
+
+```php
+public function test_lock_prevents_concurrent_execution(): void
+{
+    $manager1 = new ProcessManager(...);
+    $manager2 = new ProcessManager(...);
+    
+    // Premier manager prend le lock
+    $manager1->run(1, false);
+    
+    // Second manager ne peut pas prendre le lock
+    $manager2->run(1, false);
+    
+    $this->assertFileExists($lockPath);
+}
+```
+
 ---
 
 ## Architecture technique
@@ -919,7 +1005,8 @@ public function test_register_creates_task(): void
 │  │   storage/tasks/                                                     │   │
 │  │   ├── pending/      ← TaskStorage                                    │   │
 │  │   ├── recurring/    ← TaskStorage                                    │   │
-│  │   └── completed/    ← TaskStorage                                    │   │
+│  │   ├── completed/    ← TaskStorage                                    │   │
+│  │   └── poller.lock   ← Lock file                                      │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                    │                                       │
 │                                    ▼                                       │
@@ -938,10 +1025,10 @@ public function test_register_creates_task(): void
 │  │                                                                      │   │
 │  │  ┌─────────────────────────────────────────────────────────────┐    │   │
 │  │  │                    ProcessManager                            │    │   │
-│  │  │  - Fork() pour chaque tâche                                  │    │   │
+│  │  │  - Lock acquisition/release                                  │    │   │
+│  │  │  - Fork() ou mode séquentiel                                 │    │   │
 │  │  │  - Gestion des timeouts                                      │    │   │
 │  │  │  - Gestion des signaux (SIGTERM, SIGINT)                     │    │   │
-│  │  │  - Attente des processus enfants                             │    │   │
 │  │  └─────────────────────────────────────────────────────────────┘    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                    │                                       │
@@ -970,6 +1057,7 @@ public function test_register_creates_task(): void
 │  │  ┌─────────────────────────────────────────────────────────────┐    │   │
 │  │  │                 RunTaskDirective                             │    │   │
 │  │  │  - Signature: run-task {--duration} {--dry-run}              │    │   │
+│  │  │  - Options: --no-fork, --lock-path                           │    │   │
 │  │  │  - Alias: task-run, tasks:run                                │    │   │
 │  │  └─────────────────────────────────────────────────────────────┘    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
@@ -986,7 +1074,7 @@ public function test_register_creates_task(): void
 | `TaskRunner` | Exécution des tâches et gestion des tentatives |
 | `TaskValidator` | Validation des tâches (dates, statuts, classes) |
 | `TaskRegistry` | Enregistrement des nouvelles tâches |
-| `ProcessManager` | Gestion du polling (fork, signaux, timeouts) |
+| `ProcessManager` | Gestion du polling (lock, fork, signaux, timeouts) |
 | `RunTaskDirective` | Directive CLI pour l'exécution |
 | `TaskCollection` | Collection typée pour les tâches |
 | `ProcessInfoCollection` | Collection pour les processus enfants |
@@ -1052,6 +1140,8 @@ public function test_register_creates_task(): void
 |--------|-------------|--------|
 | `--duration` | Durée d'exécution (secondes) | `60` |
 | `--dry-run` | Simulation (n'exécute rien) | `false` |
+| `--no-fork` | Désactive le fork (mode séquentiel) | `false` |
+| `--lock-path` | Chemin personnalisé pour le fichier de lock | `storage/tasks/poller.lock` |
 
 ---
 
@@ -1187,6 +1277,16 @@ protected function process(): void
 }
 ```
 
+### 9. Utiliser un lock personnalisé en production
+
+```bash
+# Éviter les conflits avec d'autres applications
+./vendor/bin/directive run-task --lock-path=/var/lock/my-app.lock
+
+# Ou via configuration
+TASKS_LOCK_PATH=/var/lock/my-app.lock
+```
+
 ---
 
 ## FAQ
@@ -1233,7 +1333,15 @@ command=/usr/bin/php vendor/bin/directive run-task --duration=60
 
 ### Q: Peut-on avoir plusieurs pollers en parallèle ?
 
-**R:** Oui, mais cela peut créer des conflits. Il est recommandé d'avoir **un seul poller** par projet, géré par Supervisor.
+**R:** Non, le système utilise un verrouillage par fichier pour empêcher l'exécution concurrente. Un seul poller peut s'exécuter à la fois.
+
+### Q: Que faire si `pcntl_fork()` n'est pas disponible ?
+
+**R:** Utilisez le mode séquentiel avec `--no-fork` :
+
+```bash
+./vendor/bin/directive run-task --no-fork --duration=60
+```
 
 ### Q: Comment visualiser les tâches en attente ?
 
@@ -1250,6 +1358,14 @@ ls -la storage/tasks/pending/
 ### Q: Comment forcer l'exécution d'une tâche immédiatement ?
 
 **R:** Copiez la tâche dans `pending/` avec la date `start_at` dans le passé et exécutez le poller.
+
+### Q: Où sont stockés les logs de verrouillage ?
+
+**R:** Les logs sont dans les fichiers JSONL du logger, filtrés par `type: 'poller'`.
+
+### Q: Le lock est-il supprimé après exécution ?
+
+**R:** Oui, le fichier de lock est automatiquement supprimé après chaque exécution, même en cas d'erreur.
 
 ---
 

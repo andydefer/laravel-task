@@ -29,6 +29,9 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         parent::setUp();
 
+        // Désactiver la période de grâce pour ces tests
+        config()->set('task.grace_period.enabled', false);
+
         $this->storage = $this->app->make(TaskStorage::class);
         $logger = $this->app->make(Logger::class);
         $validator = $this->app->make(TaskValidator::class);
@@ -37,6 +40,8 @@ final class TaskRunnerTest extends IntegrationTestCase
 
     protected function tearDown(): void
     {
+        // Réactiver la période de grâce
+        config()->set('task.grace_period.enabled', true);
         parent::tearDown();
     }
 

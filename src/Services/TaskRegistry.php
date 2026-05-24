@@ -27,12 +27,13 @@ class TaskRegistry
         ?string $startAt = null,
         ?string $endAt = null,
         ?int $delaySeconds = null,
+        bool $enforceExactSchedule = false,
     ): string {
-        if (! $this->validator->validateTaskClass($taskClass)) {
+        if (!$this->validator->validateTaskClass($taskClass)) {
             throw new \InvalidArgumentException('Task must extend AbstractTask');
         }
 
-        $tempInstance = new $taskClass;
+        $tempInstance = new $taskClass();
         $config = $tempInstance->getConfig();
 
         $now = date('c');
@@ -44,7 +45,7 @@ class TaskRegistry
             return $this->registerRecurringTask($taskClass, $mode, $payload, $config, $startAt, $endAt, $delaySeconds);
         }
 
-        return $this->registerUniqueTask($taskClass, $mode, $payload, $config, $startAt, $endAt, $delaySeconds);
+        return $this->registerUniqueTask($taskClass, $mode, $payload, $config, $startAt, $endAt, $delaySeconds, $enforceExactSchedule);
     }
 
     private function isRecurring(?string $endAt, int $delaySeconds): bool
@@ -97,6 +98,7 @@ class TaskRegistry
         string $startAt,
         ?string $endAt,
         int $delaySeconds,
+        bool $enforceExactSchedule = false,
     ): string {
         $id = Uuid::uuid4()->toString();
 
@@ -113,6 +115,7 @@ class TaskRegistry
             delaySeconds: $delaySeconds,
             attempts: 0,
             maxAttempts: $config->maxAttempts,
+            enforceExactSchedule: $enforceExactSchedule,
         );
 
         $this->storage->savePending($task);
