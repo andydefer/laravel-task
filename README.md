@@ -79,6 +79,12 @@ return [
         'use_sequential_mode' => env('TASKS_USE_SEQUENTIAL_MODE', true),
         'lock_path' => env('TASKS_LOCK_PATH', null),
     ],
+
+    // Période de grâce
+    'grace_period' => [
+        'enabled' => env('TASKS_GRACE_PERIOD_ENABLED', true),
+        'seconds' => env('TASKS_GRACE_PERIOD_SECONDS', 86400), // 24 heures
+    ],
 ];
 ```
 
@@ -88,6 +94,8 @@ return [
 TASKS_STORAGE_PATH=/custom/tasks/path
 TASKS_USE_SEQUENTIAL_MODE=true
 TASKS_LOCK_PATH=/tmp/custom-lock.lock
+TASKS_GRACE_PERIOD_ENABLED=true
+TASKS_GRACE_PERIOD_SECONDS=86400
 ```
 
 ---
@@ -102,9 +110,11 @@ storage/tasks/
 │   └── {uuid}.json
 ├── recurring/        # Tâches récurrentes (une par signature)
 │   └── clear-unconfirmed-orders.json
-└── completed/        # Archive par date
-    └── 2026-05-24/
-        └── {uuid}.json
+├── completed/        # Archive par date
+│   └── 2026-05-24/
+│       └── {uuid}.json
+└── grace_period/     # Traces des exécutions tardives
+    └── {uuid}.json
 ```
 
 | Dossier | Contenu | Cycle de vie |
@@ -112,6 +122,7 @@ storage/tasks/
 | **pending/** | Tâches uniques | Création → Exécution → Archivage |
 | **recurring/** | Tâches récurrentes | Création → Exécution → Mise à jour |
 | **completed/** | Archive historique | Conservation pour audit |
+| **grace_period/** | Traces exécutions tardives | Audit des périodes de grâce |
 
 ### Structure d'une tâche
 
@@ -132,7 +143,8 @@ storage/tasks/
     "delay_seconds": 300,
     "attempts": 0,
     "max_attempts": 3,
-    "last_error": null
+    "last_error": null,
+    "enforce_exact_schedule": false
 }
 ```
 
@@ -152,6 +164,7 @@ storage/tasks/
 | `attempts` | Nombre de tentatives effectuées |
 | `max_attempts` | Nombre max de tentatives |
 | `last_error` | Dernière erreur rencontrée |
+| `enforce_exact_schedule` | `true` = exécution stricte (pas de période de grâce) |
 
 ---
 
@@ -210,6 +223,7 @@ namespace App\Console\Commands;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Services\TaskRegistry;
+use AndyDefer\Logger\Collections\MixedPayloadCollection;
 use App\Tasks\ClearUnconfirmedOrdersTask;
 
 class ScheduleTaskCommand extends Command
@@ -382,6 +396,105 @@ final class PromoTask extends AbstractTask
 
 ---
 
+## Période de grâce (Grace Period)
+
+### Qu'est-ce que c'est ?
+
+La période de grâce permet d'exécuter une tâche unique même si elle a dépassé sa date de fin (`endAt`), dans une limite configurable (par défaut 24 heures).
+
+### Pourquoi ?
+
+Dans certains cas, une tâche peut ne pas s'exécuter exactement à l'heure prévue :
+- Le poller était arrêté
+- Le serveur était en maintenance
+- La charge système a retardé l'exécution
+
+Sans période de grâce, ces tâches seraient définitivement perdues.
+
+### Comportement par défaut
+
+| Type de tâche | Période de grâce |
+|---------------|------------------|
+| Unique (`delaySeconds = 0`) | ✅ Activée (24h) |
+| Récurrente (`delaySeconds > 0`) | ❌ Désactivée |
+| Avec `enforceExactSchedule = true` | ❌ Désactivée |
+
+### Configuration
+
+```php
+// config/task.php
+'grace_period' => [
+    'enabled' => env('TASKS_GRACE_PERIOD_ENABLED', true),
+    'seconds' => env('TASKS_GRACE_PERIOD_SECONDS', 86400), // 24h
+],
+```
+
+### Exemple d'utilisation
+
+```php
+// Tâche unique avec période de grâce (par défaut)
+final class SendReportTask extends AbstractTask
+{
+    public function getConfig(): TaskConfigRecord
+    {
+        return new TaskConfigRecord(
+            signature: 'send-daily-report',
+            description: 'Send daily report email',
+            delaySeconds: 0,  // Unique
+            endAt: date('c', strtotime('2026-05-24 23:59:59')),
+        );
+    }
+}
+
+// Tâche qui exige une exécution stricte (pas de grâce)
+$registry->register(
+    taskClass: CriticalTask::class,
+    mode: TaskMode::DEFER,
+    payload: $payload,
+    enforceExactSchedule: true,  // ← Désactive la période de grâce
+);
+```
+
+### Logs de période de grâce
+
+```json
+{
+    "time": "2026-05-25T00:05:00Z",
+    "level": "warning",
+    "data": {
+        "type": "task",
+        "payload": [
+            "task_executed_during_grace_period",
+            "550e8400-e29b-41d4-a716-446655440000",
+            "send-daily-report",
+            300,
+            "seconds_late"
+        ]
+    }
+}
+```
+
+### Fichiers de traçage
+
+Les exécutions pendant la période de grâce sont également enregistrées dans :
+
+```
+storage/tasks/grace_period/
+└── 550e8400-e29b-41d4-a716-446655440000.json
+```
+
+```json
+{
+    "taskId": "550e8400-e29b-41d4-a716-446655440000",
+    "signature": "send-daily-report",
+    "originalEndAt": 1745510399,
+    "executedAt": 1745510700,
+    "delaySeconds": 301
+}
+```
+
+---
+
 ## Le payload : passer des paramètres typés
 
 ### Qu'est-ce qu'un payload ?
@@ -485,6 +598,7 @@ class TaskScheduler
             startAt: now()->toIso8601ZuluString(),
             endAt: null,
             delaySeconds: 300,
+            enforceExactSchedule: false,  // Optionnel, défaut = false
         );
         
         echo "Task registered with ID: {$taskId}\n";
@@ -507,11 +621,12 @@ use App\Tasks\ClearUnconfirmedOrdersTask;
 
 final class RegisterTaskCommand extends Command
 {
-    protected $signature = 'task:register {--minutes=30}';
+    protected $signature = 'task:register {--minutes=30} {--exact : Enforce exact schedule (no grace period)}';
     
     public function handle(TaskRegistry $registry): void
     {
         $minutes = (int) $this->option('minutes');
+        $exact = $this->option('exact');
         
         $payload = new TaskPayloadRecord(
             type: 'clear_orders',
@@ -522,9 +637,10 @@ final class RegisterTaskCommand extends Command
             taskClass: ClearUnconfirmedOrdersTask::class,
             mode: TaskMode::DEFER,
             payload: $payload,
+            enforceExactSchedule: $exact,
         );
         
-        $this->info("Task registered!");
+        $this->info("Task registered with exact schedule: " . ($exact ? 'yes' : 'no'));
     }
 }
 ```
@@ -558,6 +674,7 @@ final class ReportController extends Controller
             taskClass: GenerateReportTask::class,
             mode: TaskMode::DEFER,
             payload: $payload,
+            enforceExactSchedule: $request->boolean('exact_schedule', false),
         );
         
         return response()->json([
@@ -821,6 +938,7 @@ Le package logue automatiquement :
 - `lock_acquired` - Verrouillage pris
 - `lock_released` - Verrouillage libéré
 - `lock_busy` - Verrouillage déjà pris
+- `task_executed_during_grace_period` - Exécution pendant période de grâce
 
 ### Format des logs (JSONL)
 
@@ -871,6 +989,9 @@ grep "poller" storage/logs/structured/2026-05-24/*.jsonl
 
 # Afficher les logs de verrouillage
 grep "lock_" storage/logs/structured/2026-05-24/*.jsonl
+
+# Afficher les exécutions pendant période de grâce
+grep "grace_period" storage/logs/structured/2026-05-24/*.jsonl
 ```
 
 ---
@@ -963,6 +1084,7 @@ public function test_register_creates_task(): void
         taskClass: TestTask::class,
         mode: TaskMode::DEFER,
         payload: $payload,
+        enforceExactSchedule: true,
     );
     
     $this->assertIsString($taskId);
@@ -1006,6 +1128,7 @@ public function test_lock_prevents_concurrent_execution(): void
 │  │   ├── pending/      ← TaskStorage                                    │   │
 │  │   ├── recurring/    ← TaskStorage                                    │   │
 │  │   ├── completed/    ← TaskStorage                                    │   │
+│  │   ├── grace_period/ ← TaskStorage                                    │   │
 │  │   └── poller.lock   ← Lock file                                      │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                    │                                       │
@@ -1070,9 +1193,9 @@ public function test_lock_prevents_concurrent_execution(): void
 | Composant | Rôle |
 |-----------|------|
 | `AbstractTask` | Classe de base avec template method et hooks |
-| `TaskStorage` | Stockage JSONL (pending/, recurring/, completed/) |
+| `TaskStorage` | Stockage JSONL (pending/, recurring/, completed/, grace_period/) |
 | `TaskRunner` | Exécution des tâches et gestion des tentatives |
-| `TaskValidator` | Validation des tâches (dates, statuts, classes) |
+| `TaskValidator` | Validation des tâches (dates, statuts, classes, période de grâce) |
 | `TaskRegistry` | Enregistrement des nouvelles tâches |
 | `ProcessManager` | Gestion du polling (lock, fork, signaux, timeouts) |
 | `RunTaskDirective` | Directive CLI pour l'exécution |
@@ -1131,7 +1254,7 @@ public function test_lock_prevents_concurrent_execution(): void
 
 | Méthode | Description |
 |---------|-------------|
-| `register(string $taskClass, TaskMode $mode, TaskPayloadRecord $payload, ?string $startAt, ?string $endAt, ?int $delaySeconds): string` | Enregistre une nouvelle tâche, retourne l'ID/signature |
+| `register(string $taskClass, TaskMode $mode, TaskPayloadRecord $payload, ?string $startAt, ?string $endAt, ?int $delaySeconds, bool $enforceExactSchedule): string` | Enregistre une nouvelle tâche, retourne l'ID/signature |
 | `unregisterRecurring(string $signature): void` | Supprime une tâche récurrente |
 
 ### RunTaskDirective (CLI)
@@ -1287,6 +1410,18 @@ protected function process(): void
 TASKS_LOCK_PATH=/var/lock/my-app.lock
 ```
 
+### 10. Utiliser `enforceExactSchedule` pour les tâches critiques
+
+```php
+// Pour les tâches qui doivent s'exécuter exactement à l'heure
+$registry->register(
+    taskClass: CriticalTask::class,
+    mode: TaskMode::DEFER,
+    payload: $payload,
+    enforceExactSchedule: true,  // Désactive la période de grâce
+);
+```
+
 ---
 
 ## FAQ
@@ -1366,6 +1501,31 @@ ls -la storage/tasks/pending/
 ### Q: Le lock est-il supprimé après exécution ?
 
 **R:** Oui, le fichier de lock est automatiquement supprimé après chaque exécution, même en cas d'erreur.
+
+### Q: Une tâche unique expirée peut-elle encore s'exécuter ?
+
+**R:** Oui, grâce à la période de grâce (24h par défaut). Une tâche unique peut s'exécuter jusqu'à 24h après sa date `end_at`. Pour désactiver ce comportement, utilisez `enforceExactSchedule = true`.
+
+### Q: Comment désactiver la période de grâce pour une tâche spécifique ?
+
+**R:** Passez `enforceExactSchedule: true` lors de l'enregistrement :
+
+```php
+$registry->register(
+    taskClass: MyTask::class,
+    mode: TaskMode::DEFER,
+    payload: $payload,
+    enforceExactSchedule: true,
+);
+```
+
+### Q: Comment configurer la durée de la période de grâce ?
+
+**R:** Modifiez la configuration ou la variable d'environnement :
+
+```env
+TASKS_GRACE_PERIOD_SECONDS=43200  # 12 heures
+```
 
 ---
 
