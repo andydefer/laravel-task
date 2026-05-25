@@ -9,6 +9,7 @@ namespace AndyDefer\Task;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\Directive\Services\LaravelBootstrapper;
 use AndyDefer\Logger\Logger;
+use AndyDefer\Task\Directives\MakeTaskDirective;
 use AndyDefer\Task\Directives\RunTaskDirective;
 use AndyDefer\Task\Services\TaskRegistry;
 use AndyDefer\Task\Services\TaskRunner;
@@ -54,6 +55,13 @@ final class TaskServiceProvider extends ServiceProvider
                 runner: $app->make(TaskRunner::class),
                 validator: $app->make(TaskValidator::class),
                 logger: $app->make(Logger::class),
+                laravelBootstrapper: $app->make(LaravelBootstrapper::class),
+            );
+        });
+
+        $this->app->singleton(MakeTaskDirective::class, function (Application $app) {
+            return new MakeTaskDirective(
+                interaction: $app->make(DirectiveInteractionService::class),
                 laravelBootstrapper: $app->make(LaravelBootstrapper::class),
             );
         });

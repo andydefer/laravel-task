@@ -1,13 +1,14 @@
 # Pint Formatting Test Report
-*Generated: lun. 25 mai 2026 06:50:10 WAT*
+*Generated: lun. 25 mai 2026 06:56:53 WAT*
 
 
-  ⨯.......⨯.⨯.⨯⨯⨯⨯⨯⨯......⨯⨯⨯⨯⨯⨯⨯.⨯⨯⨯⨯⨯.⨯⨯.⨯⨯....⨯⨯⨯
+  ⨯.......⨯.⨯⨯.⨯⨯⨯⨯⨯⨯......⨯⨯⨯⨯⨯⨯⨯⨯.⨯⨯⨯⨯⨯.⨯⨯.⨯⨯....⨯⨯⨯
 
   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── Laravel  
-    FAIL   ................................................................................................................................................. 50 files, 28 style issues  
+    FAIL   ................................................................................................................................................. 52 files, 30 style issues  
   ⨯ src/AbstractTask.php                                       class_attributes_separation, new_with_parentheses, braces_position, single_line_empty_body, blank_line_before_statement  
   ⨯ src/Collections/TaskCollection.php                                                                              new_with_parentheses, blank_line_before_statement, ordered_imports  
+  ⨯ src/Directives/MakeTaskDirective.php                                           concat_space, unary_operator_spaces, not_operator_with_successor_space, blank_line_before_statement  
   ⨯ src/Directives/RunTaskDirective.php                                                           new_with_parentheses, not_operator_with_successor_space, blank_line_before_statement  
   ⨯ src/Services/ProcessManager.php                    class_attributes_separation, new_with_parentheses, concat_space, not_operator_with_successor_space, blank_line_before_statement  
   ⨯ src/Services/TaskRegistry.php                                       new_with_parentheses, concat_space, braces_position, not_operator_with_successor_space, single_line_empty_body  
@@ -17,6 +18,7 @@
   ⨯ src/TaskServiceProvider.php                                                                                        new_with_parentheses, concat_space, blank_line_before_statement  
   ⨯ tests/Fixtures/Tasks/FailingTask.php                                                                                                                   class_attributes_separation  
   ⨯ tests/Fixtures/Tasks/TestTask.php                                                                                                                      class_attributes_separation  
+  ⨯ tests/Integration/Directives/MakeTaskDirectiveIntegrationTest.php                                                                        class_attributes_separation, concat_space  
   ⨯ tests/Integration/Directives/RunTaskDirectiveIntegrationTest.php                                                                                              new_with_parentheses  
   ⨯ tests/Integration/Services/ProcessManagerLockTest.php                                 class_attributes_separation, new_with_parentheses, concat_space, blank_line_before_statement  
   ⨯ tests/Integration/Services/ProcessManagerSequentialTest.php                                                                      class_attributes_separation, new_with_parentheses  
