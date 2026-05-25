@@ -1,5 +1,5 @@
 # Pint Formatting Test Report
-*Generated: lun. 25 mai 2026 06:37:25 WAT*
+*Generated: lun. 25 mai 2026 06:50:10 WAT*
 
 
   ⨯.......⨯.⨯.⨯⨯⨯⨯⨯⨯......⨯⨯⨯⨯⨯⨯⨯.⨯⨯⨯⨯⨯.⨯⨯.⨯⨯....⨯⨯⨯
@@ -12,7 +12,7 @@
   ⨯ src/Services/ProcessManager.php                    class_attributes_separation, new_with_parentheses, concat_space, not_operator_with_successor_space, blank_line_before_statement  
   ⨯ src/Services/TaskRegistry.php                                       new_with_parentheses, concat_space, braces_position, not_operator_with_successor_space, single_line_empty_body  
   ⨯ src/Services/TaskRunner.php            new_with_parentheses, concat_space, braces_position, not_operator_with_successor_space, single_line_empty_body, blank_line_before_statement  
-  ⨯ src/Services/TaskStorage.php                                                                                 new_with_parentheses, concat_space, not_operator_with_successor_space  
+  ⨯ src/Services/TaskStorage.php                                                    class_attributes_separation, new_with_parentheses, concat_space, not_operator_with_successor_space  
   ⨯ src/Services/TaskValidator.php                                                                                             new_with_parentheses, not_operator_with_successor_space  
   ⨯ src/TaskServiceProvider.php                                                                                        new_with_parentheses, concat_space, blank_line_before_statement  
   ⨯ tests/Fixtures/Tasks/FailingTask.php                                                                                                                   class_attributes_separation  

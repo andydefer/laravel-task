@@ -17,13 +17,16 @@ use AndyDefer\Task\Records\TaskRecord;
 class TaskStorage
 {
     private string $pendingPath;
-
     private string $recurringPath;
-
     private string $completedPath;
 
-    public function __construct(string $storagePath)
+    public function __construct(?string $storagePath = null)
     {
+        // Si aucun chemin n'est fourni, utiliser la configuration
+        if ($storagePath === null) {
+            $storagePath = config('task.storage_path', storage_path('tasks'));
+        }
+
         $this->pendingPath = $storagePath . '/pending';
         $this->recurringPath = $storagePath . '/recurring';
         $this->completedPath = $storagePath . '/completed';
