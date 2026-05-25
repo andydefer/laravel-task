@@ -7,37 +7,29 @@ namespace AndyDefer\Task\Directives;
 use AndyDefer\Directive\AbstractDirective;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
-use AndyDefer\Directive\Services\LaravelBootstrapper;
 use AndyDefer\Records\Collections\Utility\StringTypedCollection;
-use Illuminate\Filesystem\Filesystem;
 
 final class MakeTaskDirective extends AbstractDirective
 {
-    private Filesystem $files;
+    private const TASKS_PATH = '/app/Tasks/';
+    private string $stubPath;
 
     public function __construct(
         DirectiveInteractionService $interaction,
-        ?LaravelBootstrapper $laravelBootstrapper = null,
+        ?string $stubPath = null,
     ) {
-        parent::__construct($interaction, $laravelBootstrapper);
-        $this->files = new Filesystem;
+        parent::__construct($interaction);
+        $this->stubPath = $stubPath ?? __DIR__ . '/../../stubs/task.stub';
     }
 
     public function getSignature(): string
     {
-        return 'make-task {name : The name of the task (e.g., Users/SendWelcomeEmailTask)} 
-                       {--force : Overwrite existing files}
-                       {--signature= : Custom task signature (defaults to kebab-case name)}
-                       {--description= : Task description}
-                       {--delay=300 : Delay in seconds between retries}
-                       {--max-attempts=3 : Maximum number of attempts}
-                       {--start-at= : Start date (Y-m-d H:i:s)}
-                       {--end-at= : End date (Y-m-d H:i:s)}';
+        return 'make-task {name}';
     }
 
     public function getDescription(): string
     {
-        return 'Create a new Task class extending AbstractTask';
+        return 'Create a new Task class';
     }
 
     public function getAliases(): StringTypedCollection
@@ -45,7 +37,6 @@ final class MakeTaskDirective extends AbstractDirective
         $aliases = new StringTypedCollection;
         $aliases->add('task-make');
         $aliases->add('create-task');
-
         return $aliases;
     }
 
@@ -57,134 +48,76 @@ final class MakeTaskDirective extends AbstractDirective
     public function execute(): ExitCode
     {
         $name = $this->argument('name');
-        $force = $this->hasOption('force');
 
         if ($name === null) {
-            $this->error('Task name is required.');
+            $this->error('Task name is required');
+            $this->line('Usage: directive make-task <name>');
+            $this->line('Example: directive make-task send-welcome-email');
+            return ExitCode::INVALID_ARGUMENT;
+        }
 
+        $className = $this->generateClassName($name);
+
+        if (!$this->createTaskFile($className, $name)) {
             return ExitCode::FAILURE;
         }
 
-        $this->info("Creating task: {$name}");
-
-        if (! $this->createTask($name, $force)) {
-            return ExitCode::FAILURE;
-        }
-
-        $this->info("Task '{$name}' created successfully!");
+        $this->info('✅ Task created successfully!');
+        $this->line("   Class: {$className}");
+        $this->line("   Path: " . getcwd() . self::TASKS_PATH . $className . '.php');
+        $this->line("   Signature: {$name}");
 
         return ExitCode::SUCCESS;
     }
 
-    private function createTask(string $name, bool $force): bool
+    private function generateClassName(string $signature): string
     {
-        $path = $this->getTaskPath($name);
-        $namespace = $this->getTaskNamespace($name);
-        $className = $this->getClassName($name);
-        $signature = $this->option('signature') ?? $this->generateSignature($className);
-        $description = $this->option('description') ?? "Description for {$className}";
-        $delay = (int) ($this->option('delay') ?? 300);
-        $maxAttempts = (int) ($this->option('max-attempts') ?? 3);
-        $startAt = $this->option('start-at') ?? 'null';
-        $endAt = $this->option('end-at') ?? 'null';
+        $parts = explode('-', $signature);
+        $parts = array_map('ucfirst', $parts);
+        $className = implode('', $parts);
 
-        if ($startAt !== 'null') {
-            $startAt = "'{$startAt}'";
+        if (!str_ends_with($className, 'Task')) {
+            $className .= 'Task';
         }
 
-        if ($endAt !== 'null') {
-            $endAt = "'{$endAt}'";
-        }
+        return $className;
+    }
 
-        if ($this->files->exists($path) && ! $force) {
-            $this->error("Task already exists at: {$path}");
+    private function createTaskFile(string $className, string $signature): bool
+    {
+        $directory = getcwd() . self::TASKS_PATH;
+        $filePath = $directory . $className . '.php';
 
+        if (file_exists($filePath)) {
+            $this->error("Task already exists: {$filePath}");
             return false;
         }
 
-        $stub = $this->getStub('task.stub');
+        if (!is_dir($directory)) {
+            if (!mkdir($directory, 0755, true)) {
+                $this->error("Cannot create directory: {$directory}");
+                return false;
+            }
+            $this->line("📁 Created directory: app/Tasks/");
+        }
+
+        $stub = file_get_contents($this->stubPath);
+        if ($stub === false) {
+            $this->error("Stub template not found at: {$this->stubPath}");
+            return false;
+        }
+
         $content = str_replace(
-            [
-                '{{ namespace }}',
-                '{{ class }}',
-                '{{ signature }}',
-                '{{ description }}',
-                '{{ delay_seconds }}',
-                '{{ max_attempts }}',
-                '{{ start_at }}',
-                '{{ end_at }}',
-            ],
-            [
-                $namespace,
-                $className,
-                $signature,
-                $description,
-                $delay,
-                $maxAttempts,
-                $startAt,
-                $endAt,
-            ],
+            ['{{ class }}', '{{ signature }}'],
+            [$className, $signature],
             $stub
         );
 
-        $this->ensureDirectoryExists(dirname($path));
-        $this->files->put($path, $content);
+        if (file_put_contents($filePath, $content) === false) {
+            $this->error("Cannot create file: {$filePath}");
+            return false;
+        }
 
         return true;
-    }
-
-    private function getTaskPath(string $name): string
-    {
-        $basePath = app_path('Tasks');
-        $segments = explode('/', $name);
-        $className = array_pop($segments);
-
-        if (! empty($segments)) {
-            $basePath .= '/' . implode('/', $segments);
-        }
-
-        return "{$basePath}/{$className}.php";
-    }
-
-    private function getTaskNamespace(string $name): string
-    {
-        $segments = explode('/', $name);
-        array_pop($segments);
-
-        $baseNamespace = 'App\\Tasks';
-
-        if (! empty($segments)) {
-            $baseNamespace .= '\\' . implode('\\', $segments);
-        }
-
-        return $baseNamespace;
-    }
-
-    private function getClassName(string $name): string
-    {
-        $segments = explode('/', $name);
-
-        return array_pop($segments);
-    }
-
-    private function generateSignature(string $className): string
-    {
-        // Convert PascalCase to kebab-case
-        $kebab = preg_replace('/(?<!^)([A-Z])/', '-$1', $className);
-        return strtolower($kebab);
-    }
-
-    private function getStub(string $name): string
-    {
-        $stubPath = __DIR__ . '/../../stubs/' . $name;
-
-        return $this->files->get($stubPath);
-    }
-
-    private function ensureDirectoryExists(string $path): void
-    {
-        if (! $this->files->isDirectory($path)) {
-            $this->files->makeDirectory($path, 0755, true);
-        }
     }
 }

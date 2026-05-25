@@ -62,7 +62,7 @@ final class TaskServiceProvider extends ServiceProvider
         $this->app->singleton(MakeTaskDirective::class, function (Application $app) {
             return new MakeTaskDirective(
                 interaction: $app->make(DirectiveInteractionService::class),
-                laravelBootstrapper: $app->make(LaravelBootstrapper::class),
+                stubPath: __DIR__ . '/../stubs/task.stub',  // ← Ajout du chemin du stub
             );
         });
     }
