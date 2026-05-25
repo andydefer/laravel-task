@@ -44,7 +44,7 @@ final class RunTaskDirective extends AbstractDirective
     {
         $aliases = new StringTypedCollection();
         $aliases->add('task-run');
-        $aliases->add('tasks:run');
+        $aliases->add('tasks-run');
         return $aliases;
     }
 

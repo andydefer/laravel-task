@@ -1181,7 +1181,7 @@ public function test_lock_prevents_concurrent_execution(): void
 │  │  │                 RunTaskDirective                             │    │   │
 │  │  │  - Signature: run-task {--duration} {--dry-run}              │    │   │
 │  │  │  - Options: --no-fork, --lock-path                           │    │   │
-│  │  │  - Alias: task-run, tasks:run                                │    │   │
+│  │  │  - Alias: task-run, tasks-run                                │    │   │
 │  │  └─────────────────────────────────────────────────────────────┘    │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │

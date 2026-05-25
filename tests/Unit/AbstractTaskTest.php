@@ -36,8 +36,10 @@ final class AbstractTaskTest extends IntegrationTestCase
         // Figer le temps pour les tests
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 10, 26, 0));
 
-        $this->currentDate = date('Y-m-d');
-        $this->currentHour = '10-11';
+        $this->currentDate = Carbon::now()->format('Y-m-d');
+        // Le logger utilise le format "H-(H+1)" pour les plages horaires (ex: 10-11)
+        $currentHourNum = (int) Carbon::now()->format('H');
+        $this->currentHour = $currentHourNum . '-' . ($currentHourNum + 1);
 
         $this->tempLogDir = sys_get_temp_dir() . '/logger_test_' . uniqid();
 
@@ -50,6 +52,9 @@ final class AbstractTaskTest extends IntegrationTestCase
 
         $this->logger = new Logger($writeTask, $queryTask, $streamTask);
 
+        // Désactiver le buffer pour une écriture immédiate
+        $this->logger->disableBuffer();
+
         $this->task = new TestTask();
         $this->task->setLogger($this->logger);
         $this->task->setTaskId('test-123');
@@ -59,6 +64,10 @@ final class AbstractTaskTest extends IntegrationTestCase
     protected function tearDown(): void
     {
         Carbon::setTestNow();
+
+        // Forcer l'écriture des logs avant cleanup
+        $this->logger->flush();
+
         if (is_dir($this->tempLogDir)) {
             $this->deleteDirectory($this->tempLogDir);
         }
@@ -116,6 +125,9 @@ final class AbstractTaskTest extends IntegrationTestCase
 
         $this->task->execute(TaskMode::SYNC, $payload);
 
+        // Forcer l'écriture des logs
+        $this->logger->flush();
+
         $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
         $this->assertFileExists($logFile);
 
@@ -134,6 +146,9 @@ final class AbstractTaskTest extends IntegrationTestCase
         );
 
         $this->task->execute(TaskMode::SYNC, $payload);
+
+        // Forcer l'écriture des logs
+        $this->logger->flush();
 
         $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
         $this->assertFileExists($logFile);
@@ -163,6 +178,9 @@ final class AbstractTaskTest extends IntegrationTestCase
             // Exception attendue
         }
 
+        // Forcer l'écriture des logs
+        $this->logger->flush();
+
         $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
         $this->assertFileExists($logFile);
 
@@ -177,6 +195,9 @@ final class AbstractTaskTest extends IntegrationTestCase
     {
         $this->task->info('Test info message');
 
+        // Forcer l'écriture des logs
+        $this->logger->flush();
+
         $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
         $this->assertFileExists($logFile);
 
@@ -189,6 +210,9 @@ final class AbstractTaskTest extends IntegrationTestCase
     public function test_error_method_logs_error_message(): void
     {
         $this->task->error('Test error message');
+
+        // Forcer l'écriture des logs
+        $this->logger->flush();
 
         $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
         $this->assertFileExists($logFile);

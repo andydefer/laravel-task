@@ -54,7 +54,7 @@ final class RunTaskDirectiveIntegrationTest extends IntegrationTestCase
         $aliases = $this->directive->getAliases();
 
         $this->assertTrue($aliases->contains('task-run'));
-        $this->assertTrue($aliases->contains('tasks:run'));
+        $this->assertTrue($aliases->contains('tasks-run'));
     }
 
     public function test_should_boot_laravel_returns_true(): void
