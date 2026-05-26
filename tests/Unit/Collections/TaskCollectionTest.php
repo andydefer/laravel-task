@@ -24,13 +24,13 @@ final class TaskCollectionTest extends UnitTestCase
         parent::setUp();
         $this->payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
     }
 
     public function test_add_task_and_count(): void
     {
-        $collection = new TaskCollection();
+        $collection = new TaskCollection;
 
         $task = new TaskRecord(
             id: '123',
@@ -54,7 +54,7 @@ final class TaskCollectionTest extends UnitTestCase
 
     public function test_get_pending_tasks(): void
     {
-        $collection = new TaskCollection();
+        $collection = new TaskCollection;
 
         $pendingTask = new TaskRecord(
             id: '123',
@@ -95,7 +95,7 @@ final class TaskCollectionTest extends UnitTestCase
 
     public function test_get_recurring_tasks(): void
     {
-        $collection = new TaskCollection();
+        $collection = new TaskCollection;
 
         $recurringTask = new RecurringTaskRecord(
             signature: 'recurring',

@@ -25,7 +25,7 @@ class TaskRunner
 
     public function runTask(TaskRecord $task): bool
     {
-        if (!$this->validator->canRunTask($task)) {
+        if (! $this->validator->canRunTask($task)) {
             return false;
         }
 
@@ -34,8 +34,9 @@ class TaskRunner
 
         $className = $task->class;
 
-        if (!$this->validator->validateTaskClass($className)) {
+        if (! $this->validator->validateTaskClass($className)) {
             $this->markTaskFailed($task, "Invalid task class: {$className}");
+
             return false;
         }
 
@@ -44,9 +45,11 @@ class TaskRunner
         try {
             $taskInstance->execute($task->mode, $task->payload);
             $this->markTaskSuccess($task);
+
             return true;
         } catch (\Throwable $e) {
             $this->markTaskFailed($task, $e->getMessage());
+
             return false;
         }
     }
@@ -55,8 +58,9 @@ class TaskRunner
     {
         $className = $task->class;
 
-        if (!$this->validator->validateTaskClass($className)) {
+        if (! $this->validator->validateTaskClass($className)) {
             $this->markRecurringFailed($task, "Invalid task class: {$className}");
+
             return false;
         }
 
@@ -65,16 +69,18 @@ class TaskRunner
         try {
             $taskInstance->execute($task->mode, $task->payload);
             $this->markRecurringSuccess($task);
+
             return true;
         } catch (\Throwable $e) {
             $this->markRecurringFailed($task, $e->getMessage());
+
             return false;
         }
     }
 
     private function logGracePeriodIfNeeded(TaskRecord $task): void
     {
-        if (!$this->validator->isUniqueTaskWithGracePeriod($task)) {
+        if (! $this->validator->isUniqueTaskWithGracePeriod($task)) {
             return;
         }
 
@@ -84,7 +90,7 @@ class TaskRunner
         if ($now > $endAtTimestamp) {
             $delay = $now - $endAtTimestamp;
 
-            $payload = new MixedPayloadCollection();
+            $payload = new MixedPayloadCollection;
             $payload->add(
                 'task_executed_during_grace_period',
                 $task->id,
@@ -115,29 +121,31 @@ class TaskRunner
     private function storeGracePeriodRecord(GracePeriodRecord $record): void
     {
         $gracePath = storage_path('tasks/grace_period');
-        if (!is_dir($gracePath)) {
+        if (! is_dir($gracePath)) {
             mkdir($gracePath, 0755, true);
         }
 
-        $fileName = $gracePath . '/' . $record->taskId . '.json';
+        $fileName = $gracePath.'/'.$record->taskId.'.json';
         file_put_contents($fileName, json_encode($record->toArray(), JSON_PRETTY_PRINT));
     }
 
     private function instantiateTask(string $className, TaskRecord $task): AbstractTask
     {
-        $instance = new $className();
+        $instance = new $className;
         $instance->setLogger($this->logger);
         $instance->setTaskId($task->id);
         $instance->setSignature($task->signature);
+
         return $instance;
     }
 
     private function instantiateRecurringTask(string $className, RecurringTaskRecord $task): AbstractTask
     {
-        $instance = new $className();
+        $instance = new $className;
         $instance->setLogger($this->logger);
-        $instance->setTaskId('recurring_' . $task->signature);
+        $instance->setTaskId('recurring_'.$task->signature);
         $instance->setSignature($task->signature);
+
         return $instance;
     }
 
@@ -152,6 +160,7 @@ class TaskRunner
 
         if ($isInvalidClass) {
             $this->storage->moveToCompleted($task, false);
+
             return;
         }
 
@@ -160,6 +169,7 @@ class TaskRunner
 
         if ($newAttempts >= $task->maxAttempts || $isExpired) {
             $this->storage->moveToCompleted($task, false);
+
             return;
         }
 

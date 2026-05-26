@@ -12,7 +12,9 @@ use AndyDefer\Task\Records\TaskConfigRecord;
 class FailingTask extends AbstractTask
 {
     public bool $afterCalled = false;
+
     public bool $afterSuccess = false;
+
     public ?string $afterError = null;
 
     public function getConfig(): TaskConfigRecord

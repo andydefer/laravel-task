@@ -15,18 +15,18 @@ class TaskValidator
 {
     public function validateTaskClass(string $className): bool
     {
-        if (!class_exists($className)) {
+        if (! class_exists($className)) {
             return false;
         }
 
-        $instance = new $className();
+        $instance = new $className;
 
         return $instance instanceof AbstractTask;
     }
 
     public function canRunTask(TaskRecord $task): bool
     {
-        if (!$task->status->isPending()) {
+        if (! $task->status->isPending()) {
             return false;
         }
 
@@ -99,7 +99,7 @@ class TaskValidator
             return false;
         }
 
-        if (!$task->status->isPending()) {
+        if (! $task->status->isPending()) {
             return false;
         }
 
@@ -117,7 +117,7 @@ class TaskValidator
 
     public function getGracePeriodDelay(TaskRecord $task): int
     {
-        if (!$this->isUniqueTaskWithGracePeriod($task)) {
+        if (! $this->isUniqueTaskWithGracePeriod($task)) {
             return 0;
         }
 
@@ -131,7 +131,7 @@ class TaskValidator
     {
         return $task->delaySeconds === 0
             && $this->isGracePeriodEnabled()
-            && !$task->enforceExactSchedule;
+            && ! $task->enforceExactSchedule;
     }
 
     /**

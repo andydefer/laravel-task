@@ -22,6 +22,7 @@ use AndyDefer\Task\Tests\IntegrationTestCase;
 final class TaskLifecycleTest extends IntegrationTestCase
 {
     private TaskStorage $storage;
+
     private TaskRunner $runner;
 
     protected function setUp(): void
@@ -41,7 +42,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_complete_task_lifecycle(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -76,7 +77,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_task_created_with_pending_status(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -108,7 +109,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_task_moves_to_completed_after_success(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -139,7 +140,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_task_not_started_before_start_at(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -170,7 +171,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_task_does_not_run_after_end_at(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -201,7 +202,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_task_can_be_deleted_before_execution(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -232,7 +233,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_task_failure_does_not_remove_from_pending(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -263,7 +264,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_task_can_be_retrieved_by_id(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -297,7 +298,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_multiple_tasks_can_be_processed_sequentially(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,

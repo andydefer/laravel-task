@@ -1,7 +1,5 @@
 <?php
 
-// src/Directives/RunTaskDirective.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Directives;
@@ -19,6 +17,8 @@ use AndyDefer\Task\Services\TaskValidator;
 
 final class RunTaskDirective extends AbstractDirective
 {
+    private ?ProcessManager $processManager = null;
+
     public function __construct(
         DirectiveInteractionService $interaction,
         private readonly TaskStorage $storage,
@@ -26,8 +26,10 @@ final class RunTaskDirective extends AbstractDirective
         private readonly TaskValidator $validator,
         private readonly Logger $logger,
         ?LaravelBootstrapper $laravelBootstrapper = null,
+        ?ProcessManager $processManager = null,
     ) {
         parent::__construct($interaction, $laravelBootstrapper);
+        $this->processManager = $processManager;
     }
 
     public function getSignature(): string
@@ -42,9 +44,10 @@ final class RunTaskDirective extends AbstractDirective
 
     public function getAliases(): StringTypedCollection
     {
-        $aliases = new StringTypedCollection();
+        $aliases = new StringTypedCollection;
         $aliases->add('task-run');
         $aliases->add('tasks-run');
+
         return $aliases;
     }
 
@@ -55,7 +58,7 @@ final class RunTaskDirective extends AbstractDirective
 
     public function execute(): ExitCode
     {
-        $duration = (int) $this->option('duration');
+        $duration = (int) ($this->option('duration') ?? 60);
         $dryRun = $this->hasOption('dry-run');
         $noFork = $this->hasOption('no-fork');
         $lockPath = $this->option('lock-path');
@@ -66,13 +69,13 @@ final class RunTaskDirective extends AbstractDirective
 
         $this->info("Starting task poller for {$duration} seconds...");
 
-        $useSequentialMode = $noFork || !function_exists('pcntl_fork');
+        $useSequentialMode = $noFork || ! function_exists('pcntl_fork');
 
-        if ($useSequentialMode && !$noFork) {
+        if ($useSequentialMode && ! $noFork) {
             $this->warn('pcntl_fork not available, falling back to sequential mode');
         }
 
-        $manager = new ProcessManager(
+        $manager = $this->processManager ?? new ProcessManager(
             runner: $this->runner,
             storage: $this->storage,
             logger: $this->logger,

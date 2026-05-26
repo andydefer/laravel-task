@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Tasks;
+namespace {{ namespace }};
 
 use AndyDefer\Task\AbstractTask;
 use AndyDefer\Task\Records\TaskConfigRecord;

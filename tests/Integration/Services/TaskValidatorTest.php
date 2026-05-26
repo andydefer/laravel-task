@@ -19,6 +19,7 @@ use Carbon\Carbon;
 final class TaskValidatorTest extends IntegrationTestCase
 {
     private TaskValidator $validator;
+
     private Carbon $now;
 
     protected function setUp(): void
@@ -32,7 +33,7 @@ final class TaskValidatorTest extends IntegrationTestCase
         $this->now = Carbon::create(2026, 5, 24, 12, 15, 0, 'UTC');
         Carbon::setTestNow($this->now);
 
-        $this->validator = new TaskValidator();
+        $this->validator = new TaskValidator;
     }
 
     protected function tearDown(): void
@@ -51,7 +52,7 @@ final class TaskValidatorTest extends IntegrationTestCase
     ): TaskRecord {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         return new TaskRecord(
@@ -139,7 +140,7 @@ final class TaskValidatorTest extends IntegrationTestCase
         config()->set('task.grace_period.enabled', false);
 
         // Créer un nouveau validator après le changement de config
-        $validator = new TaskValidator();
+        $validator = new TaskValidator;
 
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
@@ -170,7 +171,7 @@ final class TaskValidatorTest extends IntegrationTestCase
         config()->set('task.grace_period.enabled', false);
 
         // Créer un nouveau validator après le changement de config
-        $validator = new TaskValidator();
+        $validator = new TaskValidator;
 
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),

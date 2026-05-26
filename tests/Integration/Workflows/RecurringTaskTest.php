@@ -21,6 +21,7 @@ use AndyDefer\Task\Tests\IntegrationTestCase;
 final class RecurringTaskTest extends IntegrationTestCase
 {
     private TaskStorage $storage;
+
     private TaskRunner $runner;
 
     protected function setUp(): void
@@ -40,7 +41,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_updates_after_run(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -76,7 +77,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_updates_next_run_at(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -113,7 +114,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_increments_success_count(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -148,7 +149,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_increments_failure_count_on_error(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -184,7 +185,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_stops_when_end_at_reached(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -214,7 +215,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_does_not_run_before_start_at(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -244,7 +245,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_maintains_payload_across_runs(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payloadCollection->add('config_key', 'test_value', 42);
         $payload = new TaskPayloadRecord(
             type: 'test',
@@ -278,13 +279,13 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_multiple_recurring_tasks_can_coexist(): void
     {
-        $payloadCollection1 = new MixedPayloadCollection();
+        $payloadCollection1 = new MixedPayloadCollection;
         $payload1 = new TaskPayloadRecord(
             type: 'task1',
             payload: $payloadCollection1,
         );
 
-        $payloadCollection2 = new MixedPayloadCollection();
+        $payloadCollection2 = new MixedPayloadCollection;
         $payload2 = new TaskPayloadRecord(
             type: 'task2',
             payload: $payloadCollection2,
@@ -336,7 +337,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_respects_delay_seconds(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,

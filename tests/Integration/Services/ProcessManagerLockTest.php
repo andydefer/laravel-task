@@ -20,9 +20,13 @@ use PHPUnit\Framework\MockObject\MockObject;
 final class ProcessManagerLockTest extends IntegrationTestCase
 {
     private TaskStorage&MockObject $storage;
+
     private TaskRunner $runner;
+
     private TaskValidator $validator;
+
     private Logger $logger;
+
     private string $lockPath;
 
     protected function setUp(): void
@@ -56,7 +60,7 @@ final class ProcessManagerLockTest extends IntegrationTestCase
             useSequentialMode: true,
         );
 
-        $emptyCollection = new TaskCollection();
+        $emptyCollection = new TaskCollection;
 
         $this->storage->method('findPending')
             ->willReturn($emptyCollection);
@@ -105,7 +109,7 @@ final class ProcessManagerLockTest extends IntegrationTestCase
             useSequentialMode: true,
         );
 
-        $emptyCollection = new TaskCollection();
+        $emptyCollection = new TaskCollection;
 
         $this->storage->method('findPending')
             ->willReturn($emptyCollection);
@@ -178,13 +182,14 @@ final class ProcessManagerLockTest extends IntegrationTestCase
             useSequentialMode: true,
         );
 
-        $emptyCollection = new TaskCollection();
+        $emptyCollection = new TaskCollection;
 
         $executionCount = 0;
 
         $this->storage->method('findPending')
             ->willReturnCallback(function () use (&$executionCount, $emptyCollection) {
                 $executionCount++;
+
                 return $emptyCollection;
             });
 
@@ -225,7 +230,7 @@ final class ProcessManagerLockTest extends IntegrationTestCase
             useSequentialMode: true,
         );
 
-        $emptyCollection = new TaskCollection();
+        $emptyCollection = new TaskCollection;
 
         $lockFileExistsDuringExecution = false;
 
@@ -235,6 +240,7 @@ final class ProcessManagerLockTest extends IntegrationTestCase
                 if ($manager->isLockAcquired() && file_exists($this->lockPath)) {
                     $lockFileExistsDuringExecution = true;
                 }
+
                 return $emptyCollection;
             });
 

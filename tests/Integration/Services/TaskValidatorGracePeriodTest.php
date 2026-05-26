@@ -27,7 +27,7 @@ final class TaskValidatorGracePeriodTest extends IntegrationTestCase
         config()->set('task.grace_period.enabled', true);
         config()->set('task.grace_period.seconds', 86400);
 
-        $this->validator = new TaskValidator();
+        $this->validator = new TaskValidator;
 
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
     }
@@ -48,7 +48,7 @@ final class TaskValidatorGracePeriodTest extends IntegrationTestCase
     ): TaskRecord {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         return new TaskRecord(
@@ -158,7 +158,7 @@ final class TaskValidatorGracePeriodTest extends IntegrationTestCase
     {
         config()->set('task.grace_period.enabled', false);
 
-        $validator = new TaskValidator();
+        $validator = new TaskValidator;
 
         $task = $this->createTestTask(
             startAt: '2026-05-24T12:00:00Z',

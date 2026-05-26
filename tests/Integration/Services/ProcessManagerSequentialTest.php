@@ -22,9 +22,13 @@ use AndyDefer\Task\Tests\IntegrationTestCase;
 final class ProcessManagerSequentialTest extends IntegrationTestCase
 {
     private TaskStorage $storage;
+
     private TaskRunner $runner;
+
     private TaskValidator $validator;
+
     private Logger $logger;
+
     private ProcessManager $manager;
 
     protected function setUp(): void
@@ -48,7 +52,7 @@ final class ProcessManagerSequentialTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         return new TaskRecord(

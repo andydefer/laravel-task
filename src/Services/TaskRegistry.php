@@ -29,11 +29,11 @@ class TaskRegistry
         ?int $delaySeconds = null,
         bool $enforceExactSchedule = false,
     ): string {
-        if (!$this->validator->validateTaskClass($taskClass)) {
+        if (! $this->validator->validateTaskClass($taskClass)) {
             throw new \InvalidArgumentException('Task must extend AbstractTask');
         }
 
-        $tempInstance = new $taskClass();
+        $tempInstance = new $taskClass;
         $config = $tempInstance->getConfig();
 
         $now = date('c');
@@ -66,7 +66,7 @@ class TaskRegistry
 
         if ($existing !== null) {
             throw new \RuntimeException(
-                "Recurring task '{$config->signature}' already exists. " .
+                "Recurring task '{$config->signature}' already exists. ".
                     'Delete it first if you want to re-register.'
             );
         }

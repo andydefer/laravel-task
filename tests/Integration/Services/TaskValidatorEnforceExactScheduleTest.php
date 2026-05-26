@@ -27,7 +27,7 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
         config()->set('task.grace_period.enabled', true);
         config()->set('task.grace_period.seconds', 86400);
 
-        $this->validator = new TaskValidator();
+        $this->validator = new TaskValidator;
 
         // Fixer le temps en UTC pour éviter les problèmes de timezone
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0, 'UTC'));
@@ -47,7 +47,7 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
     ): TaskRecord {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         return new TaskRecord(
@@ -87,10 +87,7 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
 
         // Afficher les informations de debug
 
-
-
         $result = $this->validator->canRunTask($task);
-
 
         $this->assertTrue($result);
     }
@@ -107,7 +104,6 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
         $now = time();
         $startAtTimestamp = strtotime($task->startAt);
         $endAtTimestamp = strtotime($task->endAt);
-
 
         $result = $this->validator->canRunTask($task);
 
@@ -126,7 +122,6 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
         $now = time();
         $endAtTimestamp = strtotime($task->endAt);
         $graceEnd = $endAtTimestamp + 86400;
-
 
         $result = $this->validator->canRunTask($task);
 

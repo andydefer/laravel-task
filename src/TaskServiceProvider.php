@@ -1,7 +1,5 @@
 <?php
 
-// src/TaskServiceProvider.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task;
@@ -9,8 +7,8 @@ namespace AndyDefer\Task;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\Directive\Services\LaravelBootstrapper;
 use AndyDefer\Logger\Logger;
-use AndyDefer\Task\Directives\MakeTaskDirective;
 use AndyDefer\Task\Directives\RunTaskDirective;
+use AndyDefer\Task\Services\ProcessManager;
 use AndyDefer\Task\Services\TaskRegistry;
 use AndyDefer\Task\Services\TaskRunner;
 use AndyDefer\Task\Services\TaskStorage;
@@ -26,6 +24,7 @@ final class TaskServiceProvider extends ServiceProvider
 
         $this->app->singleton(TaskStorage::class, function (Application $app) {
             $storagePath = $app['config']->get('task.storage_path', storage_path('tasks'));
+
             return new TaskStorage($storagePath);
         });
 
@@ -56,13 +55,7 @@ final class TaskServiceProvider extends ServiceProvider
                 validator: $app->make(TaskValidator::class),
                 logger: $app->make(Logger::class),
                 laravelBootstrapper: $app->make(LaravelBootstrapper::class),
-            );
-        });
-
-        $this->app->singleton(MakeTaskDirective::class, function (Application $app) {
-            return new MakeTaskDirective(
-                interaction: $app->make(DirectiveInteractionService::class),
-                stubPath: __DIR__ . '/../stubs/task.stub',  // ← Ajout du chemin du stub
+                processManager: null, // Le ProcessManager sera créé automatiquement si non fourni
             );
         });
     }

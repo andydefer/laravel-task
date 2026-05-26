@@ -22,6 +22,7 @@ use Carbon\Carbon;
 final class TaskRunnerGracePeriodTest extends IntegrationTestCase
 {
     private TaskStorage $storage;
+
     private TaskRunner $runner;
 
     protected function setUp(): void
@@ -50,7 +51,7 @@ final class TaskRunnerGracePeriodTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         return new TaskRecord(
@@ -129,7 +130,7 @@ final class TaskRunnerGracePeriodTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(

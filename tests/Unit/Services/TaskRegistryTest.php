@@ -21,7 +21,9 @@ use PHPUnit\Framework\MockObject\MockObject;
 final class TaskRegistryTest extends UnitTestCase
 {
     private TaskRegistry $registry;
+
     private TaskStorage&MockObject $storage;
+
     private TaskValidator&MockObject $validator;
 
     protected function setUp(): void
@@ -36,7 +38,7 @@ final class TaskRegistryTest extends UnitTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $this->validator->method('validateTaskClass')->willReturn(false);
@@ -54,7 +56,7 @@ final class TaskRegistryTest extends UnitTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $this->validator->method('validateTaskClass')->willReturn(true);
@@ -77,7 +79,7 @@ final class TaskRegistryTest extends UnitTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $this->validator->method('validateTaskClass')->willReturn(true);

@@ -24,9 +24,13 @@ final class ProcessManagerTest extends IntegrationTestCase
     private const FIXED_DATE = '2024-01-01T00:00:00+00:00';
 
     private TaskStorage $storage;
+
     private TaskRunner $runner;
+
     private TaskValidator $validator;
+
     private Logger $logger;
+
     private ProcessManager $manager;
 
     protected function setUp(): void
@@ -49,7 +53,7 @@ final class ProcessManagerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         return new TaskRecord(
@@ -72,7 +76,7 @@ final class ProcessManagerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         return new TaskRecord(
@@ -164,8 +168,9 @@ final class ProcessManagerTest extends IntegrationTestCase
 
     /**
      * Teste l'arrêt progressif du manager lors de la réception d'un signal.
-     * 
+     *
      * @group slow
+     *
      * @requires extension pcntl
      */
     public function test_run_graceful_shutdown_on_signal(): void

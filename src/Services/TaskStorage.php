@@ -17,7 +17,9 @@ use AndyDefer\Task\Records\TaskRecord;
 class TaskStorage
 {
     private string $pendingPath;
+
     private string $recurringPath;
+
     private string $completedPath;
 
     public function __construct(?string $storagePath = null)
@@ -27,9 +29,9 @@ class TaskStorage
             $storagePath = config('task.storage_path', storage_path('tasks'));
         }
 
-        $this->pendingPath = $storagePath . '/pending';
-        $this->recurringPath = $storagePath . '/recurring';
-        $this->completedPath = $storagePath . '/completed';
+        $this->pendingPath = $storagePath.'/pending';
+        $this->recurringPath = $storagePath.'/recurring';
+        $this->completedPath = $storagePath.'/completed';
 
         $this->ensureDirectories();
     }
@@ -37,7 +39,7 @@ class TaskStorage
     private function ensureDirectories(): void
     {
         foreach ([$this->pendingPath, $this->recurringPath, $this->completedPath] as $path) {
-            if (!is_dir($path)) {
+            if (! is_dir($path)) {
                 mkdir($path, 0755, true);
             }
         }
@@ -47,14 +49,14 @@ class TaskStorage
 
     public function savePending(TaskRecord $task): void
     {
-        $filePath = $this->pendingPath . '/' . $task->id . '.json';
+        $filePath = $this->pendingPath.'/'.$task->id.'.json';
         file_put_contents($filePath, json_encode($this->taskToArray($task), JSON_PRETTY_PRINT));
     }
 
     public function findPending(): TypedCollection
     {
         $results = new TypedCollection(TaskRecord::class);
-        $files = glob($this->pendingPath . '/*.json');
+        $files = glob($this->pendingPath.'/*.json');
 
         foreach ($files as $file) {
             $content = file_get_contents($file);
@@ -70,7 +72,7 @@ class TaskStorage
 
     public function deletePending(string $id): void
     {
-        $filePath = $this->pendingPath . '/' . $id . '.json';
+        $filePath = $this->pendingPath.'/'.$id.'.json';
         if (file_exists($filePath)) {
             unlink($filePath);
         }
@@ -79,14 +81,14 @@ class TaskStorage
     public function moveToCompleted(TaskRecord $task, bool $success): void
     {
         $date = date('Y-m-d');
-        $completedDir = $this->completedPath . '/' . $date;
+        $completedDir = $this->completedPath.'/'.$date;
 
-        if (!is_dir($completedDir)) {
+        if (! is_dir($completedDir)) {
             mkdir($completedDir, 0755, true);
         }
 
-        $source = $this->pendingPath . '/' . $task->id . '.json';
-        $target = $completedDir . '/' . $task->id . '.json';
+        $source = $this->pendingPath.'/'.$task->id.'.json';
+        $target = $completedDir.'/'.$task->id.'.json';
 
         if (file_exists($source)) {
             rename($source, $target);
@@ -97,14 +99,14 @@ class TaskStorage
 
     public function saveRecurring(RecurringTaskRecord $task): void
     {
-        $filePath = $this->recurringPath . '/' . $task->signature . '.json';
+        $filePath = $this->recurringPath.'/'.$task->signature.'.json';
         file_put_contents($filePath, json_encode($this->recurringTaskToArray($task), JSON_PRETTY_PRINT));
     }
 
     public function findRecurring(): TypedCollection
     {
         $results = new TypedCollection(RecurringTaskRecord::class);
-        $files = glob($this->recurringPath . '/*.json');
+        $files = glob($this->recurringPath.'/*.json');
 
         foreach ($files as $file) {
             $content = file_get_contents($file);
@@ -120,9 +122,9 @@ class TaskStorage
 
     public function getRecurring(string $signature): ?RecurringTaskRecord
     {
-        $filePath = $this->recurringPath . '/' . $signature . '.json';
+        $filePath = $this->recurringPath.'/'.$signature.'.json';
 
-        if (!file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             return null;
         }
 
@@ -157,7 +159,7 @@ class TaskStorage
 
     public function deleteRecurring(string $signature): void
     {
-        $filePath = $this->recurringPath . '/' . $signature . '.json';
+        $filePath = $this->recurringPath.'/'.$signature.'.json';
         if (file_exists($filePath)) {
             unlink($filePath);
         }
@@ -214,7 +216,7 @@ class TaskStorage
 
     private function arrayToTask(array $data): TaskRecord
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         foreach ($data['payload']['payload'] as $item) {
             $payloadCollection->add($item);
         }
@@ -244,7 +246,7 @@ class TaskStorage
 
     private function arrayToRecurringTask(array $data): RecurringTaskRecord
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         foreach ($data['payload']['payload'] as $item) {
             $payloadCollection->add($item);
         }

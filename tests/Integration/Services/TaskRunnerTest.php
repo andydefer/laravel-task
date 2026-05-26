@@ -10,9 +10,9 @@ use AndyDefer\Logger\Collections\MixedPayloadCollection;
 use AndyDefer\Logger\Logger;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
+use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
-use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Services\TaskRunner;
 use AndyDefer\Task\Services\TaskStorage;
 use AndyDefer\Task\Services\TaskValidator;
@@ -23,6 +23,7 @@ use AndyDefer\Task\Tests\IntegrationTestCase;
 final class TaskRunnerTest extends IntegrationTestCase
 {
     private TaskStorage $storage;
+
     private TaskRunner $runner;
 
     protected function setUp(): void
@@ -49,7 +50,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -78,7 +79,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -107,7 +108,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -136,7 +137,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -165,7 +166,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -194,7 +195,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -230,7 +231,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -262,7 +263,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new RecurringTaskRecord(
@@ -295,7 +296,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new RecurringTaskRecord(
@@ -328,7 +329,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new RecurringTaskRecord(
@@ -361,7 +362,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new RecurringTaskRecord(
@@ -396,7 +397,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -428,7 +429,7 @@ final class TaskRunnerTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new RecurringTaskRecord(

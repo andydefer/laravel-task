@@ -22,6 +22,7 @@ use AndyDefer\Task\Tests\IntegrationTestCase;
 final class FailedTaskRetryTest extends IntegrationTestCase
 {
     private TaskStorage $storage;
+
     private TaskRunner $runner;
 
     protected function setUp(): void
@@ -43,7 +44,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -79,7 +80,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -120,7 +121,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -152,7 +153,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -184,7 +185,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -214,7 +215,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
 
     public function test_failed_task_preserves_payload_after_retry(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payloadCollection->add('custom_data', 123, 'test_value');
 
         $payload = new TaskPayloadRecord(
@@ -252,7 +253,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(
@@ -284,7 +285,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $maxAttempts = 5;
@@ -323,7 +324,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         $task = new TaskRecord(

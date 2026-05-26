@@ -17,12 +17,13 @@ use AndyDefer\Task\Tests\UnitTestCase;
 final class TaskStorageTest extends UnitTestCase
 {
     private string $tempDir;
+
     private TaskStorage $storage;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tempDir = sys_get_temp_dir() . '/task_storage_test_' . uniqid();
+        $this->tempDir = sys_get_temp_dir().'/task_storage_test_'.uniqid();
         $this->storage = new TaskStorage($this->tempDir);
     }
 
@@ -38,7 +39,7 @@ final class TaskStorageTest extends UnitTestCase
     {
         $payload = new TaskPayloadRecord(
             type: 'test',
-            payload: new MixedPayloadCollection(),
+            payload: new MixedPayloadCollection,
         );
 
         return new TaskRecord(
@@ -106,13 +107,13 @@ final class TaskStorageTest extends UnitTestCase
 
     private function deleteDirectory(string $dir): void
     {
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             return;
         }
 
         $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {
-            $path = $dir . '/' . $file;
+            $path = $dir.'/'.$file;
             is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
         }
         rmdir($dir);

@@ -24,9 +24,13 @@ use Carbon\Carbon;
 final class AbstractTaskTest extends IntegrationTestCase
 {
     private TestTask $task;
+
     private Logger $logger;
+
     private string $tempLogDir;
+
     private string $currentDate;
+
     private string $currentHour;
 
     protected function setUp(): void
@@ -39,13 +43,13 @@ final class AbstractTaskTest extends IntegrationTestCase
         $this->currentDate = Carbon::now()->format('Y-m-d');
         // Le logger utilise le format "H-(H+1)" pour les plages horaires (ex: 10-11)
         $currentHourNum = (int) Carbon::now()->format('H');
-        $this->currentHour = $currentHourNum . '-' . ($currentHourNum + 1);
+        $this->currentHour = $currentHourNum.'-'.($currentHourNum + 1);
 
-        $this->tempLogDir = sys_get_temp_dir() . '/logger_test_' . uniqid();
+        $this->tempLogDir = sys_get_temp_dir().'/logger_test_'.uniqid();
 
         $config = new LoggerConfig($this->tempLogDir, 30);
         $pathService = new LogPathService($config);
-        $serializer = new LogSerializerService();
+        $serializer = new LogSerializerService;
         $writeTask = new WriteLogTask($pathService, $serializer);
         $queryTask = new QueryLogsTask($pathService, $serializer);
         $streamTask = new StreamLogsTask($pathService, $serializer);
@@ -55,7 +59,7 @@ final class AbstractTaskTest extends IntegrationTestCase
         // Désactiver le buffer pour une écriture immédiate
         $this->logger->disableBuffer();
 
-        $this->task = new TestTask();
+        $this->task = new TestTask;
         $this->task->setLogger($this->logger);
         $this->task->setTaskId('test-123');
         $this->task->setSignature('test-signature');
@@ -76,7 +80,7 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     public function test_execute_calls_before_process_and_after(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -92,7 +96,7 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     public function test_execute_calls_after_with_false_on_exception(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -101,7 +105,7 @@ final class AbstractTaskTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Test exception');
 
-        $failingTask = new FailingTask();
+        $failingTask = new FailingTask;
         $failingTask->setLogger($this->logger);
         $failingTask->setTaskId('failing-123');
         $failingTask->setSignature('failing-signature');
@@ -117,7 +121,7 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     public function test_execute_logs_task_started(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -128,7 +132,7 @@ final class AbstractTaskTest extends IntegrationTestCase
         // Forcer l'écriture des logs
         $this->logger->flush();
 
-        $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
+        $logFile = $this->tempLogDir.'/'.$this->currentDate.'/'.$this->currentHour.'.jsonl';
         $this->assertFileExists($logFile);
 
         $content = file_get_contents($logFile);
@@ -139,7 +143,7 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     public function test_execute_logs_task_completed_on_success(): void
     {
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -150,7 +154,7 @@ final class AbstractTaskTest extends IntegrationTestCase
         // Forcer l'écriture des logs
         $this->logger->flush();
 
-        $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
+        $logFile = $this->tempLogDir.'/'.$this->currentDate.'/'.$this->currentHour.'.jsonl';
         $this->assertFileExists($logFile);
 
         $content = file_get_contents($logFile);
@@ -161,12 +165,12 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     public function test_execute_logs_task_failed_on_exception(): void
     {
-        $failingTask = new FailingTask();
+        $failingTask = new FailingTask;
         $failingTask->setLogger($this->logger);
         $failingTask->setTaskId('failing-123');
         $failingTask->setSignature('failing-signature');
 
-        $payloadCollection = new MixedPayloadCollection();
+        $payloadCollection = new MixedPayloadCollection;
         $payload = new TaskPayloadRecord(
             type: 'test',
             payload: $payloadCollection,
@@ -181,7 +185,7 @@ final class AbstractTaskTest extends IntegrationTestCase
         // Forcer l'écriture des logs
         $this->logger->flush();
 
-        $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
+        $logFile = $this->tempLogDir.'/'.$this->currentDate.'/'.$this->currentHour.'.jsonl';
         $this->assertFileExists($logFile);
 
         $content = file_get_contents($logFile);
@@ -198,7 +202,7 @@ final class AbstractTaskTest extends IntegrationTestCase
         // Forcer l'écriture des logs
         $this->logger->flush();
 
-        $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
+        $logFile = $this->tempLogDir.'/'.$this->currentDate.'/'.$this->currentHour.'.jsonl';
         $this->assertFileExists($logFile);
 
         $content = file_get_contents($logFile);
@@ -214,7 +218,7 @@ final class AbstractTaskTest extends IntegrationTestCase
         // Forcer l'écriture des logs
         $this->logger->flush();
 
-        $logFile = $this->tempLogDir . '/' . $this->currentDate . '/' . $this->currentHour . '.jsonl';
+        $logFile = $this->tempLogDir.'/'.$this->currentDate.'/'.$this->currentHour.'.jsonl';
         $this->assertFileExists($logFile);
 
         $content = file_get_contents($logFile);
@@ -246,13 +250,13 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     private function deleteDirectory(string $dir): void
     {
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             return;
         }
 
         $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {
-            $path = $dir . '/' . $file;
+            $path = $dir.'/'.$file;
             is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
         }
         rmdir($dir);

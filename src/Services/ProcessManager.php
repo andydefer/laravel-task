@@ -15,14 +15,20 @@ use AndyDefer\Task\Records\ProcessInfoRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use AndyDefer\Task\ValueObjects\TaskIdentifier;
 
-final class ProcessManager
+class ProcessManager
 {
     private $lockHandle = null;
+
     private string $lockPath;
+
     private int $startTime;
+
     private int $maxDuration;
+
     private bool $shuttingDown = false;
+
     private bool $useSequentialMode;
+
     private string $storagePath;
 
     public function __construct(
@@ -42,7 +48,7 @@ final class ProcessManager
     private function ensureLockDirectory(): void
     {
         $dir = dirname($this->lockPath);
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             mkdir($dir, 0755, true);
         }
     }
@@ -55,19 +61,22 @@ final class ProcessManager
         $this->lockHandle = fopen($this->lockPath, 'c');
 
         if ($this->lockHandle === false) {
-            $this->logPollerEvent('lock_open_failed', new MixedPayloadCollection());
+            $this->logPollerEvent('lock_open_failed', new MixedPayloadCollection);
+
             return false;
         }
 
         // LOCK_EX | LOCK_NB = Exclusive lock without waiting
-        if (!flock($this->lockHandle, LOCK_EX | LOCK_NB)) {
+        if (! flock($this->lockHandle, LOCK_EX | LOCK_NB)) {
             fclose($this->lockHandle);
             $this->lockHandle = null;
-            $this->logPollerEvent('lock_busy', new MixedPayloadCollection());
+            $this->logPollerEvent('lock_busy', new MixedPayloadCollection);
+
             return false;
         }
 
-        $this->logPollerEvent('lock_acquired', new MixedPayloadCollection());
+        $this->logPollerEvent('lock_acquired', new MixedPayloadCollection);
+
         return true;
     }
 
@@ -83,14 +92,16 @@ final class ProcessManager
                 unlink($this->lockPath);
             }
 
-            $this->logPollerEvent('lock_released', new MixedPayloadCollection());
+            $this->logPollerEvent('lock_released', new MixedPayloadCollection);
         }
     }
+
     public function run(int $maxDurationSeconds, bool $dryRun = false): void
     {
         // 🔒 Only one poller at a time
-        if (!$this->acquireLock()) {
-            $this->logPollerEvent('poller_already_running', new MixedPayloadCollection());
+        if (! $this->acquireLock()) {
+            $this->logPollerEvent('poller_already_running', new MixedPayloadCollection);
+
             return;
         }
 
@@ -98,12 +109,13 @@ final class ProcessManager
             $this->startTime = time();
             $this->maxDuration = $maxDurationSeconds;
 
-            $context = new MixedPayloadCollection();
+            $context = new MixedPayloadCollection;
             $context->add($maxDurationSeconds, $dryRun, $this->useSequentialMode);
             $this->logPollerEvent('poller_started', $context);
 
             if ($dryRun) {
                 $this->listTasks();
+
                 return;
             }
 
@@ -116,7 +128,7 @@ final class ProcessManager
                 $this->runWithForks();
             }
 
-            $context = new MixedPayloadCollection();
+            $context = new MixedPayloadCollection;
             $context->add(time() - $this->startTime);
             $this->logPollerEvent('poller_finished', $context);
         } finally {
@@ -126,14 +138,14 @@ final class ProcessManager
 
     private function runSequentially(): void
     {
-        while (!$this->shouldStop()) {
+        while (! $this->shouldStop()) {
             pcntl_signal_dispatch();
 
             $allTasks = $this->getAllPendingTasks();
 
             foreach ($allTasks as $task) {
-                if (!$this->canStartNewTask()) {
-                    $context = new MixedPayloadCollection();
+                if (! $this->canStartNewTask()) {
+                    $context = new MixedPayloadCollection;
                     $context->add('cannot_start_new_task', time() - $this->startTime);
                     $this->logPollerEvent('time_limit_reached', $context);
                     break;
@@ -152,9 +164,9 @@ final class ProcessManager
 
     private function runWithForks(): void
     {
-        $runningProcesses = new ProcessInfoCollection();
+        $runningProcesses = new ProcessInfoCollection;
 
-        while (!$this->shouldStop()) {
+        while (! $this->shouldStop()) {
             pcntl_signal_dispatch();
 
             // Clean up finished child processes
@@ -163,8 +175,8 @@ final class ProcessManager
             $allTasks = $this->getAllPendingTasks();
 
             foreach ($allTasks as $task) {
-                if (!$this->canStartNewTask()) {
-                    $context = new MixedPayloadCollection();
+                if (! $this->canStartNewTask()) {
+                    $context = new MixedPayloadCollection;
                     $context->add('cannot_start_new_task', time() - $this->startTime);
                     $this->logPollerEvent('time_limit_reached', $context);
                     break;
@@ -187,7 +199,7 @@ final class ProcessManager
     {
         $taskId = TaskIdentifier::fromTask($task);
 
-        $context = new MixedPayloadCollection();
+        $context = new MixedPayloadCollection;
         $context->add('sequential_execution_started', $taskId->toString());
         $this->logPollerEvent('sequential_task_start', $context);
 
@@ -201,12 +213,12 @@ final class ProcessManager
             }
 
             $duration = (microtime(true) - $startTime) * 1000;
-            $context = new MixedPayloadCollection();
+            $context = new MixedPayloadCollection;
             $context->add('sequential_execution_completed', $taskId->toString(), round($duration, 2));
             $this->logPollerEvent('sequential_task_end', $context);
         } catch (\Throwable $e) {
             $duration = (microtime(true) - $startTime) * 1000;
-            $context = new MixedPayloadCollection();
+            $context = new MixedPayloadCollection;
             $context->add('sequential_execution_error', $taskId->toString(), $e->getMessage(), round($duration, 2));
             $this->logPollerEvent('sequential_task_error', $context);
         }
@@ -218,9 +230,10 @@ final class ProcessManager
         $taskId = TaskIdentifier::fromTask($task);
 
         if ($pid === -1) {
-            $context = new MixedPayloadCollection();
+            $context = new MixedPayloadCollection;
             $context->add('fork_failed', $taskId->toString());
             $this->logPollerEvent('fork_failed', $context);
+
             return $runningProcesses;
         }
 
@@ -233,7 +246,7 @@ final class ProcessManager
                     $this->runner->runRecurringTask($task);
                 }
             } catch (\Throwable $e) {
-                $context = new MixedPayloadCollection();
+                $context = new MixedPayloadCollection;
                 $context->add('child_process_error', $taskId->toString(), $e->getMessage());
                 $this->logPollerEvent('child_process_error', $context);
             }
@@ -253,7 +266,7 @@ final class ProcessManager
 
     private function cleanupChildProcesses(ProcessInfoCollection $runningProcesses): ProcessInfoCollection
     {
-        $remaining = new ProcessInfoCollection();
+        $remaining = new ProcessInfoCollection;
 
         foreach ($runningProcesses as $process) {
             $status = null;
@@ -272,7 +285,7 @@ final class ProcessManager
         $timeout = 30;
         $start = time();
 
-        $context = new MixedPayloadCollection();
+        $context = new MixedPayloadCollection;
         $context->add($runningProcesses->count());
         $this->logPollerEvent('waiting_for_tasks', $context);
 
@@ -283,7 +296,7 @@ final class ProcessManager
         }
 
         foreach ($currentProcesses as $process) {
-            $context = new MixedPayloadCollection();
+            $context = new MixedPayloadCollection;
             $context->add($process->pid, $process->taskIdentifier);
             $this->logPollerEvent('force_killing_task', $context);
             posix_kill($process->pid, SIGKILL);
@@ -295,7 +308,7 @@ final class ProcessManager
         $pendingTasks = $this->storage->findPending();
         $recurringTasks = $this->storage->findRecurring();
 
-        $collection = new TaskCollection();
+        $collection = new TaskCollection;
 
         foreach ($pendingTasks as $task) {
             $collection->add($task);
@@ -313,6 +326,7 @@ final class ProcessManager
         if ($this->shuttingDown) {
             return false;
         }
+
         return (time() - $this->startTime) < $this->maxDuration;
     }
 
@@ -326,22 +340,22 @@ final class ProcessManager
         $pending = $this->storage->findPending();
         $recurring = $this->storage->findRecurring();
 
-        $context = new MixedPayloadCollection();
+        $context = new MixedPayloadCollection;
         $context->add($pending->count());
         $this->logPollerEvent('dry_run_pending_tasks', $context);
 
         foreach ($pending as $task) {
-            $context = new MixedPayloadCollection();
+            $context = new MixedPayloadCollection;
             $context->add('pending', $task->signature, $task->id, "{$task->attempts}/{$task->maxAttempts}");
             $this->logPollerEvent('dry_run_task', $context);
         }
 
-        $context = new MixedPayloadCollection();
+        $context = new MixedPayloadCollection;
         $context->add($recurring->count());
         $this->logPollerEvent('dry_run_recurring_tasks', $context);
 
         foreach ($recurring as $task) {
-            $context = new MixedPayloadCollection();
+            $context = new MixedPayloadCollection;
             $context->add('recurring', $task->signature, $task->nextRunAt, $task->successCount, $task->failureCount);
             $this->logPollerEvent('dry_run_task', $context);
         }
@@ -349,13 +363,13 @@ final class ProcessManager
 
     public function shutdown(): void
     {
-        $this->logPollerEvent('shutdown_signal_received', new MixedPayloadCollection());
+        $this->logPollerEvent('shutdown_signal_received', new MixedPayloadCollection);
         $this->shuttingDown = true;
     }
 
     private function logPollerEvent(string $event, MixedPayloadCollection $context): void
     {
-        $payload = new MixedPayloadCollection();
+        $payload = new MixedPayloadCollection;
         $payload->add($event);
         foreach ($context as $item) {
             $payload->add($item);

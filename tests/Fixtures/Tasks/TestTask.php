@@ -12,9 +12,13 @@ use AndyDefer\Task\Records\TaskConfigRecord;
 class TestTask extends AbstractTask
 {
     public bool $beforeCalled = false;
+
     public bool $processCalled = false;
+
     public bool $afterCalled = false;
+
     public bool $afterSuccess = false;
+
     public ?string $afterError = null;
 
     public function getConfig(): TaskConfigRecord

@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "9d74c8f963e59b45dc20215297e80422",
+    "content-hash": "027c4548348bed42b126184f3aec91d6",
     "packages": [
         {
             "name": "andydefer/laravel-directive",
-            "version": "1.0.0",
+            "version": "2.3.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-directive.git",
-                "reference": "4c431aa889ce8a359d7094d5172084bb71435c57"
+                "reference": "543e6859daa0d4a86242f3e335102e5227da470e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/4c431aa889ce8a359d7094d5172084bb71435c57",
-                "reference": "4c431aa889ce8a359d7094d5172084bb71435c57",
+                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/543e6859daa0d4a86242f3e335102e5227da470e",
+                "reference": "543e6859daa0d4a86242f3e335102e5227da470e",
                 "shasum": ""
             },
             "require": {
@@ -65,26 +65,26 @@
             "description": "A flexible CLI command system for Laravel that breaks free from Artisan's constraints. Directives introduces a clean separation between what your command does (business logic) and how it's presented (output/UI).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-directive/issues",
-                "source": "https://github.com/andydefer/laravel-directive/tree/1.0.0"
+                "source": "https://github.com/andydefer/laravel-directive/tree/2.3.0"
             },
-            "time": "2026-05-24T15:02:09+00:00"
+            "time": "2026-05-26T08:08:20+00:00"
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "2.0.2",
+            "version": "2.0.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "348b400185bdb252a0e143a7638aa0a272f1440a"
+                "reference": "6953e73d6e45a1738f2b30791890f2d24aaf4ab7"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/348b400185bdb252a0e143a7638aa0a272f1440a",
-                "reference": "348b400185bdb252a0e143a7638aa0a272f1440a",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/6953e73d6e45a1738f2b30791890f2d24aaf4ab7",
+                "reference": "6953e73d6e45a1738f2b30791890f2d24aaf4ab7",
                 "shasum": ""
             },
             "require": {
-                "andydefer/laravel-directive": "^1.0",
+                "andydefer/laravel-directive": "^2.2",
                 "andydefer/php-records": "^1.0",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "php": ">=8.1"
@@ -126,9 +126,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/2.0.2"
+                "source": "https://github.com/andydefer/laravel-logger/tree/2.0.4"
             },
-            "time": "2026-05-24T22:14:46+00:00"
+            "time": "2026-05-26T08:12:17+00:00"
         },
         {
             "name": "andydefer/php-records",
@@ -8095,23 +8095,23 @@
         },
         {
             "name": "sebastian/environment",
-            "version": "8.1.1",
+            "version": "8.1.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/sebastianbergmann/environment.git",
-                "reference": "334bc42a97ec6fc44c59001dc3467e0d739a20e9"
+                "reference": "9d32c685773823b1983e256ae4ecd48a10d6e439"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/sebastianbergmann/environment/zipball/334bc42a97ec6fc44c59001dc3467e0d739a20e9",
-                "reference": "334bc42a97ec6fc44c59001dc3467e0d739a20e9",
+                "url": "https://api.github.com/repos/sebastianbergmann/environment/zipball/9d32c685773823b1983e256ae4ecd48a10d6e439",
+                "reference": "9d32c685773823b1983e256ae4ecd48a10d6e439",
                 "shasum": ""
             },
             "require": {
                 "php": ">=8.3"
             },
             "require-dev": {
-                "phpunit/phpunit": "^12.5.25"
+                "phpunit/phpunit": "^12.5.26"
             },
             "suggest": {
                 "ext-posix": "*"
@@ -8147,7 +8147,7 @@
             "support": {
                 "issues": "https://github.com/sebastianbergmann/environment/issues",
                 "security": "https://github.com/sebastianbergmann/environment/security/policy",
-                "source": "https://github.com/sebastianbergmann/environment/tree/8.1.1"
+                "source": "https://github.com/sebastianbergmann/environment/tree/8.1.2"
             },
             "funding": [
                 {
@@ -8167,7 +8167,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-05-21T08:45:32+00:00"
+            "time": "2026-05-25T13:40:20+00:00"
         },
         {
             "name": "sebastian/exporter",
