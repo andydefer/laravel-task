@@ -256,6 +256,19 @@ concat-all: ## Concatenate all PHP files into all.txt
 	find $${SOURCE_DIRS} -type f -name "*.php" -exec sh -c 'echo ""; echo "// ==== {} ==="; echo ""; cat {}' \; > all.txt; \
 	echo "✅ File all.txt generated successfully from: $${SOURCE_DIRS}"
 
+.PHONY: concat-md
+concat-md: ## Concatenate all Markdown files into all.md
+	@read -p "📁 Enter the source directory path to scan (leave empty for default './docs'): " SOURCE_PATH; \
+	if [ -z "$$SOURCE_PATH" ]; then \
+		SOURCE_DIRS="./docs"; \
+		echo "🔗 Concatenating all Markdown files from default directory: $${SOURCE_DIRS} into all.md..."; \
+	else \
+		SOURCE_DIRS="$$SOURCE_PATH"; \
+		echo "🔗 Concatenating all Markdown files from directory: $${SOURCE_DIRS} into all.md..."; \
+	fi; \
+	find $${SOURCE_DIRS} -type f -name "*.md" -exec sh -c 'echo ""; echo "// ==== {} ==="; echo ""; cat {}' \; > all.md; \
+	echo "✅ File all.md generated successfully from: $${SOURCE_DIRS}"
+
 # ---------------------------------------------------
 # Testing
 # ---------------------------------------------------

@@ -32,3 +32,6 @@ Homestead.json
 auth.json
 /.phpunit.cache/
 .phpunit.cache/
+
+all.txt
+all.md
