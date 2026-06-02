@@ -150,29 +150,8 @@ echo $updatedTask->attempts; // 1
 
 ## Flux d'exécution
 
-```
-runTask()
-    │
-    ├─→ validator->canRunTask()
-    │   └─→ false → return false
-    │
-    ├─→ logGracePeriodIfNeeded()
-    │
-    ├─→ validator->validateTaskClass()
-    │   └─→ false → markTaskFailed() → return false
-    │
-    ├─→ instantiateTask()
-    │   ├─→ new $className()
-    │   ├─→ setLogger()
-    │   ├─→ setTaskId()
-    │   └─→ setSignature()
-    │
-    ├─→ taskInstance->execute()
-    │   ├─→ success → markTaskSuccess()
-    │   └─→ exception → markTaskFailed()
-    │
-    └─→ return true/false
-```
+<img src="../graphics/task-runner-service.png" width="800" alt="Task Runner Service" />
+
 
 ## Gestion des erreurs
 

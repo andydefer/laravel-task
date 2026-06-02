@@ -143,20 +143,8 @@ echo $modified->uniqueSuccess;  // 1
 
 ## Flux d'exécution
 
-```
-withUniqueTask()
-    │
-    ├─→ clone $record->uniqueResults
-    ├─→ add new UniqueResultRecord()
-    │
-    ├─→ clone $record->errors
-    │
-    ├─→ incrémenter $uniqueSuccess ou $uniqueFailed
-    │
-    └─→ si échec avec erreur → add TaskErrorRecord()
-    │
-    └─→ return new BatchResultRecord()
-```
+<img src="../graphics/batch-result-service.png" width="800" alt="Batch Result Service" />
+
 
 ## Gestion des erreurs
 

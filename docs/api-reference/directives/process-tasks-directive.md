@@ -111,6 +111,9 @@ execute()
     └─→ Retourne FAILURE si des tâches ont échoué, SUCCESS sinon
 ```
 
+<img src="../graphics/process-task-directive.png" width="800" alt="Process Task Directive" />
+
+
 ## Cas d'utilisation
 
 ### Cas 1 : Traitement standard de toutes les tâches

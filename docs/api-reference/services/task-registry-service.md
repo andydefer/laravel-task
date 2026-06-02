@@ -173,31 +173,8 @@ $signature = $registry->register(
 
 ## Flux d'exécution
 
-```
-register()
-    │
-    ├─→ validateTaskClass()
-    │   └─→ validator->validateTaskClass()
-    │
-    ├─→ getTaskConfig()
-    │   └─→ Instancie la tâche et appelle getConfig()
-    │
-    ├─→ Résolution des paramètres (startAt, endAt, delaySeconds)
-    │   (Priorité: paramètre > config de la tâche > valeur par défaut)
-    │
-    ├─→ isRecurringTask()
-    │   └─→ endAt === null && delaySeconds > 0
-    │
-    ├─→ Si récurrente → registerRecurringTask()
-    │   ├─→ Vérifie si la signature existe déjà
-    │   ├─→ Crée RecurringTaskRecord
-    │   └─→ storage->saveRecurring()
-    │
-    └─→ Si unique → registerUniqueTask()
-        ├─→ Génère un UUID
-        ├─→ Crée TaskRecord
-        └─→ storage->savePending()
-```
+<img src="../graphics/task-registry-service.png" width="800" alt="Task Registry Service" />
+
 
 ## Gestion des erreurs
 

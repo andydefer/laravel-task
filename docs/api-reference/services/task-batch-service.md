@@ -79,31 +79,8 @@ $result = $batchService->processRecurringOnly(10);
 
 ## Flux d'exécution
 
-```
-process()
-    │
-    ├─→ logBatchStart()
-    ├─→ createEmptyRecord()
-    │
-    ├─→ processUniqueTasksWithLimit()
-    │   ├─→ processUniqueTasks()
-    │   │   └─→ executeUniqueTask() [pour chaque tâche]
-    │   │       ├─→ canRunTask()
-    │   │       ├─→ runTask()
-    │   │       ├─→ logTaskResult()
-    │   │       └─→ withUniqueTask()
-    │   └─→ calcul du remaining limit
-    │
-    ├─→ processRecurringTasksIfNeeded()
-    │   └─→ processRecurringTasks()
-    │       └─→ executeRecurringTask() [pour chaque tâche]
-    │           ├─→ shouldRunRecurringNow()
-    │           ├─→ runRecurringTask()
-    │           ├─→ logTaskResult()
-    │           └─→ withRecurringTask()
-    │
-    └─→ logBatchComplete()
-```
+<img src="../graphics/task-batch-service.png" width="800" alt="Task Batch Service" />
+
 
 ## Cas d'utilisation
 

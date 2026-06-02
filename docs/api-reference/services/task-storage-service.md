@@ -201,19 +201,7 @@ echo $updated->nextRunAt;    // now + 3600 seconds
 
 ## Flux d'exécution
 
-```
-findPending()
-    │
-    ├─→ glob() → liste des fichiers JSON
-    ├─→ sortFilesByTime() → tri par filemtime
-    ├─→ applyLimit() → limitation du nombre
-    │
-    └─→ pour chaque fichier :
-        ├─→ readJsonFile() → décodage JSON
-        ├─→ TaskRecord::from() → hydratation
-        ├─→ shouldRunTaskNow() → vérification
-        └─→ add() à la collection
-```
+<img src="../graphics/task-storage-service.png" width="800" alt="Task Storage Service" />
 
 ## Gestion des erreurs
 

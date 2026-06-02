@@ -193,20 +193,7 @@ if ($validator->shouldRunRecurringNow($task)) {
 
 ## Flux d'exécution
 
-```
-canRunTask()
-    │
-    ├─→ status->isPending() ─── false → return false
-    ├─→ attempts >= maxAttempts ─ true → return false
-    ├─→ now < startAt ────────── true → return false
-    │
-    ├─→ enforceExactSchedule? ── true → return now <= endAt
-    │
-    ├─→ delaySeconds === 0 && gracePeriodEnabled?
-    │   └─→ true → return now <= endAt + gracePeriodSeconds
-    │
-    └─→ return now <= endAt
-```
+<img src="../graphics/task-validator-service.png" width="800" alt="Task Validator Service" />
 
 ## Gestion des erreurs
 

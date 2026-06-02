@@ -203,23 +203,7 @@ $task
 
 ## Flux d'exécution
 
-```
-execute($payload)
-    │
-    ├─→ Log 'task_started'
-    │
-    ├─→ before()
-    │
-    ├─→ try
-    │   ├─→ process()
-    │   ├─→ after(true)
-    │   └─→ Log 'task_completed'
-    │
-    └─→ catch
-        ├─→ after(false, $error)
-        ├─→ Log 'task_failed'
-        └─→ throw $e (re-throw)
-```
+<img src="./graphics/abstract-task.png" width="800" alt="Abstract Task" />
 
 ## Cas d'utilisation
 
