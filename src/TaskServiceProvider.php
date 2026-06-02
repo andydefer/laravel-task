@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace AndyDefer\Task;
 
 use AndyDefer\Directive\Services\DirectiveInteractionService;
-use AndyDefer\Directive\Services\LaravelBootstrapper;
 use AndyDefer\Logger\Logger;
-use AndyDefer\Task\Directives\RunTaskDirective;
-use AndyDefer\Task\Services\ProcessManager;
+use AndyDefer\Task\Directives\ProcessTasksDirective;
+use AndyDefer\Task\Services\TaskBatch;
 use AndyDefer\Task\Services\TaskRegistry;
 use AndyDefer\Task\Services\TaskRunner;
 use AndyDefer\Task\Services\TaskStorage;
@@ -22,6 +21,7 @@ final class TaskServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/task.php', 'task');
 
+        // Core services
         $this->app->singleton(TaskStorage::class, function (Application $app) {
             $storagePath = $app['config']->get('task.storage_path', storage_path('tasks'));
 
@@ -29,7 +29,7 @@ final class TaskServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(TaskValidator::class, function () {
-            return new TaskValidator();
+            return new TaskValidator;
         });
 
         $this->app->singleton(TaskRunner::class, function (Application $app) {
@@ -47,15 +47,21 @@ final class TaskServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(RunTaskDirective::class, function (Application $app) {
-            return new RunTaskDirective(
-                interaction: $app->make(DirectiveInteractionService::class),
+        // NEW: TaskBatch service
+        $this->app->singleton(TaskBatch::class, function (Application $app) {
+            return new TaskBatch(
                 storage: $app->make(TaskStorage::class),
                 runner: $app->make(TaskRunner::class),
                 validator: $app->make(TaskValidator::class),
                 logger: $app->make(Logger::class),
-                laravelBootstrapper: $app->make(LaravelBootstrapper::class),
-                processManager: null, // Le ProcessManager sera créé automatiquement si non fourni
+            );
+        });
+
+        // NEW: ProcessTasksDirective (recommended)
+        $this->app->singleton(ProcessTasksDirective::class, function (Application $app) {
+            return new ProcessTasksDirective(
+                interaction: $app->make(DirectiveInteractionService::class),
+                batch: $app->make(TaskBatch::class),
             );
         });
     }

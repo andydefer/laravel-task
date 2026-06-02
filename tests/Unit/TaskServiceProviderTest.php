@@ -66,14 +66,4 @@ final class TaskServiceProviderTest extends IntegrationTestCase
 
         $this->assertSame($first, $second);
     }
-
-    public function test_run_task_directive_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(RunTaskDirective::class));
-
-        $first = $this->app->make(RunTaskDirective::class);
-        $second = $this->app->make(RunTaskDirective::class);
-
-        $this->assertSame($first, $second);
-    }
 }

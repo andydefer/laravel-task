@@ -1,12 +1,11 @@
 <?php
 
-// tests/Integration/Workflows/RecurringTaskTest.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Workflows;
 
-use AndyDefer\Logger\Collections\MixedPayloadCollection;
+use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Logger;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\RecurringTaskRecord;
@@ -24,51 +23,112 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     private TaskRunner $runner;
 
+    private TaskValidator $validator;
+
+    private string $storagePath;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->storage = $this->app->make(TaskStorage::class);
+        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
+
+        $this->storage = new TaskStorage($this->storagePath);
         $logger = $this->app->make(Logger::class);
-        $validator = $this->app->make(TaskValidator::class);
-        $this->runner = new TaskRunner($this->storage, $logger, $validator);
+        $this->validator = $this->app->make(TaskValidator::class);
+        $this->runner = new TaskRunner($this->storage, $logger, $this->validator);
     }
 
     protected function tearDown(): void
     {
+        if (is_dir($this->storagePath)) {
+            $this->removeDirectory($this->storagePath);
+        }
+
         parent::tearDown();
+    }
+
+    private function removeDirectory(string $path): void
+    {
+        if (! is_dir($path)) {
+            return;
+        }
+
+        $files = glob($path.'/*');
+        foreach ($files as $file) {
+            if (is_file($file)) {
+                unlink($file);
+            } elseif (is_dir($file)) {
+                $this->removeDirectory($file);
+            }
+        }
+
+        rmdir($path);
+    }
+
+    private function createTaskPayload(?array $customData = null): TaskPayloadRecord
+    {
+        $payloadCollection = new StrictDataObjectCollection;
+
+        if ($customData !== null) {
+            $payloadCollection->add(StrictDataObject::from($customData));
+        } else {
+            $payloadCollection->add(StrictDataObject::from([
+                'test_data' => 'recurring_test',
+            ]));
+        }
+
+        return new TaskPayloadRecord(
+            type: 'test',
+            payload: $payloadCollection,
+        );
+    }
+
+    private function createRecurringTask(
+        string $signature,
+        string $class,
+        int $delaySeconds = 300,
+        int $successCount = 0,
+        int $failureCount = 0,
+        ?string $startAt = null,
+        ?string $endAt = null,
+        ?string $lastRunAt = null,
+        ?string $nextRunAt = null
+    ): RecurringTaskRecord {
+        $payload = $this->createTaskPayload();
+
+        return new RecurringTaskRecord(
+            signature: $signature,
+            class: $class,
+            payload: $payload,
+            mode: TaskMode::DEFER,
+            startAt: $startAt ?? date('c', strtotime('-1 hour')),
+            endAt: $endAt,
+            delaySeconds: $delaySeconds,
+            lastRunAt: $lastRunAt,
+            nextRunAt: $nextRunAt ?? date('c', strtotime('-5 minutes')),
+            successCount: $successCount,
+            failureCount: $failureCount,
+        );
     }
 
     public function test_recurring_task_updates_after_run(): void
     {
-        $payloadCollection = new MixedPayloadCollection;
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: $payloadCollection,
-        );
-
-        $task = new RecurringTaskRecord(
+        // Arrange: Create a recurring task ready to run
+        $task = $this->createRecurringTask(
             signature: 'recurring-test',
             class: TestTask::class,
-            payload: $payload,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
             delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            nextRunAt: date('c', strtotime('-5 minutes'))
         );
-
         $this->storage->saveRecurring($task);
 
+        // Act: Execute the recurring task
         $result = $this->runner->runRecurringTask($task);
-
-        $this->assertTrue($result);
-
         $updated = $this->storage->getRecurring('recurring-test');
 
+        // Assert: Task was updated correctly
+        $this->assertTrue($result);
         $this->assertNotNull($updated);
         $this->assertSame(1, $updated->successCount);
         $this->assertNotNull($updated->lastRunAt);
@@ -77,36 +137,23 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_updates_next_run_at(): void
     {
-        $payloadCollection = new MixedPayloadCollection;
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: $payloadCollection,
-        );
-
-        $task = new RecurringTaskRecord(
+        // Arrange: Create a recurring task with known next run time
+        $task = $this->createRecurringTask(
             signature: 'recurring-next-run',
             class: TestTask::class,
-            payload: $payload,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
             delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-10 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            nextRunAt: date('c', strtotime('-10 minutes'))
         );
-
         $this->storage->saveRecurring($task);
 
         $oldNextRunAt = $task->nextRunAt;
 
+        // Act: Execute the recurring task
         $result = $this->runner->runRecurringTask($task);
-
-        $this->assertTrue($result);
-
         $updated = $this->storage->getRecurring('recurring-next-run');
 
+        // Assert: Next run time was advanced
+        $this->assertTrue($result);
         $this->assertNotNull($updated);
         $this->assertNotSame($oldNextRunAt, $updated->nextRunAt);
         $this->assertGreaterThan(strtotime($oldNextRunAt), strtotime($updated->nextRunAt));
@@ -114,34 +161,23 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_increments_success_count(): void
     {
-        $payloadCollection = new MixedPayloadCollection;
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: $payloadCollection,
-        );
-
-        $task = new RecurringTaskRecord(
+        // Arrange: Create a recurring task with existing counts
+        $task = $this->createRecurringTask(
             signature: 'recurring-counter',
             class: TestTask::class,
-            payload: $payload,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
             delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
             successCount: 5,
             failureCount: 2,
+            nextRunAt: date('c', strtotime('-5 minutes'))
         );
-
         $this->storage->saveRecurring($task);
 
+        // Act: Execute the recurring task
         $result = $this->runner->runRecurringTask($task);
-
-        $this->assertTrue($result);
-
         $updated = $this->storage->getRecurring('recurring-counter');
 
+        // Assert: Success count incremented, failure count unchanged
+        $this->assertTrue($result);
         $this->assertNotNull($updated);
         $this->assertSame(6, $updated->successCount);
         $this->assertSame(2, $updated->failureCount);
@@ -149,34 +185,23 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_increments_failure_count_on_error(): void
     {
-        $payloadCollection = new MixedPayloadCollection;
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: $payloadCollection,
-        );
-
-        $task = new RecurringTaskRecord(
+        // Arrange: Create a failing recurring task with existing counts
+        $task = $this->createRecurringTask(
             signature: 'recurring-failing',
             class: FailingTask::class,
-            payload: $payload,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
             delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
             successCount: 3,
             failureCount: 1,
+            nextRunAt: date('c', strtotime('-5 minutes'))
         );
-
         $this->storage->saveRecurring($task);
 
+        // Act: Execute the failing recurring task
         $result = $this->runner->runRecurringTask($task);
-
-        $this->assertFalse($result);
-
         $updated = $this->storage->getRecurring('recurring-failing');
 
+        // Assert: Failure count incremented, success count unchanged
+        $this->assertFalse($result);
         $this->assertNotNull($updated);
         $this->assertSame(3, $updated->successCount);
         $this->assertSame(2, $updated->failureCount);
@@ -185,77 +210,57 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_recurring_task_stops_when_end_at_reached(): void
     {
-        $payloadCollection = new MixedPayloadCollection;
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: $payloadCollection,
-        );
-
-        $task = new RecurringTaskRecord(
+        // Arrange: Create a recurring task that has expired (endAt in the past)
+        $task = $this->createRecurringTask(
             signature: 'recurring-expired',
             class: TestTask::class,
-            payload: $payload,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('-2 days')),
-            endAt: date('c', strtotime('-1 day')),
             delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
             successCount: 10,
             failureCount: 0,
+            startAt: date('c', strtotime('-2 days')),
+            endAt: date('c', strtotime('-1 day')),
+            nextRunAt: date('c', strtotime('-5 minutes'))
         );
-
         $this->storage->saveRecurring($task);
 
-        $validator = $this->app->make(TaskValidator::class);
-        $shouldRun = $validator->shouldRunRecurringNow($task);
+        // Act: Check if task should run
+        $shouldRun = $this->validator->shouldRunRecurringNow($task);
 
+        // Assert: Task should not run (expired)
         $this->assertFalse($shouldRun);
     }
 
     public function test_recurring_task_does_not_run_before_start_at(): void
     {
-        $payloadCollection = new MixedPayloadCollection;
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: $payloadCollection,
-        );
-
-        $task = new RecurringTaskRecord(
+        // Arrange: Create a recurring task that starts in the future
+        $task = $this->createRecurringTask(
             signature: 'recurring-future',
             class: TestTask::class,
-            payload: $payload,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('+1 hour')),
-            endAt: null,
             delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c'),
-            successCount: 0,
-            failureCount: 0,
+            startAt: date('c', strtotime('+1 hour')),
+            nextRunAt: date('c')
         );
-
         $this->storage->saveRecurring($task);
 
-        $validator = $this->app->make(TaskValidator::class);
-        $result = $validator->shouldRunRecurringNow($task);
+        // Act: Check if task should run
+        $shouldRun = $this->validator->shouldRunRecurringNow($task);
 
-        $this->assertFalse($result);
+        // Assert: Task should not run (not started yet)
+        $this->assertFalse($shouldRun);
     }
 
     public function test_recurring_task_maintains_payload_across_runs(): void
     {
-        $payloadCollection = new MixedPayloadCollection;
-        $payloadCollection->add('config_key', 'test_value', 42);
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: $payloadCollection,
-        );
+        // Arrange: Create a recurring task with custom payload
+        $customPayload = $this->createTaskPayload([
+            'config_key' => 'test_value',
+            'numeric_value' => 42,
+        ]);
 
         $task = new RecurringTaskRecord(
             signature: 'recurring-payload',
             class: TestTask::class,
-            payload: $payload,
+            payload: $customPayload,
             mode: TaskMode::DEFER,
             startAt: date('c', strtotime('-1 hour')),
             endAt: null,
@@ -268,10 +273,11 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $this->storage->saveRecurring($task);
 
+        // Act: Execute the recurring task
         $this->runner->runRecurringTask($task);
-
         $updated = $this->storage->getRecurring('recurring-payload');
 
+        // Assert: Payload was preserved
         $this->assertNotNull($updated);
         $this->assertSame($task->payload->type, $updated->payload->type);
         $this->assertSame($task->payload->payload->count(), $updated->payload->payload->count());
@@ -279,95 +285,63 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_multiple_recurring_tasks_can_coexist(): void
     {
-        $payloadCollection1 = new MixedPayloadCollection;
-        $payload1 = new TaskPayloadRecord(
-            type: 'task1',
-            payload: $payloadCollection1,
-        );
-
-        $payloadCollection2 = new MixedPayloadCollection;
-        $payload2 = new TaskPayloadRecord(
-            type: 'task2',
-            payload: $payloadCollection2,
-        );
-
-        $task1 = new RecurringTaskRecord(
+        // Arrange: Create two different recurring tasks
+        $task1 = $this->createRecurringTask(
             signature: 'recurring-task-1',
             class: TestTask::class,
-            payload: $payload1,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
             delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            nextRunAt: date('c', strtotime('-5 minutes'))
         );
 
-        $task2 = new RecurringTaskRecord(
+        $task2 = $this->createRecurringTask(
             signature: 'recurring-task-2',
             class: TestTask::class,
-            payload: $payload2,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
             delaySeconds: 600,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            nextRunAt: date('c', strtotime('-5 minutes'))
         );
 
         $this->storage->saveRecurring($task1);
         $this->storage->saveRecurring($task2);
 
+        // Act: Execute both tasks
         $result1 = $this->runner->runRecurringTask($task1);
         $result2 = $this->runner->runRecurringTask($task2);
-
-        $this->assertTrue($result1);
-        $this->assertTrue($result2);
 
         $updated1 = $this->storage->getRecurring('recurring-task-1');
         $updated2 = $this->storage->getRecurring('recurring-task-2');
 
+        // Assert: Both tasks executed successfully and counts incremented
+        $this->assertTrue($result1);
+        $this->assertTrue($result2);
         $this->assertSame(1, $updated1->successCount);
         $this->assertSame(1, $updated2->successCount);
     }
 
     public function test_recurring_task_respects_delay_seconds(): void
     {
-        $payloadCollection = new MixedPayloadCollection;
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: $payloadCollection,
-        );
-
+        // Arrange: Create a recurring task with specific delay
         $delaySeconds = 600;
 
-        $task = new RecurringTaskRecord(
+        $task = $this->createRecurringTask(
             signature: 'recurring-delay',
             class: TestTask::class,
-            payload: $payload,
-            mode: TaskMode::DEFER,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
             delaySeconds: $delaySeconds,
             lastRunAt: date('c', strtotime('-10 minutes')),
-            nextRunAt: date('c', strtotime('-5 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            nextRunAt: date('c', strtotime('-5 minutes'))
         );
-
         $this->storage->saveRecurring($task);
 
         $oldNextRunAt = $task->nextRunAt;
 
+        // Act: Execute the recurring task
         $this->runner->runRecurringTask($task);
-
         $updated = $this->storage->getRecurring('recurring-delay');
 
+        // Assert: Next run time respects the delay
         $this->assertNotNull($updated);
-        $this->assertGreaterThanOrEqual($delaySeconds, strtotime($updated->nextRunAt) - strtotime($oldNextRunAt));
+        $this->assertGreaterThanOrEqual(
+            $delaySeconds,
+            strtotime($updated->nextRunAt) - strtotime($oldNextRunAt)
+        );
     }
 }

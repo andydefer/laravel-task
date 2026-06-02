@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Enums;
 
-use AndyDefer\Records\Traits\Enumable;
+use AndyDefer\DomainStructures\Traits\Enumable;
 
 enum TaskMode: string
 {

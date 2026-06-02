@@ -1,12 +1,11 @@
 <?php
 
-// tests/Integration/Services/TaskValidatorEnforceExactScheduleTest.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Services;
 
-use AndyDefer\Logger\Collections\MixedPayloadCollection;
+use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
@@ -25,11 +24,11 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
         parent::setUp();
 
         config()->set('task.grace_period.enabled', true);
-        config()->set('task.grace_period.seconds', 86400);
+        config()->set('task.grace_period.seconds', 86400); // 24 hours
 
         $this->validator = new TaskValidator;
 
-        // Fixer le temps en UTC pour éviter les problèmes de timezone
+        // Freeze time in UTC to avoid timezone issues
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0, 'UTC'));
     }
 
@@ -39,16 +38,26 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    private function createTaskPayload(): TaskPayloadRecord
+    {
+        $payloadCollection = new StrictDataObjectCollection;
+        $payloadCollection->add(StrictDataObject::from([
+            'test_data' => 'sample',
+        ]));
+
+        return new TaskPayloadRecord(
+            type: 'test',
+            payload: $payloadCollection,
+        );
+    }
+
     private function createTestTask(
         string $startAt,
         ?string $endAt = null,
         bool $enforceExactSchedule = false,
         int $delaySeconds = 0
     ): TaskRecord {
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: new MixedPayloadCollection,
-        );
+        $payload = $this->createTaskPayload();
 
         return new TaskRecord(
             id: '123',
@@ -69,8 +78,7 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
 
     public function test_task_with_enforce_exact_schedule_executable_when_within_window(): void
     {
-
-        // Créer la tâche avec des dates explicites
+        // Arrange: Create a task with exact schedule enforcement within valid window
         $startAt = '2026-05-24 12:00:00';
         $endAt = '2026-05-24 12:30:00';
 
@@ -80,100 +88,106 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
             enforceExactSchedule: true,
         );
 
-        // Récupérer les timestamps
-        $now = time();
-        $startAtTimestamp = strtotime($task->startAt);
-        $endAtTimestamp = strtotime($task->endAt);
-
-        // Afficher les informations de debug
-
+        // Act: Check if task can run
         $result = $this->validator->canRunTask($task);
 
+        // Assert: Task should be executable (current time 12:15 is within window)
         $this->assertTrue($result);
     }
 
     public function test_task_with_enforce_exact_schedule_not_executable_when_expired(): void
     {
-
+        // Arrange: Create an expired task with exact schedule enforcement
         $task = $this->createTestTask(
             startAt: '2026-05-24 10:00:00',
             endAt: '2026-05-24 10:10:00',
             enforceExactSchedule: true,
         );
 
-        $now = time();
-        $startAtTimestamp = strtotime($task->startAt);
-        $endAtTimestamp = strtotime($task->endAt);
-
+        // Act: Check if task can run
         $result = $this->validator->canRunTask($task);
 
+        // Assert: Task should not be executable (current time 12:15 is after end)
         $this->assertFalse($result);
     }
 
     public function test_task_without_enforce_exact_schedule_benefits_from_grace_period(): void
     {
-
+        // Arrange: Create an expired task without exact schedule enforcement
         $task = $this->createTestTask(
             startAt: '2026-05-24 12:00:00',
-            endAt: '2026-05-24 12:10:00',  // Déjà passé (12:15)
+            endAt: '2026-05-24 12:10:00',  // Already passed (now is 12:15)
             enforceExactSchedule: false,
         );
 
-        $now = time();
-        $endAtTimestamp = strtotime($task->endAt);
-        $graceEnd = $endAtTimestamp + 86400;
-
+        // Act: Check if task can run (benefits from grace period)
         $result = $this->validator->canRunTask($task);
 
+        // Assert: Task should be executable due to grace period
         $this->assertTrue($result);
     }
 
-    // Garder les autres tests sans debug pour ne pas surcharger
     public function test_is_task_expired_with_enforce_exact_schedule(): void
     {
+        // Arrange: Create an expired task with exact schedule enforcement
         $task = $this->createTestTask(
             startAt: '2026-05-24 10:00:00',
             endAt: '2026-05-24 10:10:00',
             enforceExactSchedule: true,
         );
 
+        // Act: Check if task is expired
         $isExpired = $this->validator->isTaskExpired($task);
+
+        // Assert: Task should be considered expired
         $this->assertTrue($isExpired);
     }
 
     public function test_is_task_expired_without_enforce_exact_schedule(): void
     {
+        // Arrange: Create an expired task without exact schedule enforcement
         $task = $this->createTestTask(
             startAt: '2026-05-24 12:00:00',
             endAt: '2026-05-24 12:10:00',
             enforceExactSchedule: false,
         );
 
+        // Act: Check if task is expired
         $isExpired = $this->validator->isTaskExpired($task);
+
+        // Assert: Task should not be considered expired due to grace period
         $this->assertFalse($isExpired);
     }
 
     public function test_is_unique_task_with_grace_period_false_when_enforce_exact_schedule(): void
     {
+        // Arrange: Create a task with exact schedule enforcement
         $task = $this->createTestTask(
             startAt: '2026-05-24 12:00:00',
             endAt: '2026-05-24 12:10:00',
             enforceExactSchedule: true,
         );
 
+        // Act: Check if task qualifies for grace period
         $isUnique = $this->validator->isUniqueTaskWithGracePeriod($task);
+
+        // Assert: Task should NOT qualify for grace period
         $this->assertFalse($isUnique);
     }
 
     public function test_is_unique_task_with_grace_period_true_when_no_enforce_exact_schedule(): void
     {
+        // Arrange: Create a task without exact schedule enforcement
         $task = $this->createTestTask(
             startAt: '2026-05-24 12:00:00',
             endAt: '2026-05-24 12:10:00',
             enforceExactSchedule: false,
         );
 
+        // Act: Check if task qualifies for grace period
         $isUnique = $this->validator->isUniqueTaskWithGracePeriod($task);
+
+        // Assert: Task should qualify for grace period
         $this->assertTrue($isUnique);
     }
 }

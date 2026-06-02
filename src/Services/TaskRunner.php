@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
-use AndyDefer\Logger\Collections\MixedPayloadCollection;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Logger;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\AbstractTask;
@@ -90,14 +90,13 @@ class TaskRunner
         if ($now > $endAtTimestamp) {
             $delay = $now - $endAtTimestamp;
 
-            $payload = new MixedPayloadCollection;
-            $payload->add(
-                'task_executed_during_grace_period',
-                $task->id,
-                $task->signature,
-                $delay,
-                'seconds_late'
-            );
+            $payload = StrictDataObject::from([
+                'event' => 'task_executed_during_grace_period',
+                'task_id' => $task->id,
+                'task_signature' => $task->signature,
+                'delay_seconds' => $delay,
+                'late_by' => 'seconds_late',
+            ]);
 
             $this->logger->warning(new LogDataRecord(
                 type: 'task',

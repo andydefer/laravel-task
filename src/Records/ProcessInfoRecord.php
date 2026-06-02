@@ -1,13 +1,18 @@
 <?php
 
-// src/Records/ProcessInfoRecord.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Records;
 
-use AndyDefer\Records\AbstractRecord;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 
+/**
+ * Record representing a running process information.
+ *
+ * Stores process ID, task identifier, and start time for a forked process.
+ *
+ * @author Andy Defer
+ */
 final class ProcessInfoRecord extends AbstractRecord
 {
     public function __construct(

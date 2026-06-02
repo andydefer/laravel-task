@@ -6,7 +6,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Records;
 
-use AndyDefer\Records\AbstractRecord;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\Task\Enums\TaskMode;
 
 final class RecurringTaskRecord extends AbstractRecord

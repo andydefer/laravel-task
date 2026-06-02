@@ -1,12 +1,11 @@
 <?php
 
-// tests/Integration/Services/TaskStorageIntegrationTest.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Services;
 
-use AndyDefer\Logger\Collections\MixedPayloadCollection;
+use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
@@ -36,12 +35,37 @@ final class TaskStorageIntegrationTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    private function createTaskPayload(): TaskPayloadRecord
+    {
+        $payloadCollection = new StrictDataObjectCollection;
+        $payloadCollection->add(StrictDataObject::from([
+            'test_data' => 'sample',
+        ]));
+
+        return new TaskPayloadRecord(
+            type: 'test',
+            payload: $payloadCollection,
+        );
+    }
+
+    private function deleteDirectory(string $dir): void
+    {
+        if (! is_dir($dir)) {
+            return;
+        }
+
+        $files = array_diff(scandir($dir), ['.', '..']);
+        foreach ($files as $file) {
+            $path = $dir.'/'.$file;
+            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
+        }
+        rmdir($dir);
+    }
+
     public function test_save_and_find_recurring_task(): void
     {
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: new MixedPayloadCollection,
-        );
+        // Arrange: Create a recurring task
+        $payload = $this->createTaskPayload();
 
         $task = new RecurringTaskRecord(
             signature: 'recurring-test',
@@ -57,20 +81,19 @@ final class TaskStorageIntegrationTest extends IntegrationTestCase
             failureCount: 0,
         );
 
+        // Act: Save and retrieve the recurring task
         $this->storage->saveRecurring($task);
-
         $found = $this->storage->getRecurring('recurring-test');
 
+        // Assert: Task was saved and retrieved correctly
         $this->assertNotNull($found);
         $this->assertSame('recurring-test', $found->signature);
     }
 
     public function test_update_recurring_after_run(): void
     {
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: new MixedPayloadCollection,
-        );
+        // Arrange: Create a recurring task
+        $payload = $this->createTaskPayload();
 
         $task = new RecurringTaskRecord(
             signature: 'recurring-test',
@@ -88,10 +111,11 @@ final class TaskStorageIntegrationTest extends IntegrationTestCase
 
         $this->storage->saveRecurring($task);
 
+        // Act: Update the recurring task after successful run
         $this->storage->updateRecurringAfterRun($task, true, null);
-
         $updated = $this->storage->getRecurring('recurring-test');
 
+        // Assert: Task was updated correctly
         $this->assertNotNull($updated);
         $this->assertSame(1, $updated->successCount);
         $this->assertNotNull($updated->lastRunAt);
@@ -99,10 +123,8 @@ final class TaskStorageIntegrationTest extends IntegrationTestCase
 
     public function test_move_to_completed(): void
     {
-        $payload = new TaskPayloadRecord(
-            type: 'test',
-            payload: new MixedPayloadCollection,
-        );
+        // Arrange: Create and save a pending task
+        $payload = $this->createTaskPayload();
 
         $task = new TaskRecord(
             id: '123',
@@ -120,24 +142,12 @@ final class TaskStorageIntegrationTest extends IntegrationTestCase
         );
 
         $this->storage->savePending($task);
-        $this->storage->moveToCompleted($task, true);
 
+        // Act: Move the task to completed
+        $this->storage->moveToCompleted($task, true);
         $pending = $this->storage->findPending();
 
+        // Assert: Task was moved out of pending
         $this->assertSame(0, $pending->count());
-    }
-
-    private function deleteDirectory(string $dir): void
-    {
-        if (! is_dir($dir)) {
-            return;
-        }
-
-        $files = array_diff(scandir($dir), ['.', '..']);
-        foreach ($files as $file) {
-            $path = $dir.'/'.$file;
-            is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
-        }
-        rmdir($dir);
     }
 }

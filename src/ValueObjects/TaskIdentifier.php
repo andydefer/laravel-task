@@ -1,44 +1,75 @@
 <?php
 
-// src/ValueObjects/TaskIdentifier.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\ValueObjects;
 
-use AndyDefer\Task\Records\RecurringTaskRecord;
+use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use AndyDefer\Task\Records\TaskRecord;
+use InvalidArgumentException;
 
-final class TaskIdentifier
+/**
+ * Value Object representing a unique task identifier.
+ *
+ * Uses the task ID as the identifier value.
+ *
+ * @author Andy Defer
+ */
+final class TaskIdentifier extends AbstractValueObject
 {
     private function __construct(
-        private readonly string $value,
+        private readonly string $value
     ) {}
 
-    public static function fromTask(object $task): self
+    /**
+     * Create a TaskIdentifier from a TaskRecord.
+     *
+     * @throws InvalidArgumentException If the task ID is empty
+     */
+    public static function fromTask(TaskRecord $task): self
     {
-        if ($task instanceof TaskRecord) {
-            return new self($task->id);
-        }
-        if ($task instanceof RecurringTaskRecord) {
-            return new self('recurring_'.$task->signature);
+        if ($task->id === '') {
+            throw new InvalidArgumentException('Task ID cannot be empty');
         }
 
-        return new self('unknown');
+        return new self($task->id);
     }
 
+    /**
+     * Create a TaskIdentifier from a string value.
+     *
+     * @throws InvalidArgumentException If the value is empty
+     */
     public static function fromString(string $value): self
     {
+        if ($value === '') {
+            throw new InvalidArgumentException('Task identifier cannot be empty');
+        }
+
         return new self($value);
     }
 
+    /**
+     * Get the string representation of the identifier.
+     */
     public function toString(): string
     {
         return $this->value;
     }
 
-    public function equals(TaskIdentifier $other): bool
+    /**
+     * {@inheritDoc}
+     */
+    public function getValue(): string
     {
-        return $this->value === $other->value;
+        return $this->value;
+    }
+
+    /**
+     * Convert to string.
+     */
+    public function __toString(): string
+    {
+        return $this->value;
     }
 }

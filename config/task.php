@@ -1,7 +1,5 @@
 <?php
 
-// config/task.php
-
 declare(strict_types=1);
 
 return [
@@ -10,43 +8,37 @@ return [
     | Tasks Storage Path
     |--------------------------------------------------------------------------
     |
-    | This option defines where task files are stored. The task system will
-    | create three subdirectories: pending/, recurring/, and completed/
+    | This path is used by the task system to store pending, recurring,
+    | and completed tasks. Ensure this directory is writable.
     |
     */
-    'storage_path' => env('TASKS_STORAGE_PATH', storage_path('tasks')),
+    'storage_path' => env('TASK_STORAGE_PATH', storage_path('tasks')),
 
     /*
     |--------------------------------------------------------------------------
-    | Default Task Configuration
+    | Grace Period
     |--------------------------------------------------------------------------
     |
-    | Default values for task configuration when not specified in the task itself
+    | Configuration for expired task grace period. Tasks that have passed their
+    | end_at date can still be executed within this grace period.
     |
     */
-    'defaults' => [
-        'max_attempts' => 3,
-        'delay_seconds' => 300,
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Poller Configuration
-    |--------------------------------------------------------------------------
-    |
-    | Configuration for the task poller directive
-    |
-    */
-
-    'poller' => [
-        'default_duration' => 60,
-        'graceful_timeout' => 30,
-        'use_sequential_mode' => env('TASKS_USE_SEQUENTIAL_MODE', true),
-        'lock_path' => env('TASKS_LOCK_PATH', null),
-    ],
-
     'grace_period' => [
-        'enabled' => env('TASKS_GRACE_PERIOD_ENABLED', true),
-        'seconds' => env('TASKS_GRACE_PERIOD_SECONDS', 86400), // 24 heures
+        'enabled' => env('TASK_GRACE_PERIOD_ENABLED', true),
+        'seconds' => env('TASK_GRACE_PERIOD_SECONDS', 86400),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Batch Processing Limits
+    |--------------------------------------------------------------------------
+    |
+    | Maximum number of tasks to process in a single batch.
+    | Set to null or 0 for no limit.
+    |
+    */
+    'batch' => [
+        'limit' => env('TASK_BATCH_LIMIT', 1000),
+        'order' => env('TASK_BATCH_ORDER', 'oldest'), // 'oldest' or 'newest'
     ],
 ];

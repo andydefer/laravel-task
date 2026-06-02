@@ -1,19 +1,27 @@
 <?php
 
-// src/Services/TaskStorage.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
-use AndyDefer\Logger\Collections\MixedPayloadCollection;
-use AndyDefer\Records\Collections\TypedCollection;
+use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
+use AndyDefer\Task\Collections\TaskRecordCollection;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
 
+/**
+ * File-based storage for pending, recurring, and completed tasks.
+ *
+ * Uses JSON files to persist task data between requests.
+ * Tasks are stored in separate directories based on their state.
+ *
+ * @author Andy Defer
+ */
 class TaskStorage
 {
     private string $pendingPath;
@@ -24,71 +32,154 @@ class TaskStorage
 
     public function __construct(?string $storagePath = null)
     {
-        // Si aucun chemin n'est fourni, utiliser la configuration
         if ($storagePath === null) {
             $storagePath = config('task.storage_path', storage_path('tasks'));
         }
 
-        $this->pendingPath = $storagePath.'/pending';
-        $this->recurringPath = $storagePath.'/recurring';
-        $this->completedPath = $storagePath.'/completed';
+        $this->pendingPath = $storagePath . '/pending';
+        $this->recurringPath = $storagePath . '/recurring';
+        $this->completedPath = $storagePath . '/completed';
 
         $this->ensureDirectories();
     }
 
+    /**
+     * Create all required directories if they don't exist.
+     */
     private function ensureDirectories(): void
     {
         foreach ([$this->pendingPath, $this->recurringPath, $this->completedPath] as $path) {
-            if (! is_dir($path)) {
+            if (!is_dir($path)) {
                 mkdir($path, 0755, true);
             }
         }
     }
 
-    // ==================== Unique Tasks ====================
-
-    public function savePending(TaskRecord $task): void
+    /**
+     * Sort files by modification time.
+     *
+     * @param array<string> $files List of file paths
+     * @param string $order 'oldest' or 'newest'
+     * @return array<string> Sorted file paths
+     */
+    private function sortFilesByTime(array $files, string $order = 'oldest'): array
     {
-        $filePath = $this->pendingPath.'/'.$task->id.'.json';
-        file_put_contents($filePath, json_encode($this->taskToArray($task), JSON_PRETTY_PRINT));
+        usort($files, function ($a, $b) use ($order) {
+            $timeA = filemtime($a);
+            $timeB = filemtime($b);
+
+            // If timestamps are identical, sort by filename (alphabetical)
+            if ($timeA === $timeB) {
+                return strcmp(basename($a), basename($b));
+            }
+
+            if ($order === 'oldest') {
+                return $timeA - $timeB;
+            }
+
+            return $timeB - $timeA;
+        });
+
+        return $files;
     }
 
-    public function findPending(): TypedCollection
+    /**
+     * Apply limit to files array.
+     *
+     * @param array<string> $files List of file paths
+     * @param int|null $limit Maximum number of files to return
+     * @return array<string> Limited file paths
+     */
+    private function applyLimit(array $files, ?int $limit): array
     {
-        $results = new TypedCollection(TaskRecord::class);
-        $files = glob($this->pendingPath.'/*.json');
+        // If limit is 0, return no files
+        if ($limit === 0) {
+            return [];
+        }
+
+        if ($limit === null || $limit <= 0) {
+            return $files;
+        }
+
+        return array_slice($files, 0, $limit);
+    }
+
+    // ==================== Unique Tasks ====================
+
+    /**
+     * Save a pending task to storage.
+     */
+    public function savePending(TaskRecord $task): void
+    {
+        $filePath = $this->pendingPath . '/' . $task->id . '.json';
+        file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
+
+        // Small pause to ensure different timestamps for testing
+        usleep(1000);
+    }
+
+    /**
+     * Find all pending tasks that are ready to run.
+     *
+     * @param int|null $limit Maximum number of tasks to return
+     * @param string $order 'oldest' or 'newest'
+     */
+    public function findPending(?int $limit = null, string $order = 'oldest'): TaskRecordCollection
+    {
+        $results = new TaskRecordCollection();
+        $files = glob($this->pendingPath . '/*.json');
+
+        // Sort files by modification time
+        $files = $this->sortFilesByTime($files, $order);
+
+        // Apply limit
+        $files = $this->applyLimit($files, $limit);
 
         foreach ($files as $file) {
             $content = file_get_contents($file);
             $data = json_decode($content, true);
 
-            if ($data && $this->shouldRunTaskNow($data)) {
-                $results->add($this->arrayToTask($data));
+            if ($data === null) {
+                continue;
+            }
+
+            // ✅ Hydratation automatique !
+            $task = TaskRecord::from($data);
+
+            if ($this->shouldRunTaskNow($task)) {
+                $results->add($task);
             }
         }
 
         return $results;
     }
 
+    /**
+     * Delete a pending task from storage.
+     */
     public function deletePending(string $id): void
     {
-        $filePath = $this->pendingPath.'/'.$id.'.json';
+        $filePath = $this->pendingPath . '/' . $id . '.json';
+
         if (file_exists($filePath)) {
             unlink($filePath);
         }
     }
 
+    /**
+     * Move a completed task to the completed directory.
+     */
     public function moveToCompleted(TaskRecord $task, bool $success): void
     {
         $date = date('Y-m-d');
-        $completedDir = $this->completedPath.'/'.$date;
+        $completedDir = $this->completedPath . '/' . $date;
 
-        if (! is_dir($completedDir)) {
+        if (!is_dir($completedDir)) {
             mkdir($completedDir, 0755, true);
         }
 
-        $source = $this->pendingPath.'/'.$task->id.'.json';
-        $target = $completedDir.'/'.$task->id.'.json';
+        $source = $this->pendingPath . '/' . $task->id . '.json';
+        $target = $completedDir . '/' . $task->id . '.json';
 
         if (file_exists($source)) {
             rename($source, $target);
@@ -97,222 +188,214 @@ class TaskStorage
 
     // ==================== Recurring Tasks ====================
 
+    /**
+     * Save a recurring task to storage.
+     */
     public function saveRecurring(RecurringTaskRecord $task): void
     {
-        $filePath = $this->recurringPath.'/'.$task->signature.'.json';
-        file_put_contents($filePath, json_encode($this->recurringTaskToArray($task), JSON_PRETTY_PRINT));
+        $filePath = $this->recurringPath . '/' . $task->signature . '.json';
+        file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
+
+        // Small pause to ensure different timestamps for testing
+        usleep(1000);
     }
 
-    public function findRecurring(): TypedCollection
+    /**
+     * Find all recurring tasks that are ready to run.
+     *
+     * @param int|null $limit Maximum number of tasks to return
+     * @param string $order 'oldest' or 'newest'
+     */
+    public function findRecurring(?int $limit = null, string $order = 'oldest'): RecurringTaskRecordCollection
     {
-        $results = new TypedCollection(RecurringTaskRecord::class);
-        $files = glob($this->recurringPath.'/*.json');
+        $results = new RecurringTaskRecordCollection();
+        $files = glob($this->recurringPath . '/*.json');
+
+        // Sort files by modification time
+        $files = $this->sortFilesByTime($files, $order);
+
+        // Apply limit
+        $files = $this->applyLimit($files, $limit);
 
         foreach ($files as $file) {
             $content = file_get_contents($file);
             $data = json_decode($content, true);
 
-            if ($data && $this->shouldRunRecurringNow($data)) {
-                $results->add($this->arrayToRecurringTask($data));
+            if ($data === null) {
+                continue;
+            }
+
+            // ✅ Hydratation automatique !
+            $task = RecurringTaskRecord::from($data);
+
+            if ($this->shouldRunRecurringNow($task)) {
+                $results->add($task);
             }
         }
 
         return $results;
     }
 
+    /**
+     * Get a specific recurring task by signature.
+     */
     public function getRecurring(string $signature): ?RecurringTaskRecord
     {
-        $filePath = $this->recurringPath.'/'.$signature.'.json';
+        $filePath = $this->recurringPath . '/' . $signature . '.json';
 
-        if (! file_exists($filePath)) {
+        if (!file_exists($filePath)) {
             return null;
         }
 
         $content = file_get_contents($filePath);
         $data = json_decode($content, true);
 
-        return $data ? $this->arrayToRecurringTask($data) : null;
+        if ($data === null) {
+            return null;
+        }
+
+        // ✅ Hydratation automatique !
+        return RecurringTaskRecord::from($data);
     }
 
+    /**
+     * Update a recurring task after execution.
+     */
     public function updateRecurringAfterRun(RecurringTaskRecord $task, bool $success, ?string $error = null): void
     {
         $now = date('c');
         $nextRunAt = date('c', strtotime($now) + $task->delaySeconds);
 
-        $updated = new RecurringTaskRecord(
-            signature: $task->signature,
-            class: $task->class,
-            payload: $task->payload,
-            mode: $task->mode,
-            startAt: $task->startAt,
-            endAt: $task->endAt,
-            delaySeconds: $task->delaySeconds,
-            lastRunAt: $now,
-            nextRunAt: $nextRunAt,
-            successCount: $success ? $task->successCount + 1 : $task->successCount,
-            failureCount: $success ? $task->failureCount : $task->failureCount + 1,
-            lastError: $error,
-        );
+        $updated = RecurringTaskRecord::from([
+            'signature' => $task->signature,
+            'class' => $task->class,
+            'payload' => $task->payload,
+            'mode' => $task->mode,
+            'startAt' => $task->startAt,
+            'endAt' => $task->endAt,
+            'delaySeconds' => $task->delaySeconds,
+            'lastRunAt' => $now,
+            'nextRunAt' => $nextRunAt,
+            'successCount' => $success ? $task->successCount + 1 : $task->successCount,
+            'failureCount' => $success ? $task->failureCount : $task->failureCount + 1,
+            'lastError' => $error,
+        ]);
 
         $this->saveRecurring($updated);
     }
 
+    /**
+     * Delete a recurring task from storage.
+     */
     public function deleteRecurring(string $signature): void
     {
-        $filePath = $this->recurringPath.'/'.$signature.'.json';
+        $filePath = $this->recurringPath . '/' . $signature . '.json';
+
         if (file_exists($filePath)) {
             unlink($filePath);
         }
     }
 
+    /**
+     * Get all recurring tasks (without filtering by run time).
+     */
+    public function getAllRecurring(): RecurringTaskRecordCollection
+    {
+        $results = new RecurringTaskRecordCollection();
+        $files = glob($this->recurringPath . '/*.json');
+
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            $data = json_decode($content, true);
+
+            if ($data === null) {
+                continue;
+            }
+
+            // ✅ Hydratation automatique !
+            $results->add(RecurringTaskRecord::from($data));
+        }
+
+        return $results;
+    }
+
+    /**
+     * Get all pending tasks (without filtering by run time).
+     */
+    public function getAllPending(): TaskRecordCollection
+    {
+        $results = new TaskRecordCollection();
+        $files = glob($this->pendingPath . '/*.json');
+
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            $data = json_decode($content, true);
+
+            if ($data === null) {
+                continue;
+            }
+
+            // ✅ Hydratation automatique !
+            $results->add(TaskRecord::from($data));
+        }
+
+        return $results;
+    }
+
     // ==================== Helpers ====================
 
-    private function shouldRunTaskNow(array $data): bool
+    /**
+     * Check if a pending task should run now.
+     */
+    private function shouldRunTaskNow(TaskRecord $task): bool
     {
         $now = time();
-        $startAt = strtotime($data['start_at']);
-        $endAt = isset($data['end_at']) ? strtotime($data['end_at']) : PHP_INT_MAX;
 
-        if ($now < $startAt) {
+        $startAtTimestamp = strtotime($task->startAt);
+        $endAtTimestamp = $task->endAt !== null ? strtotime($task->endAt) : PHP_INT_MAX;
+
+        if ($now < $startAtTimestamp) {
             return false;
         }
 
-        if ($now > $endAt) {
+        if ($now > $endAtTimestamp) {
             return false;
         }
 
-        if ($data['status'] !== 'pending') {
+        if ($task->status !== TaskStatus::PENDING) {
             return false;
         }
 
-        if ($data['attempts'] >= $data['max_attempts']) {
+        if ($task->attempts >= $task->maxAttempts) {
             return false;
         }
 
         return true;
     }
 
-    private function shouldRunRecurringNow(array $data): bool
+    /**
+     * Check if a recurring task should run now.
+     */
+    private function shouldRunRecurringNow(RecurringTaskRecord $task): bool
     {
         $now = time();
-        $startAt = strtotime($data['start_at']);
-        $endAt = isset($data['end_at']) ? strtotime($data['end_at']) : PHP_INT_MAX;
-        $nextRunAt = strtotime($data['next_run_at']);
 
-        if ($now < $startAt) {
+        $startAtTimestamp = strtotime($task->startAt);
+        $endAtTimestamp = $task->endAt !== null ? strtotime($task->endAt) : PHP_INT_MAX;
+        $nextRunAtTimestamp = strtotime($task->nextRunAt);
+
+        if ($now < $startAtTimestamp) {
             return false;
         }
 
-        if ($now > $endAt) {
+        if ($now > $endAtTimestamp) {
             return false;
         }
 
-        if ($now < $nextRunAt) {
+        if ($now < $nextRunAtTimestamp) {
             return false;
         }
 
         return true;
-    }
-
-    private function arrayToTask(array $data): TaskRecord
-    {
-        $payloadCollection = new MixedPayloadCollection;
-        foreach ($data['payload']['payload'] as $item) {
-            $payloadCollection->add($item);
-        }
-
-        $payload = new TaskPayloadRecord(
-            type: $data['payload']['type'],
-            payload: $payloadCollection,
-        );
-
-        return new TaskRecord(
-            id: $data['id'],
-            signature: $data['signature'],
-            class: $data['class'],
-            payload: $payload,
-            mode: TaskMode::from($data['mode']),
-            status: TaskStatus::from($data['status']),
-            createdAt: $data['created_at'],
-            startAt: $data['start_at'],
-            endAt: $data['end_at'] ?? null,
-            delaySeconds: $data['delay_seconds'],
-            attempts: $data['attempts'],
-            maxAttempts: $data['max_attempts'],
-            lastError: $data['last_error'] ?? null,
-            enforceExactSchedule: $data['enforce_exact_schedule'] ?? false,
-        );
-    }
-
-    private function arrayToRecurringTask(array $data): RecurringTaskRecord
-    {
-        $payloadCollection = new MixedPayloadCollection;
-        foreach ($data['payload']['payload'] as $item) {
-            $payloadCollection->add($item);
-        }
-
-        $payload = new TaskPayloadRecord(
-            type: $data['payload']['type'],
-            payload: $payloadCollection,
-        );
-
-        return new RecurringTaskRecord(
-            signature: $data['signature'],
-            class: $data['class'],
-            payload: $payload,
-            mode: TaskMode::from($data['mode']),
-            startAt: $data['start_at'],
-            endAt: $data['end_at'] ?? null,
-            delaySeconds: $data['delay_seconds'],
-            lastRunAt: $data['last_run_at'] ?? null,
-            nextRunAt: $data['next_run_at'],
-            successCount: $data['success_count'],
-            failureCount: $data['failure_count'],
-            lastError: $data['last_error'] ?? null,
-        );
-    }
-
-    private function taskToArray(TaskRecord $task): array
-    {
-        return [
-            'id' => $task->id,
-            'signature' => $task->signature,
-            'class' => $task->class,
-            'payload' => [
-                'type' => $task->payload->type,
-                'payload' => $task->payload->payload->toArray(),
-            ],
-            'mode' => $task->mode->value,
-            'status' => $task->status->value,
-            'created_at' => $task->createdAt,
-            'start_at' => $task->startAt,
-            'end_at' => $task->endAt,
-            'delay_seconds' => $task->delaySeconds,
-            'attempts' => $task->attempts,
-            'max_attempts' => $task->maxAttempts,
-            'last_error' => $task->lastError,
-            'enforce_exact_schedule' => $task->enforceExactSchedule,
-        ];
-    }
-
-    private function recurringTaskToArray(RecurringTaskRecord $task): array
-    {
-        return [
-            'signature' => $task->signature,
-            'class' => $task->class,
-            'payload' => [
-                'type' => $task->payload->type,
-                'payload' => $task->payload->payload->toArray(),
-            ],
-            'mode' => $task->mode->value,
-            'start_at' => $task->startAt,
-            'end_at' => $task->endAt,
-            'delay_seconds' => $task->delaySeconds,
-            'last_run_at' => $task->lastRunAt,
-            'next_run_at' => $task->nextRunAt,
-            'success_count' => $task->successCount,
-            'failure_count' => $task->failureCount,
-            'last_error' => $task->lastError,
-        ];
     }
 }

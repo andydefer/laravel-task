@@ -1,50 +1,27 @@
 <?php
 
-// src/Collections/ProcessInfoCollection.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Collections;
 
-use AndyDefer\Records\Collections\TypedCollection;
+use AndyDefer\DomainStructures\Abstracts\AbstractTypedCollection;
 use AndyDefer\Task\Records\ProcessInfoRecord;
 
-final class ProcessInfoCollection extends TypedCollection
+/**
+ * Collection of process information records with process management capabilities.
+ *
+ * Provides specialized operations for managing system processes including
+ * filtering running processes, removing completed ones, and force termination.
+ *
+ * @extends AbstractTypedCollection<ProcessInfoRecord>
+ */
+final class ProcessInfoCollection extends AbstractTypedCollection
 {
+    /**
+     * Initialize an empty process information collection.
+     */
     public function __construct()
     {
         parent::__construct(ProcessInfoRecord::class);
-    }
-
-    public function findRunning(): self
-    {
-        return $this->filter(fn (ProcessInfoRecord $process) => $this->isRunning($process->pid));
-    }
-
-    public function removeCompleted(): self
-    {
-        $remaining = new self;
-        foreach ($this as $process) {
-            if ($this->isRunning($process->pid)) {
-                $remaining->add($process);
-            }
-        }
-
-        return $remaining;
-    }
-
-    private function isRunning(int $pid): bool
-    {
-        $status = null;
-        $res = pcntl_waitpid($pid, $status, WNOHANG);
-
-        return $res !== $pid;
-    }
-
-    public function forceKillAll(): void
-    {
-        foreach ($this as $process) {
-            posix_kill($process->pid, SIGKILL);
-        }
     }
 }
