@@ -21,9 +21,6 @@ Pour chaque classe ou composant, produire un fichier Markdown structuré comme s
 ## Rôle principal
 [Explication du rôle dans l'architecture du package]
 
-## Installation
-[Si applicable, commandes d'installation ou prérequis]
-
 ## API / Méthodes publiques
 
 ### `méthodeName(Type $param): ReturnType`
@@ -55,13 +52,6 @@ Pour chaque classe ou composant, produire un fichier Markdown structuré comme s
 
 ```php
 // Exemple concret
-```
-
-## Flux d'exécution
-[Diagramme textuel ou description du flux]
-
-```
-Étape 1 → Étape 2 → Étape 3 → Résultat
 ```
 
 ## Gestion des erreurs
@@ -312,3 +302,6 @@ $boolValue = $converter->convert('true', 'bool', 'flag'); // true
 // Convert to string
 $stringValue = $converter->convert(42, 'string', 'label'); // '42'
 ```
+
+
+VOICI LE CODE :

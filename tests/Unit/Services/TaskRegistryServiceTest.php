@@ -9,9 +9,9 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
-use AndyDefer\Task\Services\TaskRegistry;
-use AndyDefer\Task\Services\TaskStorage;
-use AndyDefer\Task\Services\TaskValidator;
+use AndyDefer\Task\Services\TaskRegistryService;
+use AndyDefer\Task\Services\TaskStorageService;
+use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\UnitTestCase;
 use InvalidArgumentException;
@@ -19,25 +19,26 @@ use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 
 #[AllowMockObjectsWithoutExpectations]
-final class TaskRegistryTest extends UnitTestCase
+final class TaskRegistryServiceTest extends UnitTestCase
 {
-    private TaskRegistry $registry;
+    private TaskRegistryService $registry;
 
-    private TaskStorage&MockObject $storage;
+    private TaskStorageService&MockObject $storage;
 
-    private TaskValidator&MockObject $validator;
+    private TaskValidatorService&MockObject $validator;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->storage = $this->createMock(TaskStorage::class);
-        $this->validator = $this->createMock(TaskValidator::class);
-        $this->registry = new TaskRegistry($this->storage, $this->validator);
+        $this->storage = $this->createMock(TaskStorageService::class);
+        $this->storage = $this->createMock(TaskStorageService::class);
+        $this->validator = $this->createMock(TaskValidatorService::class);
+        $this->registry = new TaskRegistryService($this->storage, $this->validator);
     }
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
+        $payloadCollection = new StrictDataObjectCollection;
         $payloadCollection->add(StrictDataObject::from([
             'test_data' => 'registry_test',
         ]));
@@ -57,7 +58,10 @@ final class TaskRegistryTest extends UnitTestCase
             ->with('InvalidClass')
             ->willReturn(false);
 
-        // Assert: Exception is expected with the actual message from TaskRegistry
+        // No expectations needed for storage mock - use stub instead
+        // The storage savePending() should never be called
+
+        // Assert: Exception is expected with the actual message from TaskRegistryService
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Task must extend AbstractTask');
 
@@ -68,7 +72,6 @@ final class TaskRegistryTest extends UnitTestCase
             payload: $payload,
         );
     }
-
     public function test_register_unique_task_with_enforce_exact_schedule(): void
     {
         // Arrange: Create payload and configure validator to return true

@@ -17,9 +17,9 @@ use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
-use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\Tests\UnitTestCase;
 
-final class AbstractTaskTest extends IntegrationTestCase
+final class AbstractTaskTest extends UnitTestCase
 {
     private TestTask $task;
 

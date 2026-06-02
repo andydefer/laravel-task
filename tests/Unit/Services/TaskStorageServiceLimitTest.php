@@ -6,23 +6,36 @@ namespace AndyDefer\Task\Tests\Unit\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
-use AndyDefer\Task\Services\TaskStorage;
+use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Tests\UnitTestCase;
+use PHPUnit\Framework\MockObject\Stub;
 
-final class TaskStorageLimitTest extends UnitTestCase
+final class TaskStorageServiceLimitTest extends UnitTestCase
 {
     private string $tempDir;
-    private TaskStorage $storage;
+
+    private TaskStorageService $storage;
+
+    private TaskConfig&Stub $config;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tempDir = sys_get_temp_dir() . '/task_storage_limit_test_' . uniqid();
-        $this->storage = new TaskStorage($this->tempDir);
+        $this->tempDir = sys_get_temp_dir().'/task_storage_limit_test_'.uniqid();
+
+        // Create stub config with all required methods
+        $this->config = $this->createStub(TaskConfig::class);
+        $this->config->method('storagePath')->willReturn($this->tempDir);
+        $this->config->method('storagePendingPath')->willReturn($this->tempDir.'/pending');
+        $this->config->method('storageRecurringPath')->willReturn($this->tempDir.'/recurring');
+        $this->config->method('storageCompletedPath')->willReturn($this->tempDir.'/completed');
+
+        $this->storage = new TaskStorageService($this->config);
     }
 
     protected function tearDown(): void
@@ -35,10 +48,10 @@ final class TaskStorageLimitTest extends UnitTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (!is_dir($path)) {
+        if (! is_dir($path)) {
             return;
         }
-        foreach (glob($path . '/*') as $file) {
+        foreach (glob($path.'/*') as $file) {
             is_dir($file) ? $this->removeDirectory($file) : unlink($file);
         }
         rmdir($path);
@@ -46,8 +59,9 @@ final class TaskStorageLimitTest extends UnitTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
+        $payloadCollection = new StrictDataObjectCollection;
         $payloadCollection->add(StrictDataObject::from(['test_data' => 'limit_test']));
+
         return new TaskPayloadRecord(type: 'test', payload: $payloadCollection);
     }
 
@@ -85,8 +99,19 @@ final class TaskStorageLimitTest extends UnitTestCase
             $this->storage->savePending($task);
         }
 
+        // DEBUG: Vérifier le contenu du dossier
+        $pendingPath = $this->tempDir.'/pending';
+        $files = glob($pendingPath.'/*.json');
+        foreach ($files as $file) {
+            $content = file_get_contents($file);
+            $data = json_decode($content, true);
+        }
+
         // Act: Find pending tasks with limit 5
         $result = $this->storage->findPending(5);
+
+        foreach ($result as $task) {
+        }
 
         // Assert: Only 5 tasks returned
         $this->assertSame(5, $result->count());
@@ -99,6 +124,10 @@ final class TaskStorageLimitTest extends UnitTestCase
             $task = $this->createTestTask($i);
             $this->storage->savePending($task);
         }
+
+        // DEBUG
+        $pendingPath = $this->tempDir.'/pending';
+        $files = glob($pendingPath.'/*.json');
 
         // Act: Find pending tasks without limit
         $result = $this->storage->findPending();
@@ -137,11 +166,6 @@ final class TaskStorageLimitTest extends UnitTestCase
         $this->assertSame(5, $result->count());
     }
 
-    /**
-     * Note: Les tests d'ordre utilisent le tri par filemtime() qui peut être
-     * imprécis selon le système de fichiers. Ces tests vérifient principalement
-     * que le tri ne casse pas et que la limite fonctionne.
-     */
     public function test_find_pending_with_order_oldest_returns_oldest_first(): void
     {
         // Arrange: Create tasks
@@ -150,13 +174,21 @@ final class TaskStorageLimitTest extends UnitTestCase
             $this->storage->savePending($task);
         }
 
+        // DEBUG: Vérifier les timestamps des fichiers
+        $pendingPath = $this->tempDir.'/pending';
+        $files = glob($pendingPath.'/*.json');
+        foreach ($files as $file) {
+        }
+
         // Act: Find pending tasks ordered oldest first
         $result = $this->storage->findPending(null, 'oldest');
 
-        // Assert: Le résultat contient les 3 tâches (l'ordre exact peut varier)
+        foreach ($result as $task) {
+        }
+
+        // Assert: Le résultat contient les 3 tâches
         $this->assertCount(3, $result);
 
-        // Vérifier que toutes les tâches sont présentes
         $ids = [];
         foreach ($result as $task) {
             $ids[] = $task->id;
@@ -180,7 +212,6 @@ final class TaskStorageLimitTest extends UnitTestCase
         // Assert: Le résultat contient les 3 tâches
         $this->assertCount(3, $result);
 
-        // Vérifier que toutes les tâches sont présentes
         $ids = [];
         foreach ($result as $task) {
             $ids[] = $task->id;
@@ -201,7 +232,7 @@ final class TaskStorageLimitTest extends UnitTestCase
         // Act: Get 3 newest tasks
         $result = $this->storage->findPending(3, 'newest');
 
-        // Assert: 3 tasks returned (ordre exact peut varier)
+        // Assert: 3 tasks returned
         $this->assertCount(3, $result);
     }
 

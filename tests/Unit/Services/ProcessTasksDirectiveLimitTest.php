@@ -5,11 +5,16 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Unit\Directives;
 
 use AndyDefer\Directive\Enums\ExitCode;
+use AndyDefer\Directive\Records\DirectiveResponseRecord;
 use AndyDefer\Directive\Testing\InteractsWithDirectives;
+use AndyDefer\Task\Collections\RecurringResultCollection;
+use AndyDefer\Task\Collections\TaskErrorCollection;
+use AndyDefer\Task\Collections\UniqueResultCollection;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
-use AndyDefer\Task\Services\BatchResult;
-use AndyDefer\Task\Services\TaskBatch;
+use AndyDefer\Task\Records\BatchResultRecord;
+use AndyDefer\Task\Services\TaskBatchService;
 use AndyDefer\Task\Tests\UnitTestCase;
+use AndyDefer\Task\ValueObjects\Iso8601DateTime;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 
@@ -18,7 +23,8 @@ final class ProcessTasksDirectiveLimitTest extends UnitTestCase
 {
     use InteractsWithDirectives;
 
-    private TaskBatch&MockObject $batch;
+    private TaskBatchService&MockObject $batch;
+
     private ProcessTasksDirective $directive;
 
     protected function setUp(): void
@@ -26,7 +32,7 @@ final class ProcessTasksDirectiveLimitTest extends UnitTestCase
         parent::setUp();
         $this->initDirectiveTesting();
 
-        $this->batch = $this->createMock(TaskBatch::class);
+        $this->batch = $this->createMock(TaskBatchService::class);
         $this->directive = new ProcessTasksDirective($this->interaction, $this->batch);
         $this->registerDirective($this->directive);
     }
@@ -37,16 +43,43 @@ final class ProcessTasksDirectiveLimitTest extends UnitTestCase
         parent::tearDown();
     }
 
-    private function runDirectiveWithArgs(array $arguments = []): \AndyDefer\Directive\Records\DirectiveResponseRecord
+    private function runDirectiveWithArgs(array $arguments = []): DirectiveResponseRecord
     {
         return $this->runDirective(ProcessTasksDirective::class, $arguments);
+    }
+
+    private function createSuccessResult(): BatchResultRecord
+    {
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 1,
+            uniqueFailed: 0,
+            recurringSuccess: 0,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
+        );
+    }
+
+    private function createSuccessRecurringResult(): BatchResultRecord
+    {
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 0,
+            uniqueFailed: 0,
+            recurringSuccess: 1,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
+        );
     }
 
     public function test_execute_with_limit_passes_limit_to_batch(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', true);
+        $result = $this->createSuccessResult();
 
         $this->batch->expects($this->once())
             ->method('process')
@@ -83,8 +116,7 @@ final class ProcessTasksDirectiveLimitTest extends UnitTestCase
     public function test_execute_with_limit_and_unique_only_passes_limit(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', true);
+        $result = $this->createSuccessResult();
 
         $this->batch->expects($this->once())
             ->method('processUniqueOnly')
@@ -101,8 +133,7 @@ final class ProcessTasksDirectiveLimitTest extends UnitTestCase
     public function test_execute_with_limit_and_recurring_only_passes_limit(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addRecurringTask('recurring-1', true);
+        $result = $this->createSuccessRecurringResult();
 
         $this->batch->expects($this->once())
             ->method('processRecurringOnly')
@@ -128,8 +159,7 @@ final class ProcessTasksDirectiveLimitTest extends UnitTestCase
     public function test_execute_with_limit_and_verbose(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', true);
+        $result = $this->createSuccessResult();
 
         $this->batch->expects($this->once())
             ->method('process')

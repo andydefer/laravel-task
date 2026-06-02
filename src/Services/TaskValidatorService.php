@@ -1,18 +1,21 @@
 <?php
 
-// src/Services/TaskValidator.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
 use AndyDefer\Task\AbstractTask;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use Carbon\Carbon;
 
-class TaskValidator
+class TaskValidatorService
 {
+    public function __construct(
+        private readonly TaskConfig $config,
+    ) {}
+
     public function validateTaskClass(string $className): bool
     {
         if (! class_exists($className)) {
@@ -49,8 +52,8 @@ class TaskValidator
         }
 
         // Période de grâce pour les tâches uniques (delaySeconds = 0)
-        if ($task->delaySeconds === 0 && $this->isGracePeriodEnabled()) {
-            return $now <= $endAtTimestamp + $this->getGracePeriodSeconds();
+        if ($task->delaySeconds === 0 && $this->config->gracePeriodEnabled()) {
+            return $now <= $endAtTimestamp + $this->config->gracePeriodSeconds();
         }
 
         // Comportement normal pour les tâches récurrentes
@@ -68,8 +71,8 @@ class TaskValidator
         }
 
         // Période de grâce pour les tâches uniques
-        if ($task->delaySeconds === 0 && $this->isGracePeriodEnabled()) {
-            return $now > $endAtTimestamp + $this->getGracePeriodSeconds();
+        if ($task->delaySeconds === 0 && $this->config->gracePeriodEnabled()) {
+            return $now > $endAtTimestamp + $this->config->gracePeriodSeconds();
         }
 
         return $now > $endAtTimestamp;
@@ -130,7 +133,7 @@ class TaskValidator
     public function isUniqueTaskWithGracePeriod(TaskRecord $task): bool
     {
         return $task->delaySeconds === 0
-            && $this->isGracePeriodEnabled()
+            && $this->config->gracePeriodEnabled()
             && ! $task->enforceExactSchedule;
     }
 
@@ -146,21 +149,5 @@ class TaskValidator
         }
 
         return time();
-    }
-
-    /**
-     * Vérifie si la période de grâce est activée
-     */
-    private function isGracePeriodEnabled(): bool
-    {
-        return config('task.grace_period.enabled', true);
-    }
-
-    /**
-     * Retourne la durée de la période de grâce en secondes
-     */
-    private function getGracePeriodSeconds(): int
-    {
-        return config('task.grace_period.seconds', 86400);
     }
 }

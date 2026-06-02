@@ -5,11 +5,17 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Unit\Directives;
 
 use AndyDefer\Directive\Enums\ExitCode;
+use AndyDefer\Directive\Records\DirectiveResponseRecord;
 use AndyDefer\Directive\Testing\InteractsWithDirectives;
+use AndyDefer\Task\Collections\RecurringResultCollection;
+use AndyDefer\Task\Collections\TaskErrorCollection;
+use AndyDefer\Task\Collections\UniqueResultCollection;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
-use AndyDefer\Task\Services\BatchResult;
-use AndyDefer\Task\Services\TaskBatch;
+use AndyDefer\Task\Records\BatchResultRecord;
+use AndyDefer\Task\Records\TaskErrorRecord;
+use AndyDefer\Task\Services\TaskBatchService;
 use AndyDefer\Task\Tests\UnitTestCase;
+use AndyDefer\Task\ValueObjects\Iso8601DateTime;
 use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 
@@ -18,16 +24,15 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
 {
     use InteractsWithDirectives;
 
-    private TaskBatch&MockObject $batch;
+    private TaskBatchService&MockObject $batch;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->initDirectiveTesting();
 
-        $this->batch = $this->createMock(TaskBatch::class);
+        $this->batch = $this->createMock(TaskBatchService::class);
 
-        // Get the interaction service from the trait
         $interaction = $this->interaction;
 
         $directive = new ProcessTasksDirective($interaction, $this->batch);
@@ -40,12 +45,119 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
         parent::tearDown();
     }
 
-    /**
-     * Helper to run directive with arguments and get response
-     */
-    private function runDirectiveWithArgs(array $arguments = []): \AndyDefer\Directive\Records\DirectiveResponseRecord
+    private function runDirectiveWithArgs(array $arguments = []): DirectiveResponseRecord
     {
         return $this->runDirective(ProcessTasksDirective::class, $arguments);
+    }
+
+    private function createSuccessResult(): BatchResultRecord
+    {
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 1,
+            uniqueFailed: 0,
+            recurringSuccess: 0,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
+        );
+    }
+
+    private function createSuccessWithRecurringResult(): BatchResultRecord
+    {
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 0,
+            uniqueFailed: 0,
+            recurringSuccess: 1,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
+        );
+    }
+
+    private function createFailureResult(): BatchResultRecord
+    {
+        $errors = new TaskErrorCollection;
+        $errors->add(new TaskErrorRecord('task-1', 'Failed'));
+
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 0,
+            uniqueFailed: 1,
+            recurringSuccess: 0,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: $errors,
+        );
+    }
+
+    private function createMixedResult(): BatchResultRecord
+    {
+        $errors = new TaskErrorCollection;
+        $errors->add(new TaskErrorRecord('task-2', 'Failed'));
+
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 1,
+            uniqueFailed: 1,
+            recurringSuccess: 0,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: $errors,
+        );
+    }
+
+    private function createErrorResult(): BatchResultRecord
+    {
+        $errors = new TaskErrorCollection;
+        $errors->add(new TaskErrorRecord('task-1', 'Something went wrong'));
+
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 0,
+            uniqueFailed: 1,
+            recurringSuccess: 0,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: $errors,
+        );
+    }
+
+    private function createFullSuccessResult(): BatchResultRecord
+    {
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 1,
+            uniqueFailed: 0,
+            recurringSuccess: 1,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
+        );
+    }
+
+    private function createFailureWithoutVerboseResult(): BatchResultRecord
+    {
+        $errors = new TaskErrorCollection;
+        $errors->add(new TaskErrorRecord('task-1', 'Connection timeout'));
+
+        return new BatchResultRecord(
+            startedAt: new Iso8601DateTime,
+            uniqueSuccess: 0,
+            uniqueFailed: 1,
+            recurringSuccess: 0,
+            recurringFailed: 0,
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: $errors,
+        );
     }
 
     public function test_get_signature_returns_correct_string(): void
@@ -91,8 +203,7 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     public function test_execute_processes_all_tasks_by_default(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', true);
+        $result = $this->createSuccessResult();
 
         $this->batch->expects($this->once())
             ->method('process')
@@ -108,8 +219,7 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     public function test_execute_with_unique_only_flag(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', true);
+        $result = $this->createSuccessResult();
 
         $this->batch->expects($this->once())
             ->method('processUniqueOnly')
@@ -125,8 +235,7 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     public function test_execute_with_recurring_only_flag(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addRecurringTask('recurring-1', true);
+        $result = $this->createSuccessWithRecurringResult();
 
         $this->batch->expects($this->once())
             ->method('processRecurringOnly')
@@ -142,8 +251,7 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     public function test_execute_returns_failure_when_tasks_fail(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', false, 'Failed');
+        $result = $this->createFailureResult();
 
         $this->batch->expects($this->once())
             ->method('process')
@@ -159,9 +267,7 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     public function test_execute_returns_failure_when_some_tasks_succeed(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', true);
-        $result->addUniqueTask('task-2', false, 'Failed');
+        $result = $this->createMixedResult();
 
         $this->batch->expects($this->once())
             ->method('process')
@@ -177,8 +283,7 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     public function test_execute_with_verbose_flag_shows_errors(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', false, 'Something went wrong');
+        $result = $this->createErrorResult();
 
         $this->batch->expects($this->once())
             ->method('process')
@@ -207,9 +312,7 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     public function test_execute_output_contains_batch_results(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', true);
-        $result->addRecurringTask('recurring-1', true);
+        $result = $this->createFullSuccessResult();
 
         $this->batch->expects($this->once())
             ->method('process')
@@ -228,8 +331,7 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     public function test_execute_output_without_verbose_does_not_show_errors(): void
     {
         // Arrange
-        $result = new BatchResult();
-        $result->addUniqueTask('task-1', false, 'Connection timeout');
+        $result = $this->createFailureWithoutVerboseResult();
 
         $this->batch->expects($this->once())
             ->method('process')

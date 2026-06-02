@@ -6,24 +6,36 @@ namespace AndyDefer\Task\Tests\Unit\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
-use AndyDefer\Task\Services\TaskStorage;
+use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Tests\UnitTestCase;
+use PHPUnit\Framework\MockObject\Stub;
 
-final class TaskStorageTest extends UnitTestCase
+final class TaskStorageServiceTest extends UnitTestCase
 {
     private string $tempDir;
 
-    private TaskStorage $storage;
+    private TaskStorageService $storage;
+
+    private TaskConfig&Stub $config;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tempDir = sys_get_temp_dir() . '/task_storage_test_' . uniqid();
-        $this->storage = new TaskStorage($this->tempDir);
+        $this->tempDir = sys_get_temp_dir().'/task_storage_test_'.uniqid();
+
+        // Create stub config
+        $this->config = $this->createStub(TaskConfig::class);
+        $this->config->method('storagePath')->willReturn($this->tempDir);
+        $this->config->method('storagePendingPath')->willReturn($this->tempDir.'/pending');
+        $this->config->method('storageRecurringPath')->willReturn($this->tempDir.'/recurring');
+        $this->config->method('storageCompletedPath')->willReturn($this->tempDir.'/completed');
+
+        $this->storage = new TaskStorageService($this->config);
     }
 
     protected function tearDown(): void
@@ -36,7 +48,7 @@ final class TaskStorageTest extends UnitTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
+        $payloadCollection = new StrictDataObjectCollection;
         $payloadCollection->add(StrictDataObject::from([
             'test_data' => 'storage_test',
         ]));
@@ -73,13 +85,13 @@ final class TaskStorageTest extends UnitTestCase
 
     private function deleteDirectory(string $dir): void
     {
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             return;
         }
 
         $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {
-            $path = $dir . '/' . $file;
+            $path = $dir.'/'.$file;
             is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
         }
         rmdir($dir);

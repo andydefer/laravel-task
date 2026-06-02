@@ -1,7 +1,5 @@
 <?php
 
-// src/Services/TaskRunner.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
@@ -15,12 +13,12 @@ use AndyDefer\Task\Records\GracePeriodRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRecord;
 
-class TaskRunner
+class TaskRunnerService
 {
     public function __construct(
-        private readonly TaskStorage $storage,
+        private readonly TaskStorageService $storage,
         private readonly Logger $logger,
-        private readonly TaskValidator $validator,
+        private readonly TaskValidatorService $validator,
     ) {}
 
     public function runTask(TaskRecord $task): bool

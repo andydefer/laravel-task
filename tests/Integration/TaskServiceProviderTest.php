@@ -4,34 +4,33 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\Task\Tests\Unit;
+namespace AndyDefer\Task\Tests\Integration;
 
 use AndyDefer\Logger\Contracts\LoggerInterface;
-use AndyDefer\Task\Directives\RunTaskDirective;
-use AndyDefer\Task\Services\TaskRegistry;
-use AndyDefer\Task\Services\TaskRunner;
-use AndyDefer\Task\Services\TaskStorage;
-use AndyDefer\Task\Services\TaskValidator;
+use AndyDefer\Task\Services\TaskRegistryService;
+use AndyDefer\Task\Services\TaskRunnerService;
+use AndyDefer\Task\Services\TaskStorageService;
+use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 
 final class TaskServiceProviderTest extends IntegrationTestCase
 {
     public function test_task_storage_is_registered(): void
     {
-        $this->assertTrue($this->app->bound(TaskStorage::class));
+        $this->assertTrue($this->app->bound(TaskStorageService::class));
 
-        $first = $this->app->make(TaskStorage::class);
-        $second = $this->app->make(TaskStorage::class);
+        $first = $this->app->make(TaskStorageService::class);
+        $second = $this->app->make(TaskStorageService::class);
 
         $this->assertSame($first, $second);
     }
 
     public function test_task_validator_is_registered(): void
     {
-        $this->assertTrue($this->app->bound(TaskValidator::class));
+        $this->assertTrue($this->app->bound(TaskValidatorService::class));
 
-        $first = $this->app->make(TaskValidator::class);
-        $second = $this->app->make(TaskValidator::class);
+        $first = $this->app->make(TaskValidatorService::class);
+        $second = $this->app->make(TaskValidatorService::class);
 
         $this->assertSame($first, $second);
     }
@@ -49,20 +48,20 @@ final class TaskServiceProviderTest extends IntegrationTestCase
 
     public function test_task_runner_is_registered(): void
     {
-        $this->assertTrue($this->app->bound(TaskRunner::class));
+        $this->assertTrue($this->app->bound(TaskRunnerService::class));
 
-        $first = $this->app->make(TaskRunner::class);
-        $second = $this->app->make(TaskRunner::class);
+        $first = $this->app->make(TaskRunnerService::class);
+        $second = $this->app->make(TaskRunnerService::class);
 
         $this->assertSame($first, $second);
     }
 
     public function test_task_registry_is_registered(): void
     {
-        $this->assertTrue($this->app->bound(TaskRegistry::class));
+        $this->assertTrue($this->app->bound(TaskRegistryService::class));
 
-        $first = $this->app->make(TaskRegistry::class);
-        $second = $this->app->make(TaskRegistry::class);
+        $first = $this->app->make(TaskRegistryService::class);
+        $second = $this->app->make(TaskRegistryService::class);
 
         $this->assertSame($first, $second);
     }

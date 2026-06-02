@@ -4,14 +4,10 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
-use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
 use AndyDefer\Task\Collections\TaskRecordCollection;
-use AndyDefer\Task\Enums\TaskMode;
-use AndyDefer\Task\Enums\TaskStatus;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Records\RecurringTaskRecord;
-use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
 
 /**
@@ -19,56 +15,34 @@ use AndyDefer\Task\Records\TaskRecord;
  *
  * Uses JSON files to persist task data between requests.
  * Tasks are stored in separate directories based on their state.
- *
- * @author Andy Defer
  */
-class TaskStorage
+class TaskStorageService
 {
-    private string $pendingPath;
+    public function __construct(
+        private readonly TaskConfig $config,
+    ) {}
 
-    private string $recurringPath;
-
-    private string $completedPath;
-
-    public function __construct(?string $storagePath = null)
-    {
-        if ($storagePath === null) {
-            $storagePath = config('task.storage_path', storage_path('tasks'));
-        }
-
-        $this->pendingPath = $storagePath . '/pending';
-        $this->recurringPath = $storagePath . '/recurring';
-        $this->completedPath = $storagePath . '/completed';
-
-        $this->ensureDirectories();
-    }
-
-    /**
-     * Create all required directories if they don't exist.
-     */
     private function ensureDirectories(): void
     {
-        foreach ([$this->pendingPath, $this->recurringPath, $this->completedPath] as $path) {
-            if (!is_dir($path)) {
+        foreach (
+            [
+                $this->config->storagePendingPath(),
+                $this->config->storageRecurringPath(),
+                $this->config->storageCompletedPath(),
+            ] as $path
+        ) {
+            if (! is_dir($path)) {
                 mkdir($path, 0755, true);
             }
         }
     }
 
-    /**
-     * Sort files by modification time.
-     *
-     * @param array<string> $files List of file paths
-     * @param string $order 'oldest' or 'newest'
-     * @return array<string> Sorted file paths
-     */
-    private function sortFilesByTime(array $files, string $order = 'oldest'): array
+    private function sortFilesByTime(array $files, string $order): array
     {
         usort($files, function ($a, $b) use ($order) {
             $timeA = filemtime($a);
             $timeB = filemtime($b);
 
-            // If timestamps are identical, sort by filename (alphabetical)
             if ($timeA === $timeB) {
                 return strcmp(basename($a), basename($b));
             }
@@ -83,16 +57,8 @@ class TaskStorage
         return $files;
     }
 
-    /**
-     * Apply limit to files array.
-     *
-     * @param array<string> $files List of file paths
-     * @param int|null $limit Maximum number of files to return
-     * @return array<string> Limited file paths
-     */
     private function applyLimit(array $files, ?int $limit): array
     {
-        // If limit is 0, return no files
         if ($limit === 0) {
             return [];
         }
@@ -106,33 +72,21 @@ class TaskStorage
 
     // ==================== Unique Tasks ====================
 
-    /**
-     * Save a pending task to storage.
-     */
     public function savePending(TaskRecord $task): void
     {
-        $filePath = $this->pendingPath . '/' . $task->id . '.json';
-        file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
+        $this->ensureDirectories();
 
-        // Small pause to ensure different timestamps for testing
+        $filePath = $this->config->storagePendingPath().'/'.$task->id.'.json';
+        file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
         usleep(1000);
     }
 
-    /**
-     * Find all pending tasks that are ready to run.
-     *
-     * @param int|null $limit Maximum number of tasks to return
-     * @param string $order 'oldest' or 'newest'
-     */
     public function findPending(?int $limit = null, string $order = 'oldest'): TaskRecordCollection
     {
-        $results = new TaskRecordCollection();
-        $files = glob($this->pendingPath . '/*.json');
+        $results = new TaskRecordCollection;
+        $files = glob($this->config->storagePendingPath().'/*.json');
 
-        // Sort files by modification time
         $files = $this->sortFilesByTime($files, $order);
-
-        // Apply limit
         $files = $this->applyLimit($files, $limit);
 
         foreach ($files as $file) {
@@ -143,7 +97,6 @@ class TaskStorage
                 continue;
             }
 
-            // ✅ Hydratation automatique !
             $task = TaskRecord::from($data);
 
             if ($this->shouldRunTaskNow($task)) {
@@ -154,32 +107,26 @@ class TaskStorage
         return $results;
     }
 
-    /**
-     * Delete a pending task from storage.
-     */
     public function deletePending(string $id): void
     {
-        $filePath = $this->pendingPath . '/' . $id . '.json';
+        $filePath = $this->config->storagePendingPath().'/'.$id.'.json';
 
         if (file_exists($filePath)) {
             unlink($filePath);
         }
     }
 
-    /**
-     * Move a completed task to the completed directory.
-     */
-    public function moveToCompleted(TaskRecord $task, bool $success): void
+    public function moveToCompleted(TaskRecord $task, bool $success = true): void
     {
         $date = date('Y-m-d');
-        $completedDir = $this->completedPath . '/' . $date;
+        $completedDir = $this->config->storageCompletedPath().'/'.$date;
 
-        if (!is_dir($completedDir)) {
+        if (! is_dir($completedDir)) {
             mkdir($completedDir, 0755, true);
         }
 
-        $source = $this->pendingPath . '/' . $task->id . '.json';
-        $target = $completedDir . '/' . $task->id . '.json';
+        $source = $this->config->storagePendingPath().'/'.$task->id.'.json';
+        $target = $completedDir.'/'.$task->id.'.json';
 
         if (file_exists($source)) {
             rename($source, $target);
@@ -188,33 +135,21 @@ class TaskStorage
 
     // ==================== Recurring Tasks ====================
 
-    /**
-     * Save a recurring task to storage.
-     */
     public function saveRecurring(RecurringTaskRecord $task): void
     {
-        $filePath = $this->recurringPath . '/' . $task->signature . '.json';
-        file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
+        $this->ensureDirectories();
 
-        // Small pause to ensure different timestamps for testing
+        $filePath = $this->config->storageRecurringPath().'/'.$task->signature.'.json';
+        file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
         usleep(1000);
     }
 
-    /**
-     * Find all recurring tasks that are ready to run.
-     *
-     * @param int|null $limit Maximum number of tasks to return
-     * @param string $order 'oldest' or 'newest'
-     */
     public function findRecurring(?int $limit = null, string $order = 'oldest'): RecurringTaskRecordCollection
     {
-        $results = new RecurringTaskRecordCollection();
-        $files = glob($this->recurringPath . '/*.json');
+        $results = new RecurringTaskRecordCollection;
+        $files = glob($this->config->storageRecurringPath().'/*.json');
 
-        // Sort files by modification time
         $files = $this->sortFilesByTime($files, $order);
-
-        // Apply limit
         $files = $this->applyLimit($files, $limit);
 
         foreach ($files as $file) {
@@ -225,7 +160,6 @@ class TaskStorage
                 continue;
             }
 
-            // ✅ Hydratation automatique !
             $task = RecurringTaskRecord::from($data);
 
             if ($this->shouldRunRecurringNow($task)) {
@@ -236,14 +170,11 @@ class TaskStorage
         return $results;
     }
 
-    /**
-     * Get a specific recurring task by signature.
-     */
     public function getRecurring(string $signature): ?RecurringTaskRecord
     {
-        $filePath = $this->recurringPath . '/' . $signature . '.json';
+        $filePath = $this->config->storageRecurringPath().'/'.$signature.'.json';
 
-        if (!file_exists($filePath)) {
+        if (! file_exists($filePath)) {
             return null;
         }
 
@@ -254,13 +185,9 @@ class TaskStorage
             return null;
         }
 
-        // ✅ Hydratation automatique !
         return RecurringTaskRecord::from($data);
     }
 
-    /**
-     * Update a recurring task after execution.
-     */
     public function updateRecurringAfterRun(RecurringTaskRecord $task, bool $success, ?string $error = null): void
     {
         $now = date('c');
@@ -284,25 +211,19 @@ class TaskStorage
         $this->saveRecurring($updated);
     }
 
-    /**
-     * Delete a recurring task from storage.
-     */
     public function deleteRecurring(string $signature): void
     {
-        $filePath = $this->recurringPath . '/' . $signature . '.json';
+        $filePath = $this->config->storageRecurringPath().'/'.$signature.'.json';
 
         if (file_exists($filePath)) {
             unlink($filePath);
         }
     }
 
-    /**
-     * Get all recurring tasks (without filtering by run time).
-     */
     public function getAllRecurring(): RecurringTaskRecordCollection
     {
-        $results = new RecurringTaskRecordCollection();
-        $files = glob($this->recurringPath . '/*.json');
+        $results = new RecurringTaskRecordCollection;
+        $files = glob($this->config->storageRecurringPath().'/*.json');
 
         foreach ($files as $file) {
             $content = file_get_contents($file);
@@ -312,20 +233,16 @@ class TaskStorage
                 continue;
             }
 
-            // ✅ Hydratation automatique !
             $results->add(RecurringTaskRecord::from($data));
         }
 
         return $results;
     }
 
-    /**
-     * Get all pending tasks (without filtering by run time).
-     */
     public function getAllPending(): TaskRecordCollection
     {
-        $results = new TaskRecordCollection();
-        $files = glob($this->pendingPath . '/*.json');
+        $results = new TaskRecordCollection;
+        $files = glob($this->config->storagePendingPath().'/*.json');
 
         foreach ($files as $file) {
             $content = file_get_contents($file);
@@ -335,7 +252,6 @@ class TaskStorage
                 continue;
             }
 
-            // ✅ Hydratation automatique !
             $results->add(TaskRecord::from($data));
         }
 
@@ -344,9 +260,6 @@ class TaskStorage
 
     // ==================== Helpers ====================
 
-    /**
-     * Check if a pending task should run now.
-     */
     private function shouldRunTaskNow(TaskRecord $task): bool
     {
         $now = time();
@@ -362,7 +275,7 @@ class TaskStorage
             return false;
         }
 
-        if ($task->status !== TaskStatus::PENDING) {
+        if (! $task->status->isPending()) {
             return false;
         }
 
@@ -373,9 +286,6 @@ class TaskStorage
         return true;
     }
 
-    /**
-     * Check if a recurring task should run now.
-     */
     private function shouldRunRecurringNow(RecurringTaskRecord $task): bool
     {
         $now = time();

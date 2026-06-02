@@ -1,7 +1,7 @@
 /vendor/
 node_modules/
 .phpunit.cache/
-docs/
+docs/diffs/
 npm-debug.log
 yarn-error.log
 

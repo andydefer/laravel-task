@@ -1,7 +1,5 @@
 <?php
 
-// src/Services/TaskRegistry.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
@@ -13,11 +11,11 @@ use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use Ramsey\Uuid\Uuid;
 
-class TaskRegistry
+class TaskRegistryService
 {
     public function __construct(
-        private readonly TaskStorage $storage,
-        private readonly TaskValidator $validator,
+        private readonly TaskStorageService $storage,
+        private readonly TaskValidatorService $validator,
     ) {}
 
     public function register(

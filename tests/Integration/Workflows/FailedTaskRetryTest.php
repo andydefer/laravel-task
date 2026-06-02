@@ -7,35 +7,50 @@ namespace AndyDefer\Task\Tests\Integration\Workflows;
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Logger;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
-use AndyDefer\Task\Services\TaskRunner;
-use AndyDefer\Task\Services\TaskStorage;
-use AndyDefer\Task\Services\TaskValidator;
+use AndyDefer\Task\Services\TaskRunnerService;
+use AndyDefer\Task\Services\TaskStorageService;
+use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\Tests\UnitTestCase;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\MockObject\Stub;
 
 final class FailedTaskRetryTest extends IntegrationTestCase
 {
-    private TaskStorage $storage;
+    private TaskStorageService $storage;
 
-    private TaskRunner $runner;
+    private TaskRunnerService $runner;
 
     private string $storagePath;
+
+    private TaskConfig&Stub $config;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
+        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
 
-        $this->storage = new TaskStorage($this->storagePath);
+        // Create mock config with all required methods
+        $this->config = $this->createStub(TaskConfig::class);
+        $this->config->method('storagePath')->willReturn($this->storagePath);
+        $this->config->method('storagePendingPath')->willReturn($this->storagePath . '/pending');
+        $this->config->method('storageRecurringPath')->willReturn($this->storagePath . '/recurring');
+        $this->config->method('storageCompletedPath')->willReturn($this->storagePath . '/completed');
+        $this->config->method('gracePeriodEnabled')->willReturn(false);
+        $this->config->method('gracePeriodSeconds')->willReturn(86400);
+
+        $this->storage = new TaskStorageService($this->config);
         $logger = $this->app->make(Logger::class);
-        $validator = $this->app->make(TaskValidator::class);
-        $this->runner = new TaskRunner($this->storage, $logger, $validator);
+        $validator = new TaskValidatorService($this->config);
+        $this->runner = new TaskRunnerService($this->storage, $logger, $validator);
     }
 
     protected function tearDown(): void
@@ -53,7 +68,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
             return;
         }
 
-        $files = glob($path.'/*');
+        $files = glob($path . '/*');
         foreach ($files as $file) {
             if (is_file($file)) {
                 unlink($file);
@@ -311,14 +326,12 @@ final class FailedTaskRetryTest extends IntegrationTestCase
         $pending = $this->storage->findPending();
         $finalTask = $pending->first();
 
-        // Assert: Second error message is stored (should be the same message but that's fine)
+        // Assert: Second error message is stored
         $this->assertNotNull($finalTask->lastError, 'Second error message should not be null');
         $secondError = $finalTask->lastError;
         $this->assertIsString($secondError);
         $this->assertStringContainsString('Test exception', $secondError);
 
-        // The error message should be present (it's fine if it's the same string)
-        // Both attempts should have an error message stored
         $this->assertNotEmpty($firstError);
         $this->assertNotEmpty($secondError);
     }

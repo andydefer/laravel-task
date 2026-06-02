@@ -6,12 +6,14 @@ namespace AndyDefer\Task;
 
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\Logger\Logger;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
-use AndyDefer\Task\Services\TaskBatch;
-use AndyDefer\Task\Services\TaskRegistry;
-use AndyDefer\Task\Services\TaskRunner;
-use AndyDefer\Task\Services\TaskStorage;
-use AndyDefer\Task\Services\TaskValidator;
+use AndyDefer\Task\Services\BatchResultService;
+use AndyDefer\Task\Services\TaskBatchService;
+use AndyDefer\Task\Services\TaskRegistryService;
+use AndyDefer\Task\Services\TaskRunnerService;
+use AndyDefer\Task\Services\TaskStorageService;
+use AndyDefer\Task\Services\TaskValidatorService;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 
@@ -19,49 +21,59 @@ final class TaskServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/task.php', 'task');
+        $this->mergeConfigFrom(__DIR__.'/../config/task.php', 'task');
+
+        // TaskConfig - Configuration object
+        $this->app->singleton(TaskConfig::class, function (Application $app) {
+            return new TaskConfig;
+        });
 
         // Core services
-        $this->app->singleton(TaskStorage::class, function (Application $app) {
-            $storagePath = $app['config']->get('task.storage_path', storage_path('tasks'));
-
-            return new TaskStorage($storagePath);
+        $this->app->singleton(TaskStorageService::class, function (Application $app) {
+            return new TaskStorageService($app->make(TaskConfig::class));
         });
 
-        $this->app->singleton(TaskValidator::class, function () {
-            return new TaskValidator;
+        $this->app->singleton(TaskValidatorService::class, function (Application $app) {
+            return new TaskValidatorService($app->make(TaskConfig::class));
         });
 
-        $this->app->singleton(TaskRunner::class, function (Application $app) {
-            return new TaskRunner(
-                storage: $app->make(TaskStorage::class),
+        $this->app->singleton(TaskRunnerService::class, function (Application $app) {
+            return new TaskRunnerService(
+                storage: $app->make(TaskStorageService::class),
                 logger: $app->make(Logger::class),
-                validator: $app->make(TaskValidator::class),
+                validator: $app->make(TaskValidatorService::class),
             );
         });
 
-        $this->app->singleton(TaskRegistry::class, function (Application $app) {
-            return new TaskRegistry(
-                storage: $app->make(TaskStorage::class),
-                validator: $app->make(TaskValidator::class),
+        $this->app->singleton(TaskRegistryService::class, function (Application $app) {
+            return new TaskRegistryService(
+                storage: $app->make(TaskStorageService::class),
+                validator: $app->make(TaskValidatorService::class),
             );
         });
 
-        // NEW: TaskBatch service
-        $this->app->singleton(TaskBatch::class, function (Application $app) {
-            return new TaskBatch(
-                storage: $app->make(TaskStorage::class),
-                runner: $app->make(TaskRunner::class),
-                validator: $app->make(TaskValidator::class),
+        // BatchResultService - immutable service for building batch results
+        $this->app->singleton(BatchResultService::class, function () {
+            return new BatchResultService;
+        });
+
+        // TaskBatchService
+        $this->app->singleton(TaskBatchService::class, function (Application $app) {
+            return new TaskBatchService(
+                storage: $app->make(TaskStorageService::class),
+                runner: $app->make(TaskRunnerService::class),
+                validator: $app->make(TaskValidatorService::class),
                 logger: $app->make(Logger::class),
+                batchResultService: $app->make(BatchResultService::class),
+                config: $app->make(TaskConfig::class),
             );
         });
 
-        // NEW: ProcessTasksDirective (recommended)
+        // ProcessTasksDirective
         $this->app->singleton(ProcessTasksDirective::class, function (Application $app) {
             return new ProcessTasksDirective(
                 interaction: $app->make(DirectiveInteractionService::class),
-                batch: $app->make(TaskBatch::class),
+                batch: $app->make(TaskBatchService::class),
             );
         });
     }
@@ -69,7 +81,7 @@ final class TaskServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__ . '/../config/task.php' => config_path('task.php'),
+            __DIR__.'/../config/task.php' => config_path('task.php'),
         ], 'task-config');
     }
 }

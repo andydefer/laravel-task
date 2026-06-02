@@ -2,45 +2,82 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\Task\Tests\Integration\Services;
+namespace AndyDefer\Task\Tests\Unit\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Logger;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
+use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
-use AndyDefer\Task\Services\TaskBatch;
-use AndyDefer\Task\Services\TaskRunner;
-use AndyDefer\Task\Services\TaskStorage;
-use AndyDefer\Task\Services\TaskValidator;
+use AndyDefer\Task\Services\BatchResultService;
+use AndyDefer\Task\Services\TaskBatchService;
+use AndyDefer\Task\Services\TaskRunnerService;
+use AndyDefer\Task\Services\TaskStorageService;
+use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\Tests\UnitTestCase;
 use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
+use PHPUnit\Framework\MockObject\Stub;
 
-final class TaskBatchLimitTest extends IntegrationTestCase
+final class TaskBatchServiceLimitTest extends IntegrationTestCase
 {
-    private TaskStorage $storage;
-    private TaskBatch $batch;
+    private TaskStorageService $storage;
+
+    private TaskBatchService $batch;
+
     private string $storagePath;
+
     private Logger $logger;
+
+    private TaskConfig&Stub $config;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Override config for testing
-        config()->set('task.batch.limit', 3);
-        config()->set('task.batch.order', 'oldest');
-
         $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
-        $this->storage = new TaskStorage($this->storagePath);
-        $this->logger = $this->app->make(Logger::class);
-        $validator = $this->app->make(TaskValidator::class);
-        $runner = new TaskRunner($this->storage, $this->logger, $validator);
 
-        $this->batch = new TaskBatch($this->storage, $runner, $validator, $this->logger);
+        // Create mock config with all required methods
+        $this->config = $this->createStub(TaskConfig::class);
+        $this->config->method('storagePath')->willReturn($this->storagePath);
+        $this->config->method('storagePendingPath')->willReturn($this->storagePath . '/pending');
+        $this->config->method('storageRecurringPath')->willReturn($this->storagePath . '/recurring');
+        $this->config->method('storageCompletedPath')->willReturn($this->storagePath . '/completed');
+        $this->config->method('batchLimit')->willReturn(3);
+        $this->config->method('batchOrder')->willReturn('oldest');
+        $this->config->method('getEffectiveLimit')->willReturnCallback(function ($limit) {
+            if ($limit === 0) {
+                return 0;
+            }
+            if ($limit !== null) {
+                return $limit;
+            }
+
+            return 3;
+        });
+        $this->config->method('gracePeriodEnabled')->willReturn(false);
+        $this->config->method('gracePeriodSeconds')->willReturn(86400);
+
+        $this->storage = new TaskStorageService($this->config);
+        $this->logger = $this->app->make(Logger::class);
+        $validator = new TaskValidatorService($this->config);
+        $runner = new TaskRunnerService($this->storage, $this->logger, $validator);
+        $batchResultService = new BatchResultService;
+
+        $this->batch = new TaskBatchService(
+            $this->storage,
+            $runner,
+            $validator,
+            $this->logger,
+            $batchResultService,
+            $this->config,
+        );
     }
 
     protected function tearDown(): void
@@ -53,7 +90,7 @@ final class TaskBatchLimitTest extends IntegrationTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (!is_dir($path)) {
+        if (! is_dir($path)) {
             return;
         }
         foreach (glob($path . '/*') as $file) {
@@ -64,8 +101,9 @@ final class TaskBatchLimitTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
+        $payloadCollection = new StrictDataObjectCollection;
         $payloadCollection->add(StrictDataObject::from(['test_data' => 'batch_limit_test']));
+
         return new TaskPayloadRecord(type: 'test', payload: $payloadCollection);
     }
 
@@ -87,11 +125,11 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         );
     }
 
-    private function createRecurringTask(string $signature, ?Carbon $nextRunAt = null): \AndyDefer\Task\Records\RecurringTaskRecord
+    private function createRecurringTask(string $signature, ?Carbon $nextRunAt = null): RecurringTaskRecord
     {
         $nextRun = $nextRunAt ?? Carbon::now()->subMinutes(5);
 
-        return new \AndyDefer\Task\Records\RecurringTaskRecord(
+        return new RecurringTaskRecord(
             signature: $signature,
             class: TestTask::class,
             payload: $this->createTaskPayload(),
@@ -115,10 +153,12 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         }
 
         // Act: Process with config limit (3)
-        $result = $this->batch->process();
+        $record = $this->batch->process();
+
+        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
 
         // Assert: Only 3 tasks processed (config limit)
-        $this->assertSame(3, $result->getTotal());
+        $this->assertSame(3, $totalProcessed);
 
         // Verify remaining tasks still exist
         $pending = $this->storage->findPending();
@@ -134,10 +174,12 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         }
 
         // Act: Process with custom limit 5
-        $result = $this->batch->process(5);
+        $record = $this->batch->process(5);
+
+        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
 
         // Assert: 5 tasks processed
-        $this->assertSame(5, $result->getTotal());
+        $this->assertSame(5, $totalProcessed);
 
         // Verify remaining tasks exist
         $pending = $this->storage->findPending();
@@ -153,10 +195,12 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         }
 
         // Act: Process with limit 0
-        $result = $this->batch->process(0);
+        $record = $this->batch->process(0);
+
+        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
 
         // Assert: No tasks processed
-        $this->assertSame(0, $result->getTotal());
+        $this->assertSame(0, $totalProcessed);
 
         // Verify all tasks remain
         $pending = $this->storage->findPending();
@@ -165,10 +209,6 @@ final class TaskBatchLimitTest extends IntegrationTestCase
 
     public function test_batch_processes_oldest_tasks_first_with_limit(): void
     {
-        // Note: Le tri par filemtime() n'est pas fiable avec Carbon.
-        // Ce test vérifie simplement que la limite fonctionne,
-        // pas l'ordre exact.
-
         // Arrange: Create 3 tasks
         $task1 = $this->createTestTask('task-first');
         $this->storage->savePending($task1);
@@ -180,11 +220,12 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         $this->storage->savePending($task3);
 
         // Act: Process with limit 2
-        $result = $this->batch->process(2);
+        $record = $this->batch->process(2);
+
+        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
 
         // Assert: 2 tasks processed
-        $this->assertSame(2, $result->getTotal());
-        $this->assertSame(2, $result->getUniqueSuccess());
+        $this->assertSame(2, $totalProcessed);
 
         // Verify that exactly 1 task remains
         $pending = $this->storage->findPending();
@@ -193,37 +234,62 @@ final class TaskBatchLimitTest extends IntegrationTestCase
 
     public function test_batch_processes_newest_tasks_first_when_configured(): void
     {
-        // Arrange: Override config for this test only
-        config()->set('task.batch.order', 'newest');
+        // Create mock config with newest order
+        $config = $this->createStub(TaskConfig::class);
+        $config->method('storagePath')->willReturn($this->storagePath);
+        $config->method('storagePendingPath')->willReturn($this->storagePath . '/pending');
+        $config->method('storageRecurringPath')->willReturn($this->storagePath . '/recurring');
+        $config->method('storageCompletedPath')->willReturn($this->storagePath . '/completed');
+        $config->method('batchLimit')->willReturn(1000);
+        $config->method('batchOrder')->willReturn('newest');
+        $config->method('getEffectiveLimit')->willReturnCallback(function ($limit) {
+            if ($limit === 0) {
+                return 0;
+            }
+            if ($limit !== null) {
+                return $limit;
+            }
 
-        // Recreate batch with new config
-        $validator = $this->app->make(TaskValidator::class);
-        $runner = new TaskRunner($this->storage, $this->logger, $validator);
-        $batchWithNewestOrder = new TaskBatch($this->storage, $runner, $validator, $this->logger);
+            return 1000;
+        });
+        $config->method('gracePeriodEnabled')->willReturn(false);
+        $config->method('gracePeriodSeconds')->willReturn(86400);
+
+        $storage = new TaskStorageService($config);
+        $validator = new TaskValidatorService($config);
+        $runner = new TaskRunnerService($storage, $this->logger, $validator);
+        $batchResultService = new BatchResultService;
+
+        $batchWithNewestOrder = new TaskBatchService(
+            $storage,
+            $runner,
+            $validator,
+            $this->logger,
+            $batchResultService,
+            $config,
+        );
 
         // Create 3 tasks
         $task1 = $this->createTestTask('task-first');
-        $this->storage->savePending($task1);
+        $storage->savePending($task1);
 
         $task2 = $this->createTestTask('task-second');
-        $this->storage->savePending($task2);
+        $storage->savePending($task2);
 
         $task3 = $this->createTestTask('task-third');
-        $this->storage->savePending($task3);
+        $storage->savePending($task3);
 
         // Act: Process with limit 2
-        $result = $batchWithNewestOrder->process(2);
+        $record = $batchWithNewestOrder->process(2);
+
+        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
 
         // Assert: 2 tasks processed
-        $this->assertSame(2, $result->getTotal());
-        $this->assertSame(2, $result->getUniqueSuccess());
+        $this->assertSame(2, $totalProcessed);
 
         // Verify that exactly 1 task remains
-        $pending = $this->storage->findPending();
+        $pending = $storage->findPending();
         $this->assertSame(1, $pending->count());
-
-        // Reset config
-        config()->set('task.batch.order', 'oldest');
     }
 
     public function test_batch_unique_only_respects_limit(): void
@@ -235,10 +301,12 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         }
 
         // Act: Process unique only with limit 4
-        $result = $this->batch->processUniqueOnly(4);
+        $record = $this->batch->processUniqueOnly(4);
+
+        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed;
 
         // Assert: 4 tasks processed
-        $this->assertSame(4, $result->getTotal());
+        $this->assertSame(4, $totalProcessed);
     }
 
     public function test_batch_recurring_only_respects_limit(): void
@@ -250,10 +318,12 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         }
 
         // Act: Process recurring only with limit 4
-        $result = $this->batch->processRecurringOnly(4);
+        $record = $this->batch->processRecurringOnly(4);
+
+        $totalProcessed = $record->recurringSuccess + $record->recurringFailed;
 
         // Assert: 4 tasks processed
-        $this->assertSame(4, $result->getTotal());
+        $this->assertSame(4, $totalProcessed);
     }
 
     public function test_batch_limit_with_more_tasks_than_limit(): void
@@ -265,10 +335,12 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         }
 
         // Act: Process with limit 7
-        $result = $this->batch->process(7);
+        $record = $this->batch->process(7);
+
+        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
 
         // Assert: Exactly 7 tasks processed
-        $this->assertSame(7, $result->getTotal());
+        $this->assertSame(7, $totalProcessed);
 
         // Verify remaining tasks
         $pending = $this->storage->findPending();
@@ -284,10 +356,12 @@ final class TaskBatchLimitTest extends IntegrationTestCase
         }
 
         // Act: Process with limit 5
-        $result = $this->batch->process(5);
+        $record = $this->batch->process(5);
+
+        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
 
         // Assert: All 5 tasks processed
-        $this->assertSame(5, $result->getTotal());
+        $this->assertSame(5, $totalProcessed);
 
         // Verify no tasks remain
         $pending = $this->storage->findPending();

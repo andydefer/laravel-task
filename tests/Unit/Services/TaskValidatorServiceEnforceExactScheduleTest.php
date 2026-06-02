@@ -2,31 +2,37 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\Task\Tests\Integration\Services;
+namespace AndyDefer\Task\Tests\Unit\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
-use AndyDefer\Task\Services\TaskValidator;
+use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
-use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\Tests\UnitTestCase;
 use Carbon\Carbon;
+use PHPUnit\Framework\MockObject\Stub;
 
-final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
+final class TaskValidatorServiceEnforceExactScheduleTest extends UnitTestCase
 {
-    private TaskValidator $validator;
+    private TaskValidatorService $validator;
+
+    private TaskConfig&Stub $config;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        config()->set('task.grace_period.enabled', true);
-        config()->set('task.grace_period.seconds', 86400); // 24 hours
+        // Create mock config with grace period enabled
+        $this->config = $this->createStub(TaskConfig::class);
+        $this->config->method('gracePeriodEnabled')->willReturn(true);
+        $this->config->method('gracePeriodSeconds')->willReturn(86400); // 24 hours
 
-        $this->validator = new TaskValidator;
+        $this->validator = new TaskValidatorService($this->config);
 
         // Freeze time in UTC to avoid timezone issues
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0, 'UTC'));
@@ -189,5 +195,51 @@ final class TaskValidatorEnforceExactScheduleTest extends IntegrationTestCase
 
         // Assert: Task should qualify for grace period
         $this->assertTrue($isUnique);
+    }
+
+    public function test_grace_period_disabled_via_config(): void
+    {
+        // Arrange: Create mock config with grace period disabled
+        $config = $this->createStub(TaskConfig::class);
+        $config->method('gracePeriodEnabled')->willReturn(false);
+        $config->method('gracePeriodSeconds')->willReturn(86400);
+
+        $validator = new TaskValidatorService($config);
+
+        $task = $this->createTestTask(
+            startAt: '2026-05-24 12:00:00',
+            endAt: '2026-05-24 12:10:00',
+            enforceExactSchedule: false,
+        );
+
+        // Act: Check if task can run (should not benefit from grace period)
+        $result = $validator->canRunTask($task);
+
+        // Assert: Task should NOT be executable when grace period is disabled
+        $this->assertFalse($result);
+    }
+
+    public function test_grace_period_seconds_customized_via_config(): void
+    {
+        // Arrange: Create mock config with custom grace period (1 hour = 3600 seconds)
+        $config = $this->createStub(TaskConfig::class);
+        $config->method('gracePeriodEnabled')->willReturn(true);
+        $config->method('gracePeriodSeconds')->willReturn(3600);
+
+        $validator = new TaskValidatorService($config);
+
+        // Task ended at 12:10, now is 12:15 (5 minutes = 300 seconds)
+        // With 3600 seconds grace period, task should still be executable
+        $task = $this->createTestTask(
+            startAt: '2026-05-24 12:00:00',
+            endAt: '2026-05-24 12:10:00',
+            enforceExactSchedule: false,
+        );
+
+        // Act: Check if task can run
+        $result = $validator->canRunTask($task);
+
+        // Assert: Task should be executable within custom grace period
+        $this->assertTrue($result);
     }
 }

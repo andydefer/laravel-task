@@ -4,20 +4,20 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7817159e69d6a7c3a718bf0f76ca1542",
+    "content-hash": "373fb5ad21779b03df6441f7f7654e15",
     "packages": [
         {
             "name": "andydefer/domain-structures",
-            "version": "1.13.2",
+            "version": "1.14.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/domain-structures.git",
-                "reference": "c5f64360f70ebf9b92be1dee8afe5ea531c39e5a"
+                "reference": "690c47951c1d603d254ed5cd8277a9d5808ef04b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/domain-structures/zipball/c5f64360f70ebf9b92be1dee8afe5ea531c39e5a",
-                "reference": "c5f64360f70ebf9b92be1dee8afe5ea531c39e5a",
+                "url": "https://api.github.com/repos/andydefer/domain-structures/zipball/690c47951c1d603d254ed5cd8277a9d5808ef04b",
+                "reference": "690c47951c1d603d254ed5cd8277a9d5808ef04b",
                 "shasum": ""
             },
             "require": {
@@ -53,26 +53,26 @@
             "description": "A complete domain structures package for PHP: Records, Value Objects, Data DTOs, and TypedCollections. Brings type safety and clean architecture to your application.",
             "support": {
                 "issues": "https://github.com/andydefer/domain-structures/issues",
-                "source": "https://github.com/andydefer/domain-structures/tree/1.13.2"
+                "source": "https://github.com/andydefer/domain-structures/tree/1.14.0"
             },
-            "time": "2026-06-01T16:14:12+00:00"
+            "time": "2026-06-02T11:15:50+00:00"
         },
         {
             "name": "andydefer/laravel-directive",
-            "version": "3.5.2",
+            "version": "3.6.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-directive.git",
-                "reference": "8ebf5d1ddbcd7d0531bf5273ce71b1898146f4e7"
+                "reference": "9442f5ca3089890dc4a5bb0fb70d695cc5f7cc0a"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/8ebf5d1ddbcd7d0531bf5273ce71b1898146f4e7",
-                "reference": "8ebf5d1ddbcd7d0531bf5273ce71b1898146f4e7",
+                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/9442f5ca3089890dc4a5bb0fb70d695cc5f7cc0a",
+                "reference": "9442f5ca3089890dc4a5bb0fb70d695cc5f7cc0a",
                 "shasum": ""
             },
             "require": {
-                "andydefer/domain-structures": "^1.13",
+                "andydefer/domain-structures": "^1.14",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "php": ">=8.1"
             },
@@ -116,26 +116,26 @@
             "description": "A flexible CLI command system for Laravel that breaks free from Artisan's constraints. Directives introduces a clean separation between what your command does (business logic) and how it's presented (output/UI).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-directive/issues",
-                "source": "https://github.com/andydefer/laravel-directive/tree/3.5.2"
+                "source": "https://github.com/andydefer/laravel-directive/tree/3.6.0"
             },
-            "time": "2026-06-01T16:16:39+00:00"
+            "time": "2026-06-02T11:18:04+00:00"
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "3.1.1",
+            "version": "3.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "73bc9e69fc4503a08fff1b599a7c958005c6f492"
+                "reference": "ba1e526c9c8d121799c21820da4059bce0a53a47"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/73bc9e69fc4503a08fff1b599a7c958005c6f492",
-                "reference": "73bc9e69fc4503a08fff1b599a7c958005c6f492",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/ba1e526c9c8d121799c21820da4059bce0a53a47",
+                "reference": "ba1e526c9c8d121799c21820da4059bce0a53a47",
                 "shasum": ""
             },
             "require": {
-                "andydefer/laravel-directive": "^3.5",
+                "andydefer/laravel-directive": "^3.6",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "php": ">=8.1"
             },
@@ -176,9 +176,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/3.1.1"
+                "source": "https://github.com/andydefer/laravel-logger/tree/3.2.0"
             },
-            "time": "2026-06-01T19:17:08+00:00"
+            "time": "2026-06-02T11:20:39+00:00"
         },
         {
             "name": "brick/math",
