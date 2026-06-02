@@ -122,16 +122,16 @@
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "3.2.0",
+            "version": "3.2.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "ba1e526c9c8d121799c21820da4059bce0a53a47"
+                "reference": "9414279be940423b763ee0d0bf676c1d30dfc5c5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/ba1e526c9c8d121799c21820da4059bce0a53a47",
-                "reference": "ba1e526c9c8d121799c21820da4059bce0a53a47",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/9414279be940423b763ee0d0bf676c1d30dfc5c5",
+                "reference": "9414279be940423b763ee0d0bf676c1d30dfc5c5",
                 "shasum": ""
             },
             "require": {
@@ -176,9 +176,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/3.2.0"
+                "source": "https://github.com/andydefer/laravel-logger/tree/3.2.1"
             },
-            "time": "2026-06-02T11:20:39+00:00"
+            "time": "2026-06-02T20:18:43+00:00"
         },
         {
             "name": "brick/math",
