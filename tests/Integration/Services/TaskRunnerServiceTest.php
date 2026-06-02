@@ -43,6 +43,7 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
             'storagePendingPath' => $this->storagePath . '/pending',
             'storageRecurringPath' => $this->storagePath . '/recurring',
             'storageCompletedPath' => $this->storagePath . '/completed',
+            'storageGracePeriodPath' => $this->storagePath . '/grace_period',
             'gracePeriodEnabled' => false,
             'gracePeriodSeconds' => 86400,
             'batchLimit' => 1000,
@@ -55,6 +56,7 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $this->config->method('storagePendingPath')->willReturn($config['storagePendingPath']);
         $this->config->method('storageRecurringPath')->willReturn($config['storageRecurringPath']);
         $this->config->method('storageCompletedPath')->willReturn($config['storageCompletedPath']);
+        $this->config->method('storageGracePeriodPath')->willReturn($config['storageGracePeriodPath']);
         $this->config->method('gracePeriodEnabled')->willReturn($config['gracePeriodEnabled']);
         $this->config->method('gracePeriodSeconds')->willReturn($config['gracePeriodSeconds']);
         $this->config->method('batchLimit')->willReturn($config['batchLimit']);
@@ -63,7 +65,12 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $this->storage = new TaskStorageService($this->config);
         $logger = $this->app->make(Logger::class);
         $validator = new TaskValidatorService($this->config);
-        $this->runner = new TaskRunnerService($this->storage, $logger, $validator);
+        $this->runner = new TaskRunnerService(
+            storage: $this->storage,
+            logger: $logger,
+            validator: $validator,
+            config: $this->config,
+        );
     }
 
     protected function tearDown(): void

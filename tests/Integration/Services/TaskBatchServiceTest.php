@@ -38,7 +38,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
+        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
     }
 
     private function createBatchServiceWithConfig(array $configOverrides = []): void
@@ -47,9 +47,10 @@ final class TaskBatchServiceTest extends IntegrationTestCase
 
         $defaults = [
             'storagePath' => $this->storagePath,
-            'storagePendingPath' => $this->storagePath.'/pending',
-            'storageRecurringPath' => $this->storagePath.'/recurring',
-            'storageCompletedPath' => $this->storagePath.'/completed',
+            'storagePendingPath' => $this->storagePath . '/pending',
+            'storageRecurringPath' => $this->storagePath . '/recurring',
+            'storageCompletedPath' => $this->storagePath . '/completed',
+            'storageGracePeriodPath' => $this->storagePath . '/grace_period',
             'batchLimit' => 1000,
             'batchOrder' => 'oldest',
             'gracePeriodEnabled' => false,
@@ -62,6 +63,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
         $this->config->method('storagePendingPath')->willReturn($config['storagePendingPath']);
         $this->config->method('storageRecurringPath')->willReturn($config['storageRecurringPath']);
         $this->config->method('storageCompletedPath')->willReturn($config['storageCompletedPath']);
+        $this->config->method('storageGracePeriodPath')->willReturn($config['storageGracePeriodPath']);
         $this->config->method('batchLimit')->willReturn($config['batchLimit']);
         $this->config->method('batchOrder')->willReturn($config['batchOrder']);
         $this->config->method('gracePeriodEnabled')->willReturn($config['gracePeriodEnabled']);
@@ -80,8 +82,13 @@ final class TaskBatchServiceTest extends IntegrationTestCase
         $this->storage = new TaskStorageService($this->config);
         $this->logger = $this->app->make(Logger::class);
         $validator = new TaskValidatorService($this->config);
-        $runner = new TaskRunnerService($this->storage, $this->logger, $validator);
-        $batchResultService = new BatchResultService;
+        $runner = new TaskRunnerService(
+            storage: $this->storage,
+            logger: $this->logger,
+            validator: $validator,
+            config: $this->config,
+        );
+        $batchResultService = new BatchResultService();
 
         $this->batch = new TaskBatchService(
             $this->storage,
@@ -106,7 +113,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
         if (! is_dir($path)) {
             return;
         }
-        foreach (glob($path.'/*') as $file) {
+        foreach (glob($path . '/*') as $file) {
             is_dir($file) ? $this->removeDirectory($file) : unlink($file);
         }
         rmdir($path);
@@ -314,7 +321,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
         $this->assertSame(1, $record->uniqueFailed);
         $this->assertFalse($record->errors->isEmpty());
 
-        $failingError = $record->errors->find(fn ($error) => $error->taskId === 'failing-1');
+        $failingError = $record->errors->find(fn($error) => $error->taskId === 'failing-1');
         $this->assertNotNull($failingError);
     }
 

@@ -397,3 +397,5 @@ $task
 - `TaskPayloadRecord` - Record de payload
 - `Logger` - Service de journalisation
 - `TaskRecord` - Record de persistance
+
+---

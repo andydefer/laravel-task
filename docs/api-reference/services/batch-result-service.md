@@ -300,3 +300,5 @@ Errors:
 - `RecurringResultRecord` - Résultat d'une tâche récurrente
 - `TaskErrorRecord` - Enregistrement d'erreur
 - `TaskBatchService` - Service de traitement par lots qui utilise `BatchResultService`
+
+---

@@ -21,11 +21,11 @@ final class TaskServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/task.php', 'task');
+        $this->mergeConfigFrom(__DIR__ . '/../config/task.php', 'task');
 
         // TaskConfig - Configuration object
-        $this->app->singleton(TaskConfig::class, function (Application $app) {
-            return new TaskConfig;
+        $this->app->singleton(TaskConfig::class, function () {
+            return new TaskConfig();
         });
 
         // Core services
@@ -42,6 +42,7 @@ final class TaskServiceProvider extends ServiceProvider
                 storage: $app->make(TaskStorageService::class),
                 logger: $app->make(Logger::class),
                 validator: $app->make(TaskValidatorService::class),
+                config: $app->make(TaskConfig::class),
             );
         });
 
@@ -54,7 +55,7 @@ final class TaskServiceProvider extends ServiceProvider
 
         // BatchResultService - immutable service for building batch results
         $this->app->singleton(BatchResultService::class, function () {
-            return new BatchResultService;
+            return new BatchResultService();
         });
 
         // TaskBatchService
@@ -81,7 +82,7 @@ final class TaskServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__.'/../config/task.php' => config_path('task.php'),
+            __DIR__ . '/../config/task.php' => config_path('task.php'),
         ], 'task-config');
     }
 }

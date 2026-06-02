@@ -10,7 +10,7 @@ Service d'exécution des tâches uniques et récurrentes. Gère la validation, l
 TaskRunnerService
 ```
 
-La classe n'étend aucune classe parente et n'implémente aucune interface.
+La classe est `final` et n'étend aucune classe parente.
 
 ## Rôle principal
 
@@ -18,7 +18,7 @@ Exécuter les tâches en validant leur état, en gérant les tentatives d'échec
 
 ## API / Méthodes publiques
 
-### `__construct(TaskStorageService $storage, Logger $logger, TaskValidatorService $validator): void`
+### `__construct(TaskStorageService $storage, Logger $logger, TaskValidatorService $validator, TaskConfig $config): void`
 
 Injecte les dépendances nécessaires à l'exécution.
 
@@ -27,6 +27,7 @@ Injecte les dépendances nécessaires à l'exécution.
 | `$storage` | `TaskStorageService` | Service de persistance des tâches |
 | `$logger` | `Logger` | Service de journalisation |
 | `$validator` | `TaskValidatorService` | Service de validation des tâches |
+| `$config` | `TaskConfig` | Configuration du système (chemins, période de grâce) |
 
 ### `runTask(TaskRecord $task): bool`
 
@@ -69,6 +70,10 @@ $success = $runner->runRecurringTask($task);
 
 declare(strict_types=1);
 
+use AndyDefer\Task\Services\TaskRunnerService;
+use AndyDefer\Task\Enums\TaskStatus;
+use AndyDefer\Task\Records\TaskRecord;
+
 $task = new TaskRecord(
     id: '550e8400-e29b-41d4-a716-446655440000',
     signature: 'send-email',
@@ -98,6 +103,8 @@ if ($success) {
 <?php
 
 declare(strict_types=1);
+
+use AndyDefer\Task\Records\RecurringTaskRecord;
 
 $task = new RecurringTaskRecord(
     signature: 'cleanup-logs',
@@ -194,6 +201,7 @@ runTask()
 TaskRunnerService
     ├── TaskStorageService (persistance)
     ├── TaskValidatorService (validation)
+    ├── TaskConfig (configuration)
     └── Logger (journalisation)
 ```
 
@@ -237,24 +245,28 @@ declare(strict_types=1);
 use AndyDefer\Task\Services\TaskRunnerService;
 use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Services\TaskValidatorService;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\AbstractTask;
+use Ramsey\Uuid\Uuid;
 
 // 1. Définir une tâche
 final class BackupDatabaseTask extends AbstractTask
 {
     protected function process(): void
     {
-        // Logique de sauvegarde
         $this->info("Starting database backup...");
-        // ...
+        // Logique de sauvegarde
         $this->info("Database backup completed");
     }
 }
 
-// 2. Créer le payload
+// 2. Créer la configuration
+$config = new TaskConfig();
+
+// 3. Créer le payload
 $payload = new TaskPayloadRecord(
     type: 'backup',
     payload: StrictDataObjectCollection::from([
@@ -263,12 +275,13 @@ $payload = new TaskPayloadRecord(
     ])
 );
 
-// 3. Enregistrer la tâche
+// 4. Initialiser les services
 $storage = new TaskStorageService($config);
 $validator = new TaskValidatorService($config);
 $logger = app(Logger::class);
-$runner = new TaskRunnerService($storage, $logger, $validator);
+$runner = new TaskRunnerService($storage, $logger, $validator, $config);
 
+// 5. Créer et enregistrer la tâche
 $task = new TaskRecord(
     id: Uuid::uuid4()->toString(),
     signature: 'backup-database',
@@ -285,7 +298,7 @@ $task = new TaskRecord(
 
 $storage->savePending($task);
 
-// 4. Exécuter la tâche
+// 6. Exécuter la tâche
 $success = $runner->runTask($task);
 
 if ($success) {
@@ -299,7 +312,10 @@ if ($success) {
 
 - `TaskStorageService` - Service de persistance
 - `TaskValidatorService` - Service de validation
+- `TaskConfig` - Configuration du système
 - `TaskRecord` - Record pour les tâches uniques
 - `RecurringTaskRecord` - Record pour les tâches récurrentes
 - `AbstractTask` - Classe de base des tâches
 - `GracePeriodRecord` - Enregistrement des exécutions en période de grâce
+
+---

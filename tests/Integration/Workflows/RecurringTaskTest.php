@@ -34,21 +34,29 @@ final class RecurringTaskTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
+        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
 
         // Create mock config with all required methods
         $this->config = $this->createStub(TaskConfig::class);
         $this->config->method('storagePath')->willReturn($this->storagePath);
-        $this->config->method('storagePendingPath')->willReturn($this->storagePath.'/pending');
-        $this->config->method('storageRecurringPath')->willReturn($this->storagePath.'/recurring');
-        $this->config->method('storageCompletedPath')->willReturn($this->storagePath.'/completed');
+        $this->config->method('storagePendingPath')->willReturn($this->storagePath . '/pending');
+        $this->config->method('storageRecurringPath')->willReturn($this->storagePath . '/recurring');
+        $this->config->method('storageCompletedPath')->willReturn($this->storagePath . '/completed');
+        $this->config->method('storageGracePeriodPath')->willReturn($this->storagePath . '/grace_period');
         $this->config->method('gracePeriodEnabled')->willReturn(false);
         $this->config->method('gracePeriodSeconds')->willReturn(86400);
+        $this->config->method('batchLimit')->willReturn(1000);
+        $this->config->method('batchOrder')->willReturn('oldest');
 
         $this->storage = new TaskStorageService($this->config);
         $logger = $this->app->make(Logger::class);
         $this->validator = new TaskValidatorService($this->config);
-        $this->runner = new TaskRunnerService($this->storage, $logger, $this->validator);
+        $this->runner = new TaskRunnerService(
+            storage: $this->storage,
+            logger: $logger,
+            validator: $this->validator,
+            config: $this->config,
+        );
     }
 
     protected function tearDown(): void
@@ -66,7 +74,7 @@ final class RecurringTaskTest extends IntegrationTestCase
             return;
         }
 
-        $files = glob($path.'/*');
+        $files = glob($path . '/*');
         foreach ($files as $file) {
             if (is_file($file)) {
                 unlink($file);

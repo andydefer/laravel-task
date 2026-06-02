@@ -8,6 +8,7 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Logger;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\AbstractTask;
+use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\GracePeriodRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
@@ -25,6 +26,7 @@ final class TaskRunnerService
         private readonly TaskStorageService $storage,
         private readonly Logger $logger,
         private readonly TaskValidatorService $validator,
+        private readonly TaskConfig $config,
     ) {}
 
     /**
@@ -131,7 +133,7 @@ final class TaskRunnerService
      */
     private function storeGracePeriodRecord(GracePeriodRecord $record): void
     {
-        $gracePath = storage_path('tasks/grace_period');
+        $gracePath = $this->config->storageGracePeriodPath();
 
         if (!is_dir($gracePath)) {
             mkdir($gracePath, 0755, true);

@@ -315,3 +315,5 @@ if (!$validator->validateTaskClass(BackupTask::class)) {
 - `TaskRecord` - Record pour les tâches uniques
 - `RecurringTaskRecord` - Record pour les tâches récurrentes
 - `TaskRunnerService` - Service d'exécution qui utilise ce validateur
+
+---

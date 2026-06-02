@@ -258,3 +258,5 @@ $result = $processor->processDailyBatch();
 - `TaskRunnerService` - Service d'exécution
 - `TaskValidatorService` - Service de validation
 - `TaskConfig` - Configuration du système
+
+---

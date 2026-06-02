@@ -341,3 +341,5 @@ $registry->unregisterRecurring('cleanup-logs');
 - `RecurringTaskRecord` - Record pour les tâches récurrentes
 - `TaskConfigRecord` - Configuration des tâches
 - `AbstractTask` - Classe de base des tâches
+
+---

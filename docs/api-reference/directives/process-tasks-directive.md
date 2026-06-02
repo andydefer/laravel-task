@@ -237,3 +237,5 @@ $exitCode = $directive->execute();
 - `BatchResultRecord` - Record contenant les résultats
 - `TaskErrorRecord` - Record d'erreur pour une tâche échouée
 - `Iso8601DateTime` - Value Object pour les dates ISO 8601
+
+---

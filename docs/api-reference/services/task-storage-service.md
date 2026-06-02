@@ -314,3 +314,5 @@ echo "Remaining tasks: {$remaining->count()}\n";
 - `RecurringTaskRecord` - Record pour les tâches récurrentes
 - `TaskRecordCollection` - Collection typée pour `TaskRecord`
 - `RecurringTaskRecordCollection` - Collection typée pour `RecurringTaskRecord`
+
+---
