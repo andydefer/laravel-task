@@ -45,7 +45,7 @@ final class ProcessTasksDirective extends AbstractDirective
 
     public function getAliases(): StringTypedCollection
     {
-        $aliases = new StringTypedCollection;
+        $aliases = new StringTypedCollection();
         $aliases->add('task:process', 'tasks:process');
 
         return $aliases;
@@ -131,13 +131,13 @@ final class ProcessTasksDirective extends AbstractDirective
     {
         $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
 
-        $this->info('');
+        $this->newLine();
         $this->info('<fg=cyan>=== Batch Results ===</>');
 
         $this->displayTaskTypeSummary('Unique tasks', $record->uniqueSuccess, $record->uniqueFailed);
         $this->displayTaskTypeSummary('Recurring tasks', $record->recurringSuccess, $record->recurringFailed);
 
-        $this->info(sprintf(
+        $this->info(\sprintf(
             '  Total:          %d tasks in %d ms',
             $totalProcessed,
             $this->getDurationMilliseconds($record)
@@ -148,7 +148,7 @@ final class ProcessTasksDirective extends AbstractDirective
     {
         $processedCount = $successCount + $failureCount;
 
-        $this->info(sprintf(
+        $this->info(\sprintf(
             '  %s: %d processed (✅ %d, ❌ %d)',
             $taskTypeLabel,
             $processedCount,
@@ -159,23 +159,28 @@ final class ProcessTasksDirective extends AbstractDirective
 
     private function displayErrorsIfVerbose(bool $verbose, BatchResultRecord $record): void
     {
-        if (! $verbose || $record->errors->isEmpty()) {
+        if (!$verbose || $record->errors->isEmpty()) {
             return;
         }
 
-        $this->info('');
+        $this->newLine();
         $this->info('<fg=red>=== Failed Tasks ===</>');
 
-        $record->errors->each(function (TaskErrorRecord $error) {
-            $this->info(sprintf('  ❌ %s: %s', $error->taskId, $error->error));
+        $record->errors->each(function (TaskErrorRecord $error): void {
+            $this->info(\sprintf('  ❌ %s: %s', $error->taskId, $error->error));
         });
     }
 
     private function getDurationMilliseconds(BatchResultRecord $record): int
     {
         $start = $record->startedAt->toDateTime()->getTimestamp();
-        $end = (new Iso8601DateTime)->toDateTime()->getTimestamp();
+        $end = (new Iso8601DateTime())->toDateTime()->getTimestamp();
 
         return (int) (($end - $start) * 1000);
+    }
+
+    private function newLine(): void
+    {
+        $this->info('');
     }
 }

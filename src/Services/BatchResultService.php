@@ -11,10 +11,27 @@ use AndyDefer\Task\Records\UniqueResultRecord;
 
 /**
  * Service for building batch results.
- * Takes a BatchResultRecord and returns a new BatchResultRecord.
+ *
+ * This service provides immutable operations to add task results to a batch result record.
+ * Each operation returns a new instance of BatchResultRecord, preserving immutability.
+ *
+ * @example
+ * $service = new BatchResultService();
+ * $record = $service->withUniqueTask($emptyRecord, 'task-1', true);
+ * $record = $service->withRecurringTask($record, 'recurring-1', false, 'Error message');
  */
-class BatchResultService
+final class BatchResultService
 {
+    /**
+     * Adds a unique (non-recurring) task result to the batch.
+     *
+     * @param BatchResultRecord $record The current batch result record
+     * @param string $id Unique identifier of the task
+     * @param bool $success Whether the task executed successfully
+     * @param string|null $error Error message if the task failed
+     *
+     * @return BatchResultRecord A new batch result record with the task added
+     */
     public function withUniqueTask(BatchResultRecord $record, string $id, bool $success, ?string $error = null): BatchResultRecord
     {
         $uniqueResults = clone $record->uniqueResults;
@@ -28,6 +45,7 @@ class BatchResultService
             $uniqueSuccess++;
         } else {
             $uniqueFailed++;
+
             if ($error !== null) {
                 $errors->add(new TaskErrorRecord($id, $error));
             }
@@ -45,6 +63,16 @@ class BatchResultService
         );
     }
 
+    /**
+     * Adds a recurring task result to the batch.
+     *
+     * @param BatchResultRecord $record The current batch result record
+     * @param string $signature Unique signature of the recurring task
+     * @param bool $success Whether the task executed successfully
+     * @param string|null $error Error message if the task failed
+     *
+     * @return BatchResultRecord A new batch result record with the task added
+     */
     public function withRecurringTask(BatchResultRecord $record, string $signature, bool $success, ?string $error = null): BatchResultRecord
     {
         $recurringResults = clone $record->recurringResults;
@@ -58,6 +86,7 @@ class BatchResultService
             $recurringSuccess++;
         } else {
             $recurringFailed++;
+
             if ($error !== null) {
                 $errors->add(new TaskErrorRecord($signature, $error));
             }

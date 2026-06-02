@@ -11,13 +11,29 @@ use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use Ramsey\Uuid\Uuid;
 
-class TaskRegistryService
+final class TaskRegistryService
 {
     public function __construct(
         private readonly TaskStorageService $storage,
         private readonly TaskValidatorService $validator,
     ) {}
 
+    /**
+     * Register a new task.
+     *
+     * @param string $taskClass Fully qualified class name extending AbstractTask
+     * @param TaskMode $mode Execution mode (SYNC/DEFER)
+     * @param TaskPayloadRecord $payload Task payload data
+     * @param string|null $startAt ISO 8601 datetime when task can start
+     * @param string|null $endAt ISO 8601 datetime when task expires
+     * @param int|null $delaySeconds Delay between recurring executions
+     * @param bool $enforceExactSchedule Whether grace period is disabled
+     *
+     * @return string Task ID (for unique tasks) or signature (for recurring tasks)
+     *
+     * @throws InvalidArgumentException If task class is invalid
+     * @throws RuntimeException If recurring task already exists
+     */
     public function register(
         string $taskClass,
         TaskMode $mode,
@@ -27,26 +43,60 @@ class TaskRegistryService
         ?int $delaySeconds = null,
         bool $enforceExactSchedule = false,
     ): string {
-        if (! $this->validator->validateTaskClass($taskClass)) {
-            throw new \InvalidArgumentException('Task must extend AbstractTask');
+        $this->validateTaskClass($taskClass);
+
+        $config = $this->getTaskConfig($taskClass);
+        $resolvedStartAt = $startAt ?? $config->startAt ?? date('c');
+        $resolvedEndAt = $endAt ?? $config->endAt;
+        $resolvedDelaySeconds = $delaySeconds ?? $config->delaySeconds ?? 0;
+
+        if ($this->isRecurringTask($resolvedEndAt, $resolvedDelaySeconds)) {
+            return $this->registerRecurringTask(
+                taskClass: $taskClass,
+                mode: $mode,
+                payload: $payload,
+                signature: $config->signature,
+                startAt: $resolvedStartAt,
+                endAt: $resolvedEndAt,
+                delaySeconds: $resolvedDelaySeconds,
+            );
         }
 
-        $tempInstance = new $taskClass;
-        $config = $tempInstance->getConfig();
-
-        $now = date('c');
-        $startAt = $startAt ?? $config->startAt ?? $now;
-        $endAt = $endAt ?? $config->endAt;
-        $delaySeconds = $delaySeconds ?? $config->delaySeconds;
-
-        if ($this->isRecurring($config->endAt, $delaySeconds)) {
-            return $this->registerRecurringTask($taskClass, $mode, $payload, $config, $startAt, $endAt, $delaySeconds);
-        }
-
-        return $this->registerUniqueTask($taskClass, $mode, $payload, $config, $startAt, $endAt, $delaySeconds, $enforceExactSchedule);
+        return $this->registerUniqueTask(
+            taskClass: $taskClass,
+            mode: $mode,
+            payload: $payload,
+            signature: $config->signature,
+            startAt: $resolvedStartAt,
+            endAt: $resolvedEndAt,
+            delaySeconds: $resolvedDelaySeconds,
+            maxAttempts: $config->maxAttempts,
+            enforceExactSchedule: $enforceExactSchedule,
+        );
     }
 
-    private function isRecurring(?string $endAt, int $delaySeconds): bool
+    /**
+     * Delete a recurring task by its signature.
+     */
+    public function unregisterRecurring(string $signature): void
+    {
+        $this->storage->deleteRecurring($signature);
+    }
+
+    private function validateTaskClass(string $taskClass): void
+    {
+        if (!$this->validator->validateTaskClass($taskClass)) {
+            throw new \InvalidArgumentException('Task must extend AbstractTask');
+        }
+    }
+
+    private function getTaskConfig(string $taskClass): object
+    {
+        $instance = new $taskClass();
+        return $instance->getConfig();
+    }
+
+    private function isRecurringTask(?string $endAt, int $delaySeconds): bool
     {
         return $endAt === null && $delaySeconds > 0;
     }
@@ -55,22 +105,22 @@ class TaskRegistryService
         string $taskClass,
         TaskMode $mode,
         TaskPayloadRecord $payload,
-        object $config,
+        string $signature,
         string $startAt,
         ?string $endAt,
         int $delaySeconds,
     ): string {
-        $existing = $this->storage->getRecurring($config->signature);
+        $existing = $this->storage->getRecurring($signature);
 
         if ($existing !== null) {
             throw new \RuntimeException(
-                "Recurring task '{$config->signature}' already exists. ".
+                "Recurring task '{$signature}' already exists. " .
                     'Delete it first if you want to re-register.'
             );
         }
 
         $recurringTask = new RecurringTaskRecord(
-            signature: $config->signature,
+            signature: $signature,
             class: $taskClass,
             payload: $payload,
             mode: $mode,
@@ -85,24 +135,25 @@ class TaskRegistryService
 
         $this->storage->saveRecurring($recurringTask);
 
-        return $config->signature;
+        return $signature;
     }
 
     private function registerUniqueTask(
         string $taskClass,
         TaskMode $mode,
         TaskPayloadRecord $payload,
-        object $config,
+        string $signature,
         string $startAt,
         ?string $endAt,
         int $delaySeconds,
+        int $maxAttempts,
         bool $enforceExactSchedule = false,
     ): string {
         $id = Uuid::uuid4()->toString();
 
         $task = new TaskRecord(
             id: $id,
-            signature: $config->signature,
+            signature: $signature,
             class: $taskClass,
             payload: $payload,
             mode: $mode,
@@ -112,17 +163,12 @@ class TaskRegistryService
             endAt: $endAt,
             delaySeconds: $delaySeconds,
             attempts: 0,
-            maxAttempts: $config->maxAttempts,
+            maxAttempts: $maxAttempts,
             enforceExactSchedule: $enforceExactSchedule,
         );
 
         $this->storage->savePending($task);
 
         return $id;
-    }
-
-    public function unregisterRecurring(string $signature): void
-    {
-        $this->storage->deleteRecurring($signature);
     }
 }

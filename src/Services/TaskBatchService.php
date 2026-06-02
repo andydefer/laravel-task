@@ -13,11 +13,20 @@ use AndyDefer\Task\Collections\UniqueResultCollection;
 use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Contracts\TaskProcessorInterface;
 use AndyDefer\Task\Records\BatchResultRecord;
+use AndyDefer\Task\Records\RecurringTaskRecord;
+use AndyDefer\Task\Records\TaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTime;
 
 /**
- * Process all pending tasks in a single batch.
- * No polling, no waiting - just process and exit.
+ * Service for processing pending tasks in batches.
+ *
+ * Orchestrates the execution of unique and recurring tasks with configurable
+ * limits and filtering options. Returns immutable batch result records.
+ *
+ * @example
+ * $service = new TaskBatchService(...);
+ * $result = $service->process(10);
+ * echo $result->uniqueSuccess;
  */
 class TaskBatchService implements TaskProcessorInterface
 {
@@ -37,15 +46,9 @@ class TaskBatchService implements TaskProcessorInterface
 
         $effectiveLimit = $this->config->getEffectiveLimit($limit);
 
-        // Process unique tasks with remaining limit
         [$result, $remainingLimit] = $this->processUniqueTasksWithLimit($result, $effectiveLimit);
 
-        // Process recurring tasks with remaining limit
-        if ($remainingLimit !== null && $remainingLimit > 0) {
-            $result = $this->processRecurringTasks($result, $remainingLimit);
-        } elseif ($remainingLimit === null) {
-            $result = $this->processRecurringTasks($result, null);
-        }
+        $result = $this->processRecurringTasksIfNeeded($result, $remainingLimit);
 
         $this->logBatchComplete($result);
 
@@ -81,14 +84,14 @@ class TaskBatchService implements TaskProcessorInterface
     private function createEmptyRecord(): BatchResultRecord
     {
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime,
+            startedAt: new Iso8601DateTime(),
             uniqueSuccess: 0,
             uniqueFailed: 0,
             recurringSuccess: 0,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection,
-            recurringResults: new RecurringResultCollection,
-            errors: new TaskErrorCollection,
+            uniqueResults: new UniqueResultCollection(),
+            recurringResults: new RecurringResultCollection(),
+            errors: new TaskErrorCollection(),
         );
     }
 
@@ -110,6 +113,19 @@ class TaskBatchService implements TaskProcessorInterface
         return [$processedResult, $remaining > 0 ? $remaining : 0];
     }
 
+    private function processRecurringTasksIfNeeded(BatchResultRecord $result, ?int $remainingLimit): BatchResultRecord
+    {
+        if ($remainingLimit !== null && $remainingLimit > 0) {
+            return $this->processRecurringTasks($result, $remainingLimit);
+        }
+
+        if ($remainingLimit === null) {
+            return $this->processRecurringTasks($result, null);
+        }
+
+        return $result;
+    }
+
     private function processUniqueTasks(BatchResultRecord $result, ?int $limit = null): BatchResultRecord
     {
         if ($limit === 0) {
@@ -119,29 +135,35 @@ class TaskBatchService implements TaskProcessorInterface
         $pendingTasks = $this->storage->findPending($limit, $this->config->batchOrder());
 
         foreach ($pendingTasks as $task) {
-            $success = false;
-            $error = null;
-
-            try {
-                if ($this->validator->canRunTask($task)) {
-                    $success = $this->runner->runTask($task);
-
-                    if (! $success) {
-                        $error = $this->getTaskFailureError($task->id);
-                    }
-                } else {
-                    $error = 'Task cannot be run (invalid state, expired, or max attempts reached)';
-                }
-            } catch (\Throwable $e) {
-                $success = false;
-                $error = $e->getMessage();
-            }
-
-            $result = $this->batchResultService->withUniqueTask($result, $task->id, $success, $error);
-            $this->logTaskResult('unique', $task->id, $task->signature, $success, $error);
+            $result = $this->executeUniqueTask($result, $task);
         }
 
         return $result;
+    }
+
+    private function executeUniqueTask(BatchResultRecord $result, TaskRecord $task): BatchResultRecord
+    {
+        $success = false;
+        $error = null;
+
+        try {
+            if ($this->validator->canRunTask($task)) {
+                $success = $this->runner->runTask($task);
+
+                if (!$success) {
+                    $error = $this->getTaskFailureError($task->id);
+                }
+            } else {
+                $error = 'Task cannot be run (invalid state, expired, or max attempts reached)';
+            }
+        } catch (\Throwable $e) {
+            $success = false;
+            $error = $e->getMessage();
+        }
+
+        $this->logTaskResult('unique', $task->id, $task->signature, $success, $error);
+
+        return $this->batchResultService->withUniqueTask($result, $task->id, $success, $error);
     }
 
     private function getTaskFailureError(string $taskId): string
@@ -165,29 +187,35 @@ class TaskBatchService implements TaskProcessorInterface
         $recurringTasks = $this->storage->findRecurring($limit, $this->config->batchOrder());
 
         foreach ($recurringTasks as $task) {
-            $success = false;
-            $error = null;
-
-            try {
-                if ($this->validator->shouldRunRecurringNow($task)) {
-                    $success = $this->runner->runRecurringTask($task);
-
-                    if (! $success) {
-                        $error = 'Recurring task execution failed';
-                    }
-                } else {
-                    $error = 'Recurring task not ready to run';
-                }
-            } catch (\Throwable $e) {
-                $success = false;
-                $error = $e->getMessage();
-            }
-
-            $result = $this->batchResultService->withRecurringTask($result, $task->signature, $success, $error);
-            $this->logTaskResult('recurring', $task->signature, $task->signature, $success, $error);
+            $result = $this->executeRecurringTask($result, $task);
         }
 
         return $result;
+    }
+
+    private function executeRecurringTask(BatchResultRecord $result, RecurringTaskRecord $task): BatchResultRecord
+    {
+        $success = false;
+        $error = null;
+
+        try {
+            if ($this->validator->shouldRunRecurringNow($task)) {
+                $success = $this->runner->runRecurringTask($task);
+
+                if (!$success) {
+                    $error = 'Recurring task execution failed';
+                }
+            } else {
+                $error = 'Recurring task not ready to run';
+            }
+        } catch (\Throwable $e) {
+            $success = false;
+            $error = $e->getMessage();
+        }
+
+        $this->logTaskResult('recurring', $task->signature, $task->signature, $success, $error);
+
+        return $this->batchResultService->withRecurringTask($result, $task->signature, $success, $error);
     }
 
     private function logBatchStart(string $mode, ?int $limit = null): void
