@@ -15,13 +15,14 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTime;
 final class BatchResultServiceTest extends UnitTestCase
 {
     private BatchResultService $service;
+
     private Iso8601DateTime $startedAt;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new BatchResultService();
-        $this->startedAt = new Iso8601DateTime();
+        $this->service = new BatchResultService;
+        $this->startedAt = new Iso8601DateTime;
     }
 
     private function createEmptyRecord(): BatchResultRecord
@@ -32,9 +33,9 @@ final class BatchResultServiceTest extends UnitTestCase
             uniqueFailed: 0,
             recurringSuccess: 0,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
-            errors: new TaskErrorCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
         );
     }
 

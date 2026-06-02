@@ -45,7 +45,7 @@ final class ProcessTasksDirective extends AbstractDirective
 
     public function getAliases(): StringTypedCollection
     {
-        $aliases = new StringTypedCollection();
+        $aliases = new StringTypedCollection;
         $aliases->add('task:process', 'tasks:process');
 
         return $aliases;
@@ -159,7 +159,7 @@ final class ProcessTasksDirective extends AbstractDirective
 
     private function displayErrorsIfVerbose(bool $verbose, BatchResultRecord $record): void
     {
-        if (!$verbose || $record->errors->isEmpty()) {
+        if (! $verbose || $record->errors->isEmpty()) {
             return;
         }
 
@@ -174,7 +174,7 @@ final class ProcessTasksDirective extends AbstractDirective
     private function getDurationMilliseconds(BatchResultRecord $record): int
     {
         $start = $record->startedAt->toDateTime()->getTimestamp();
-        $end = (new Iso8601DateTime())->toDateTime()->getTimestamp();
+        $end = (new Iso8601DateTime)->toDateTime()->getTimestamp();
 
         return (int) (($end - $start) * 1000);
     }

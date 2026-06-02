@@ -84,14 +84,14 @@ class TaskBatchService implements TaskProcessorInterface
     private function createEmptyRecord(): BatchResultRecord
     {
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime(),
+            startedAt: new Iso8601DateTime,
             uniqueSuccess: 0,
             uniqueFailed: 0,
             recurringSuccess: 0,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
-            errors: new TaskErrorCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
         );
     }
 
@@ -150,7 +150,7 @@ class TaskBatchService implements TaskProcessorInterface
             if ($this->validator->canRunTask($task)) {
                 $success = $this->runner->runTask($task);
 
-                if (!$success) {
+                if (! $success) {
                     $error = $this->getTaskFailureError($task->id);
                 }
             } else {
@@ -202,7 +202,7 @@ class TaskBatchService implements TaskProcessorInterface
             if ($this->validator->shouldRunRecurringNow($task)) {
                 $success = $this->runner->runRecurringTask($task);
 
-                if (!$success) {
+                if (! $success) {
                     $error = 'Recurring task execution failed';
                 }
             } else {

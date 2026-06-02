@@ -10,26 +10,45 @@ use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use Carbon\Carbon;
 
+/**
+ * Service for validating tasks and determining their executability.
+ *
+ * Handles task class validation, execution eligibility checks, grace period
+ * management, and recurring task scheduling validation.
+ */
 class TaskValidatorService
 {
     public function __construct(
         private readonly TaskConfig $config,
     ) {}
 
+    /**
+     * Validate that a class exists and extends AbstractTask.
+     *
+     * @param string $className Fully qualified class name to validate
+     * @return bool True if the class is a valid task, false otherwise
+     */
     public function validateTaskClass(string $className): bool
     {
-        if (! class_exists($className)) {
+        if (!class_exists($className)) {
             return false;
         }
 
-        $instance = new $className;
-
+        $instance = new $className();
         return $instance instanceof AbstractTask;
     }
 
+    /**
+     * Check if a unique task can be executed.
+     *
+     * Validates status, attempts, time window, and grace period.
+     *
+     * @param TaskRecord $task The task to check
+     * @return bool True if the task can be executed
+     */
     public function canRunTask(TaskRecord $task): bool
     {
-        if (! $task->status->isPending()) {
+        if (!$task->status->isPending()) {
             return false;
         }
 
@@ -37,8 +56,8 @@ class TaskValidatorService
             return false;
         }
 
-        $startAtTimestamp = strtotime($task->startAt);
         $now = $this->getCurrentTimestamp();
+        $startAtTimestamp = strtotime($task->startAt);
 
         if ($now < $startAtTimestamp) {
             return false;
@@ -46,31 +65,37 @@ class TaskValidatorService
 
         $endAtTimestamp = $task->endAt ? strtotime($task->endAt) : PHP_INT_MAX;
 
-        // Si la tâche exige un schedule exact, pas de période de grâce
+        // Exact schedule enforcement - no grace period
         if ($task->enforceExactSchedule) {
             return $now <= $endAtTimestamp;
         }
 
-        // Période de grâce pour les tâches uniques (delaySeconds = 0)
+        // Grace period for unique tasks (delaySeconds === 0)
         if ($task->delaySeconds === 0 && $this->config->gracePeriodEnabled()) {
             return $now <= $endAtTimestamp + $this->config->gracePeriodSeconds();
         }
 
-        // Comportement normal pour les tâches récurrentes
+        // Normal behavior for recurring tasks
         return $now <= $endAtTimestamp;
     }
 
+    /**
+     * Check if a unique task has expired.
+     *
+     * @param TaskRecord $task The task to check
+     * @return bool True if the task is expired
+     */
     public function isTaskExpired(TaskRecord $task): bool
     {
-        $endAtTimestamp = $task->endAt ? strtotime($task->endAt) : PHP_INT_MAX;
         $now = $this->getCurrentTimestamp();
+        $endAtTimestamp = $task->endAt ? strtotime($task->endAt) : PHP_INT_MAX;
 
-        // Si la tâche exige un schedule exact
+        // Exact schedule enforcement - no grace period
         if ($task->enforceExactSchedule) {
             return $now > $endAtTimestamp;
         }
 
-        // Période de grâce pour les tâches uniques
+        // Grace period for unique tasks
         if ($task->delaySeconds === 0 && $this->config->gracePeriodEnabled()) {
             return $now > $endAtTimestamp + $this->config->gracePeriodSeconds();
         }
@@ -78,6 +103,14 @@ class TaskValidatorService
         return $now > $endAtTimestamp;
     }
 
+    /**
+     * Check if a recurring task is ready to run.
+     *
+     * Validates time window and next run date.
+     *
+     * @param RecurringTaskRecord $task The recurring task to check
+     * @return bool True if the task should run now
+     */
     public function shouldRunRecurringNow(RecurringTaskRecord $task): bool
     {
         $now = $this->getCurrentTimestamp();
@@ -92,6 +125,12 @@ class TaskValidatorService
         return true;
     }
 
+    /**
+     * Check if a unique task should run now (without grace period logic).
+     *
+     * @param TaskRecord $task The task to check
+     * @return bool True if the task should run now
+     */
     public function shouldRunTaskNow(TaskRecord $task): bool
     {
         $now = $this->getCurrentTimestamp();
@@ -102,7 +141,7 @@ class TaskValidatorService
             return false;
         }
 
-        if (! $task->status->isPending()) {
+        if (!$task->status->isPending()) {
             return false;
         }
 
@@ -113,14 +152,26 @@ class TaskValidatorService
         return true;
     }
 
+    /**
+     * Get the delay seconds for a task.
+     *
+     * @param TaskRecord $task The task
+     * @return int Delay in seconds
+     */
     public function getDelaySecondsForTask(TaskRecord $task): int
     {
         return $task->delaySeconds;
     }
 
+    /**
+     * Calculate the grace period delay for an expired task.
+     *
+     * @param TaskRecord $task The expired task
+     * @return int Number of seconds the task is late
+     */
     public function getGracePeriodDelay(TaskRecord $task): int
     {
-        if (! $this->isUniqueTaskWithGracePeriod($task)) {
+        if (!$this->isUniqueTaskWithGracePeriod($task)) {
             return 0;
         }
 
@@ -130,19 +181,26 @@ class TaskValidatorService
         return max(0, $now - $endAtTimestamp);
     }
 
+    /**
+     * Check if a unique task qualifies for grace period.
+     *
+     * @param TaskRecord $task The task to check
+     * @return bool True if the task qualifies for grace period
+     */
     public function isUniqueTaskWithGracePeriod(TaskRecord $task): bool
     {
         return $task->delaySeconds === 0
             && $this->config->gracePeriodEnabled()
-            && ! $task->enforceExactSchedule;
+            && !$task->enforceExactSchedule;
     }
 
     /**
-     * Retourne le timestamp actuel (simulé par Carbon si disponible)
+     * Get the current timestamp, respecting Carbon test mocks.
+     *
+     * @return int Current Unix timestamp
      */
     private function getCurrentTimestamp(): int
     {
-        // Vérifier si Carbon a simulé le temps
         $carbonNow = Carbon::getTestNow();
         if ($carbonNow) {
             return $carbonNow->timestamp;

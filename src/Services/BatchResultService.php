@@ -25,11 +25,10 @@ final class BatchResultService
     /**
      * Adds a unique (non-recurring) task result to the batch.
      *
-     * @param BatchResultRecord $record The current batch result record
-     * @param string $id Unique identifier of the task
-     * @param bool $success Whether the task executed successfully
-     * @param string|null $error Error message if the task failed
-     *
+     * @param  BatchResultRecord  $record  The current batch result record
+     * @param  string  $id  Unique identifier of the task
+     * @param  bool  $success  Whether the task executed successfully
+     * @param  string|null  $error  Error message if the task failed
      * @return BatchResultRecord A new batch result record with the task added
      */
     public function withUniqueTask(BatchResultRecord $record, string $id, bool $success, ?string $error = null): BatchResultRecord
@@ -66,11 +65,10 @@ final class BatchResultService
     /**
      * Adds a recurring task result to the batch.
      *
-     * @param BatchResultRecord $record The current batch result record
-     * @param string $signature Unique signature of the recurring task
-     * @param bool $success Whether the task executed successfully
-     * @param string|null $error Error message if the task failed
-     *
+     * @param  BatchResultRecord  $record  The current batch result record
+     * @param  string  $signature  Unique signature of the recurring task
+     * @param  bool  $success  Whether the task executed successfully
+     * @param  string|null  $error  Error message if the task failed
      * @return BatchResultRecord A new batch result record with the task added
      */
     public function withRecurringTask(BatchResultRecord $record, string $signature, bool $success, ?string $error = null): BatchResultRecord

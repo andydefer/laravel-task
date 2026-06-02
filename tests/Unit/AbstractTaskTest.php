@@ -13,7 +13,6 @@ use AndyDefer\Logger\Tasks\QueryLogsTask;
 use AndyDefer\Logger\Tasks\StreamLogsTask;
 use AndyDefer\Logger\Tasks\WriteLogTask;
 use AndyDefer\Logger\ValueObjects\LoggerConfig;
-use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
@@ -22,61 +21,57 @@ use AndyDefer\Task\Tests\UnitTestCase;
 final class AbstractTaskTest extends UnitTestCase
 {
     private TestTask $task;
-
     private FailingTask $failingTask;
-
     private Logger $logger;
-
     private string $tempLogDir;
-
     private string $expectedDate;
-
     private string $expectedHour;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Get REAL current date/time (not frozen)
         $realNow = new \DateTime('now', new \DateTimeZone('UTC'));
         $this->expectedDate = $realNow->format('Y-m-d');
         $currentHourNum = (int) $realNow->format('H');
-
-        // Format correct : "HH-(HH+1)" avec modulo pour 23-00
         $nextHour = ($currentHourNum + 1) % 24;
         $this->expectedHour = sprintf('%02d-%02d', $currentHourNum, $nextHour);
 
-        $this->tempLogDir = sys_get_temp_dir().'/logger_test_'.uniqid();
+        $this->tempLogDir = sys_get_temp_dir() . '/logger_test_' . uniqid();
 
-        // Create directory structure
-        $dateDir = $this->tempLogDir.'/'.$this->expectedDate;
-        if (! is_dir($dateDir)) {
-            mkdir($dateDir, 0755, true);
-        }
+        $this->setupLogDirectory();
 
         $config = new LoggerConfig($this->tempLogDir, 30);
         $pathService = new LogPathService($config);
-        $serializer = new LogSerializerService;
+        $serializer = new LogSerializerService();
 
         $writeTask = new WriteLogTask($pathService, $serializer);
         $queryTask = new QueryLogsTask($pathService, $serializer);
         $streamTask = new StreamLogsTask($pathService, $serializer);
 
         $this->logger = new Logger($writeTask, $queryTask, $streamTask);
-
-        // IMPORTANT: Disable buffer completely and flush to ensure synchronous writes
         $this->logger->disableBuffer();
         $this->logger->flush();
 
-        $this->task = new TestTask;
-        $this->task->setLogger($this->logger);
-        $this->task->setTaskId('test-123');
-        $this->task->setSignature('test-signature');
+        $this->task = new TestTask();
+        $this->task
+            ->setLogger($this->logger)
+            ->setTaskId('test-123')
+            ->setSignature('test-signature');
 
-        $this->failingTask = new FailingTask;
-        $this->failingTask->setLogger($this->logger);
-        $this->failingTask->setTaskId('failing-123');
-        $this->failingTask->setSignature('failing-signature');
+        $this->failingTask = new FailingTask();
+        $this->failingTask
+            ->setLogger($this->logger)
+            ->setTaskId('failing-123')
+            ->setSignature('failing-signature');
+    }
+
+    private function setupLogDirectory(): void
+    {
+        $dateDir = $this->tempLogDir . '/' . $this->expectedDate;
+        if (!is_dir($dateDir)) {
+            mkdir($dateDir, 0755, true);
+        }
     }
 
     protected function tearDown(): void
@@ -89,7 +84,7 @@ final class AbstractTaskTest extends UnitTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection;
+        $payloadCollection = new StrictDataObjectCollection();
         $payloadCollection->add(StrictDataObject::from([
             'test_data' => 'abstract_task_test',
         ]));
@@ -102,17 +97,13 @@ final class AbstractTaskTest extends UnitTestCase
 
     private function getLogFileContent(): string
     {
-        $logFile = $this->tempLogDir.'/'.$this->expectedDate.'/'.$this->expectedHour.'.jsonl';
+        $logFile = $this->tempLogDir . '/' . $this->expectedDate . '/' . $this->expectedHour . '.jsonl';
 
-        // Force flush before checking
         $this->logger->flush();
-
-        // Clear stat cache to ensure we get fresh file info
         clearstatcache();
 
-        // Wait a bit for the file to be written (file system latency)
         $maxRetries = 10;
-        $retryDelay = 10000; // 10ms
+        $retryDelay = 10000;
 
         for ($i = 0; $i < $maxRetries; $i++) {
             if (file_exists($logFile)) {
@@ -125,19 +116,18 @@ final class AbstractTaskTest extends UnitTestCase
         }
 
         $this->assertFileExists($logFile, "Log file does not exist at: {$logFile}");
-
-        return file_get_contents($logFile);
+        return (string) file_get_contents($logFile);
     }
 
     private function deleteDirectory(string $dir): void
     {
-        if (! is_dir($dir)) {
+        if (!is_dir($dir)) {
             return;
         }
 
         $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {
-            $path = $dir.'/'.$file;
+            $path = $dir . '/' . $file;
             is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
         }
         rmdir($dir);
@@ -147,9 +137,13 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_execute_calls_before_process_and_after(): void
     {
+        // Arrange
         $payload = $this->createTaskPayload();
-        $this->task->execute(TaskMode::SYNC, $payload);
 
+        // Act
+        $this->task->execute($payload);
+
+        // Assert
         $this->assertTrue($this->task->beforeCalled);
         $this->assertTrue($this->task->processCalled);
         $this->assertTrue($this->task->afterCalled);
@@ -158,13 +152,16 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_execute_calls_after_with_false_on_exception(): void
     {
+        // Arrange
         $payload = $this->createTaskPayload();
 
+        // Assert
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Test exception');
 
+        // Act
         try {
-            $this->failingTask->execute(TaskMode::SYNC, $payload);
+            $this->failingTask->execute($payload);
         } finally {
             $this->assertTrue($this->failingTask->afterCalled);
             $this->assertFalse($this->failingTask->afterSuccess);
@@ -174,9 +171,13 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_execute_logs_task_started(): void
     {
+        // Arrange
         $payload = $this->createTaskPayload();
-        $this->task->execute(TaskMode::SYNC, $payload);
 
+        // Act
+        $this->task->execute($payload);
+
+        // Assert
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_started', $content);
         $this->assertStringContainsString('test-123', $content);
@@ -185,9 +186,13 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_execute_logs_task_completed_on_success(): void
     {
+        // Arrange
         $payload = $this->createTaskPayload();
-        $this->task->execute(TaskMode::SYNC, $payload);
 
+        // Act
+        $this->task->execute($payload);
+
+        // Assert
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_completed', $content);
         $this->assertStringContainsString('test-123', $content);
@@ -196,14 +201,17 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_execute_logs_task_failed_on_exception(): void
     {
+        // Arrange
         $payload = $this->createTaskPayload();
 
+        // Act
         try {
-            $this->failingTask->execute(TaskMode::SYNC, $payload);
+            $this->failingTask->execute($payload);
         } catch (\RuntimeException $e) {
             // Expected exception
         }
 
+        // Assert
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_failed', $content);
         $this->assertStringContainsString('failing-123', $content);
@@ -213,9 +221,13 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_info_method_logs_info_message(): void
     {
+        // Arrange
         $message = 'Test info message';
+
+        // Act
         $this->task->info($message);
 
+        // Assert
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_output', $content);
         $this->assertStringContainsString('info', $content);
@@ -224,9 +236,13 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_error_method_logs_error_message(): void
     {
+        // Arrange
         $message = 'Test error message';
+
+        // Act
         $this->task->error($message);
 
+        // Assert
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_output', $content);
         $this->assertStringContainsString('error', $content);
@@ -235,40 +251,58 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_set_logger_returns_self(): void
     {
+        // Arrange
         $newLogger = clone $this->logger;
+
+        // Act
         $result = $this->task->setLogger($newLogger);
+
+        // Assert
         $this->assertSame($this->task, $result);
     }
 
     public function test_set_task_id_returns_self(): void
     {
+        // Act
         $result = $this->task->setTaskId('new-id');
+
+        // Assert
         $this->assertSame($this->task, $result);
     }
 
     public function test_set_signature_returns_self(): void
     {
+        // Act
         $result = $this->task->setSignature('new-signature');
+
+        // Assert
         $this->assertSame($this->task, $result);
     }
 
     public function test_execute_with_valid_payload_processes_correctly(): void
     {
+        // Arrange
         $payload = $this->createTaskPayload();
-        $this->task->execute(TaskMode::SYNC, $payload);
 
+        // Act
+        $this->task->execute($payload);
+
+        // Assert
         $this->assertTrue($this->task->processCalled);
         $this->assertTrue($this->task->afterSuccess);
     }
 
     public function test_multiple_info_calls_log_all_messages(): void
     {
+        // Arrange
         $messages = ['First message', 'Second message', 'Third message'];
 
+        // Act
         foreach ($messages as $message) {
             $this->task->info($message);
         }
 
+        // Assert
         $content = $this->getLogFileContent();
         foreach ($messages as $message) {
             $this->assertStringContainsString($message, $content);
@@ -277,12 +311,15 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_multiple_error_calls_log_all_messages(): void
     {
+        // Arrange
         $messages = ['Error 1', 'Error 2', 'Error 3'];
 
+        // Act
         foreach ($messages as $message) {
             $this->task->error($message);
         }
 
+        // Assert
         $content = $this->getLogFileContent();
         foreach ($messages as $message) {
             $this->assertStringContainsString($message, $content);
@@ -291,11 +328,15 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_logger_flush_writes_all_buffered_logs(): void
     {
-        // With buffer disabled, this test is trivial
-        $this->task->info('Test message before flush');
+        // Arrange
+        $message = 'Test message before flush';
+
+        // Act
+        $this->task->info($message);
         $this->logger->flush();
 
+        // Assert
         $content = $this->getLogFileContent();
-        $this->assertStringContainsString('Test message before flush', $content);
+        $this->assertStringContainsString($message, $content);
     }
 }

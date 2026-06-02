@@ -8,7 +8,6 @@ use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Logger;
 use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
@@ -18,7 +17,6 @@ use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\Tests\UnitTestCase;
 use PHPUnit\Framework\MockObject\Stub;
 
 final class TaskLifecycleTest extends IntegrationTestCase
@@ -37,14 +35,14 @@ final class TaskLifecycleTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
 
         // Create mock config with all required methods
         $this->config = $this->createStub(TaskConfig::class);
         $this->config->method('storagePath')->willReturn($this->storagePath);
-        $this->config->method('storagePendingPath')->willReturn($this->storagePath . '/pending');
-        $this->config->method('storageRecurringPath')->willReturn($this->storagePath . '/recurring');
-        $this->config->method('storageCompletedPath')->willReturn($this->storagePath . '/completed');
+        $this->config->method('storagePendingPath')->willReturn($this->storagePath.'/pending');
+        $this->config->method('storageRecurringPath')->willReturn($this->storagePath.'/recurring');
+        $this->config->method('storageCompletedPath')->willReturn($this->storagePath.'/completed');
         $this->config->method('gracePeriodEnabled')->willReturn(false);
         $this->config->method('gracePeriodSeconds')->willReturn(86400);
 
@@ -69,7 +67,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
             return;
         }
 
-        $files = glob($path . '/*');
+        $files = glob($path.'/*');
         foreach ($files as $file) {
             if (is_file($file)) {
                 unlink($file);
@@ -111,7 +109,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
             signature: $signature,
             class: $class,
             payload: $payload,
-            mode: TaskMode::SYNC,
+
             status: TaskStatus::PENDING,
             createdAt: date('c'),
             startAt: $startAt ?? date('c', strtotime('-1 minute')),

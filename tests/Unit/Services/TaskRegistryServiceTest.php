@@ -22,7 +22,9 @@ use PHPUnit\Framework\MockObject\MockObject;
 final class TaskRegistryServiceTest extends UnitTestCase
 {
     private TaskRegistryService $registry;
+
     private TaskStorageService&MockObject $storage;
+
     private TaskValidatorService&MockObject $validator;
 
     protected function setUp(): void
@@ -35,7 +37,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
+        $payloadCollection = new StrictDataObjectCollection;
         $payloadCollection->add(StrictDataObject::from([
             'test_data' => 'registry_test',
         ]));
@@ -64,7 +66,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: 'InvalidClass',
-            mode: TaskMode::SYNC,
+
             payload: $payload,
         );
     }
@@ -84,7 +86,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: 'InvalidClass',
-            mode: TaskMode::SYNC,
+
             payload: $payload,
         );
     }
@@ -108,7 +110,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: TestTask::class,
-            mode: TaskMode::SYNC,
+
             payload: $payload,
             enforceExactSchedule: true,
         );
@@ -131,7 +133,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: TestTask::class,
-            mode: TaskMode::SYNC,
+
             payload: $payload,
             enforceExactSchedule: false,
         );
@@ -154,7 +156,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: TestTask::class,
-            mode: TaskMode::SYNC,
+
             payload: $payload,
         );
     }
@@ -181,7 +183,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: TestTask::class,
-            mode: TaskMode::SYNC,
+
             payload: $payload,
             enforceExactSchedule: true,
         );
@@ -189,7 +191,6 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Assert
         $this->assertNotNull($capturedTask);
         $this->assertSame(TestTask::class, $capturedTask->class);
-        $this->assertSame(TaskMode::SYNC, $capturedTask->mode);
         $this->assertSame($payload, $capturedTask->payload);
         $this->assertTrue($capturedTask->enforceExactSchedule);
         $this->assertMatchesRegularExpression('/^[a-f0-9-]{36}$/', $capturedTask->id);
@@ -215,13 +216,13 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: TestTask::class,
-            mode: TaskMode::SYNC,
+
             payload: $payload,
         );
 
         $this->registry->register(
             taskClass: TestTask::class,
-            mode: TaskMode::SYNC,
+
             payload: $payload,
         );
 
@@ -252,7 +253,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: TestTask::class,
-            mode: TaskMode::SYNC,
+
             payload: $payload,
         );
 
@@ -277,6 +278,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
             ->with(TestTask::class)
             ->willReturnCallback(function () use (&$validationCalled): bool {
                 $validationCalled = true;
+
                 return true;
             });
 
@@ -289,7 +291,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
         // Act
         $this->registry->register(
             taskClass: TestTask::class,
-            mode: TaskMode::SYNC,
+
             payload: $payload,
         );
     }

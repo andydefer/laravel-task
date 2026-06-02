@@ -24,19 +24,32 @@ class TaskStorageService
 
     private function ensureDirectories(): void
     {
-        foreach (
-            [
-                $this->config->storagePendingPath(),
-                $this->config->storageRecurringPath(),
-                $this->config->storageCompletedPath(),
-            ] as $path
-        ) {
-            if (! is_dir($path)) {
+        foreach ($this->getStoragePaths() as $path) {
+            if (!is_dir($path)) {
                 mkdir($path, 0755, true);
             }
         }
     }
 
+    /**
+     * @return array<string> List of storage directory paths
+     */
+    private function getStoragePaths(): array
+    {
+        return [
+            $this->config->storagePendingPath(),
+            $this->config->storageRecurringPath(),
+            $this->config->storageCompletedPath(),
+        ];
+    }
+
+    /**
+     * Sort files by modification time.
+     *
+     * @param array<string> $files List of file paths
+     * @param string $order 'oldest' or 'newest'
+     * @return array<string> Sorted file paths
+     */
     private function sortFilesByTime(array $files, string $order): array
     {
         usort($files, function ($a, $b) use ($order) {
@@ -47,16 +60,19 @@ class TaskStorageService
                 return strcmp(basename($a), basename($b));
             }
 
-            if ($order === 'oldest') {
-                return $timeA - $timeB;
-            }
-
-            return $timeB - $timeA;
+            return $order === 'oldest' ? $timeA - $timeB : $timeB - $timeA;
         });
 
         return $files;
     }
 
+    /**
+     * Apply limit to files array.
+     *
+     * @param array<string> $files List of file paths
+     * @param int|null $limit Maximum number of files to return
+     * @return array<string> Limited file paths
+     */
     private function applyLimit(array $files, ?int $limit): array
     {
         if ($limit === 0) {
@@ -70,29 +86,48 @@ class TaskStorageService
         return array_slice($files, 0, $limit);
     }
 
+    /**
+     * Read and decode JSON file content.
+     *
+     * @param string $filePath Path to JSON file
+     * @return array<string, mixed>|null Decoded data or null if invalid
+     */
+    private function readJsonFile(string $filePath): ?array
+    {
+        $content = file_get_contents($filePath);
+        if ($content === false) {
+            return null;
+        }
+
+        $data = json_decode($content, true);
+        return is_array($data) ? $data : null;
+    }
+
     // ==================== Unique Tasks ====================
 
     public function savePending(TaskRecord $task): void
     {
         $this->ensureDirectories();
 
-        $filePath = $this->config->storagePendingPath().'/'.$task->id.'.json';
+        $filePath = $this->config->storagePendingPath() . '/' . $task->id . '.json';
         file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
         usleep(1000);
     }
 
     public function findPending(?int $limit = null, string $order = 'oldest'): TaskRecordCollection
     {
-        $results = new TaskRecordCollection;
-        $files = glob($this->config->storagePendingPath().'/*.json');
+        $results = new TaskRecordCollection();
+        $files = glob($this->config->storagePendingPath() . '/*.json');
+
+        if ($files === false) {
+            return $results;
+        }
 
         $files = $this->sortFilesByTime($files, $order);
         $files = $this->applyLimit($files, $limit);
 
         foreach ($files as $file) {
-            $content = file_get_contents($file);
-            $data = json_decode($content, true);
-
+            $data = $this->readJsonFile($file);
             if ($data === null) {
                 continue;
             }
@@ -109,7 +144,7 @@ class TaskStorageService
 
     public function deletePending(string $id): void
     {
-        $filePath = $this->config->storagePendingPath().'/'.$id.'.json';
+        $filePath = $this->config->storagePendingPath() . '/' . $id . '.json';
 
         if (file_exists($filePath)) {
             unlink($filePath);
@@ -119,14 +154,14 @@ class TaskStorageService
     public function moveToCompleted(TaskRecord $task, bool $success = true): void
     {
         $date = date('Y-m-d');
-        $completedDir = $this->config->storageCompletedPath().'/'.$date;
+        $completedDir = $this->config->storageCompletedPath() . '/' . $date;
 
-        if (! is_dir($completedDir)) {
+        if (!is_dir($completedDir)) {
             mkdir($completedDir, 0755, true);
         }
 
-        $source = $this->config->storagePendingPath().'/'.$task->id.'.json';
-        $target = $completedDir.'/'.$task->id.'.json';
+        $source = $this->config->storagePendingPath() . '/' . $task->id . '.json';
+        $target = $completedDir . '/' . $task->id . '.json';
 
         if (file_exists($source)) {
             rename($source, $target);
@@ -139,23 +174,25 @@ class TaskStorageService
     {
         $this->ensureDirectories();
 
-        $filePath = $this->config->storageRecurringPath().'/'.$task->signature.'.json';
+        $filePath = $this->config->storageRecurringPath() . '/' . $task->signature . '.json';
         file_put_contents($filePath, json_encode($task->toArray(), JSON_PRETTY_PRINT));
         usleep(1000);
     }
 
     public function findRecurring(?int $limit = null, string $order = 'oldest'): RecurringTaskRecordCollection
     {
-        $results = new RecurringTaskRecordCollection;
-        $files = glob($this->config->storageRecurringPath().'/*.json');
+        $results = new RecurringTaskRecordCollection();
+        $files = glob($this->config->storageRecurringPath() . '/*.json');
+
+        if ($files === false) {
+            return $results;
+        }
 
         $files = $this->sortFilesByTime($files, $order);
         $files = $this->applyLimit($files, $limit);
 
         foreach ($files as $file) {
-            $content = file_get_contents($file);
-            $data = json_decode($content, true);
-
+            $data = $this->readJsonFile($file);
             if ($data === null) {
                 continue;
             }
@@ -172,15 +209,13 @@ class TaskStorageService
 
     public function getRecurring(string $signature): ?RecurringTaskRecord
     {
-        $filePath = $this->config->storageRecurringPath().'/'.$signature.'.json';
+        $filePath = $this->config->storageRecurringPath() . '/' . $signature . '.json';
 
-        if (! file_exists($filePath)) {
+        if (!file_exists($filePath)) {
             return null;
         }
 
-        $content = file_get_contents($filePath);
-        $data = json_decode($content, true);
-
+        $data = $this->readJsonFile($filePath);
         if ($data === null) {
             return null;
         }
@@ -197,7 +232,6 @@ class TaskStorageService
             'signature' => $task->signature,
             'class' => $task->class,
             'payload' => $task->payload,
-            'mode' => $task->mode,
             'startAt' => $task->startAt,
             'endAt' => $task->endAt,
             'delaySeconds' => $task->delaySeconds,
@@ -213,7 +247,7 @@ class TaskStorageService
 
     public function deleteRecurring(string $signature): void
     {
-        $filePath = $this->config->storageRecurringPath().'/'.$signature.'.json';
+        $filePath = $this->config->storageRecurringPath() . '/' . $signature . '.json';
 
         if (file_exists($filePath)) {
             unlink($filePath);
@@ -222,13 +256,15 @@ class TaskStorageService
 
     public function getAllRecurring(): RecurringTaskRecordCollection
     {
-        $results = new RecurringTaskRecordCollection;
-        $files = glob($this->config->storageRecurringPath().'/*.json');
+        $results = new RecurringTaskRecordCollection();
+        $files = glob($this->config->storageRecurringPath() . '/*.json');
+
+        if ($files === false) {
+            return $results;
+        }
 
         foreach ($files as $file) {
-            $content = file_get_contents($file);
-            $data = json_decode($content, true);
-
+            $data = $this->readJsonFile($file);
             if ($data === null) {
                 continue;
             }
@@ -241,13 +277,15 @@ class TaskStorageService
 
     public function getAllPending(): TaskRecordCollection
     {
-        $results = new TaskRecordCollection;
-        $files = glob($this->config->storagePendingPath().'/*.json');
+        $results = new TaskRecordCollection();
+        $files = glob($this->config->storagePendingPath() . '/*.json');
+
+        if ($files === false) {
+            return $results;
+        }
 
         foreach ($files as $file) {
-            $content = file_get_contents($file);
-            $data = json_decode($content, true);
-
+            $data = $this->readJsonFile($file);
             if ($data === null) {
                 continue;
             }
@@ -260,22 +298,24 @@ class TaskStorageService
 
     // ==================== Helpers ====================
 
+    /**
+     * Check if a unique task is ready to run.
+     */
     private function shouldRunTaskNow(TaskRecord $task): bool
     {
         $now = time();
 
         $startAtTimestamp = strtotime($task->startAt);
-        $endAtTimestamp = $task->endAt !== null ? strtotime($task->endAt) : PHP_INT_MAX;
-
         if ($now < $startAtTimestamp) {
             return false;
         }
 
+        $endAtTimestamp = $task->endAt !== null ? strtotime($task->endAt) : PHP_INT_MAX;
         if ($now > $endAtTimestamp) {
             return false;
         }
 
-        if (! $task->status->isPending()) {
+        if (!$task->status->isPending()) {
             return false;
         }
 
@@ -286,22 +326,24 @@ class TaskStorageService
         return true;
     }
 
+    /**
+     * Check if a recurring task is ready to run.
+     */
     private function shouldRunRecurringNow(RecurringTaskRecord $task): bool
     {
         $now = time();
 
         $startAtTimestamp = strtotime($task->startAt);
-        $endAtTimestamp = $task->endAt !== null ? strtotime($task->endAt) : PHP_INT_MAX;
-        $nextRunAtTimestamp = strtotime($task->nextRunAt);
-
         if ($now < $startAtTimestamp) {
             return false;
         }
 
+        $endAtTimestamp = $task->endAt !== null ? strtotime($task->endAt) : PHP_INT_MAX;
         if ($now > $endAtTimestamp) {
             return false;
         }
 
+        $nextRunAtTimestamp = strtotime($task->nextRunAt);
         if ($now < $nextRunAtTimestamp) {
             return false;
         }

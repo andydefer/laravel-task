@@ -8,7 +8,6 @@ use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Logger;
 use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Services\TaskRunnerService;
@@ -17,7 +16,6 @@ use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\Tests\UnitTestCase;
 use PHPUnit\Framework\MockObject\Stub;
 
 final class RecurringTaskTest extends IntegrationTestCase
@@ -36,14 +34,14 @@ final class RecurringTaskTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
 
         // Create mock config with all required methods
         $this->config = $this->createStub(TaskConfig::class);
         $this->config->method('storagePath')->willReturn($this->storagePath);
-        $this->config->method('storagePendingPath')->willReturn($this->storagePath . '/pending');
-        $this->config->method('storageRecurringPath')->willReturn($this->storagePath . '/recurring');
-        $this->config->method('storageCompletedPath')->willReturn($this->storagePath . '/completed');
+        $this->config->method('storagePendingPath')->willReturn($this->storagePath.'/pending');
+        $this->config->method('storageRecurringPath')->willReturn($this->storagePath.'/recurring');
+        $this->config->method('storageCompletedPath')->willReturn($this->storagePath.'/completed');
         $this->config->method('gracePeriodEnabled')->willReturn(false);
         $this->config->method('gracePeriodSeconds')->willReturn(86400);
 
@@ -68,7 +66,7 @@ final class RecurringTaskTest extends IntegrationTestCase
             return;
         }
 
-        $files = glob($path . '/*');
+        $files = glob($path.'/*');
         foreach ($files as $file) {
             if (is_file($file)) {
                 unlink($file);
@@ -115,7 +113,7 @@ final class RecurringTaskTest extends IntegrationTestCase
             signature: $signature,
             class: $class,
             payload: $payload,
-            mode: TaskMode::DEFER,
+
             startAt: $startAt ?? date('c', strtotime('-1 hour')),
             endAt: $endAt,
             delaySeconds: $delaySeconds,
@@ -275,7 +273,7 @@ final class RecurringTaskTest extends IntegrationTestCase
             signature: 'recurring-payload',
             class: TestTask::class,
             payload: $customPayload,
-            mode: TaskMode::DEFER,
+
             startAt: date('c', strtotime('-1 hour')),
             endAt: null,
             delaySeconds: 300,

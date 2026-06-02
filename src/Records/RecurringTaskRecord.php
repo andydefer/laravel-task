@@ -7,7 +7,6 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
-use AndyDefer\Task\Enums\TaskMode;
 
 final class RecurringTaskRecord extends AbstractRecord
 {
@@ -15,7 +14,6 @@ final class RecurringTaskRecord extends AbstractRecord
         public readonly string $signature,
         public readonly string $class,
         public readonly TaskPayloadRecord $payload,
-        public readonly TaskMode $mode,
         public readonly string $startAt,
         public readonly ?string $endAt,
         public readonly int $delaySeconds,

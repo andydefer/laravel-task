@@ -13,7 +13,6 @@ use AndyDefer\DomainStructures\Traits\Enumable;
  * pending, running, success, and failure states. This enum is used
  * by the task scheduler and executor to manage task flow.
  *
- * @see TaskMode For task execution mode
  */
 enum TaskStatus: string
 {

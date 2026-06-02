@@ -27,14 +27,13 @@ Injecte les dépendances nécessaires à l'enregistrement.
 | `$storage` | `TaskStorageService` | Service de persistance des tâches |
 | `$validator` | `TaskValidatorService` | Service de validation des classes de tâches |
 
-### `register(string $taskClass, TaskMode $mode, TaskPayloadRecord $payload, ?string $startAt = null, ?string $endAt = null, ?int $delaySeconds = null, bool $enforceExactSchedule = false): string`
+### `register(string $taskClass, TaskPayloadRecord $payload, ?string $startAt = null, ?string $endAt = null, ?int $delaySeconds = null, bool $enforceExactSchedule = false): string`
 
 Enregistre une nouvelle tâche (unique ou récurrente).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$taskClass` | `string` | Nom qualifié complet de la classe (doit étendre `AbstractTask`) |
-| `$mode` | `TaskMode` | Mode d'exécution (`SYNC` ou `DEFER`) |
 | `$payload` | `TaskPayloadRecord` | Données de la tâche |
 | `$startAt` | `string|null` | Date ISO 8601 de début d'exécution (optionnel) |
 | `$endAt` | `string|null` | Date ISO 8601 d'expiration (optionnel) |
@@ -54,7 +53,6 @@ $registry = new TaskRegistryService($storage, $validator);
 // Enregistrer une tâche unique
 $taskId = $registry->register(
     taskClass: SendEmailTask::class,
-    mode: TaskMode::SYNC,
     payload: $payload,
     startAt: '2024-01-01T10:00:00+00:00',
     endAt: '2024-01-01T12:00:00+00:00',
@@ -63,7 +61,6 @@ $taskId = $registry->register(
 // Enregistrer une tâche récurrente (toutes les heures)
 $signature = $registry->register(
     taskClass: CleanupTask::class,
-    mode: TaskMode::DEFER,
     payload: $payload,
     delaySeconds: 3600,
 );
@@ -92,7 +89,6 @@ $registry->unregisterRecurring('cleanup-task');
 declare(strict_types=1);
 
 use AndyDefer\Task\Services\TaskRegistryService;
-use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 
 $payload = new TaskPayloadRecord(
@@ -102,7 +98,6 @@ $payload = new TaskPayloadRecord(
 
 $taskId = $registry->register(
     taskClass: SendWelcomeEmailTask::class,
-    mode: TaskMode::SYNC,
     payload: $payload,
     startAt: date('c'),                          // Maintenant
     endAt: date('c', strtotime('+24 hours')),   // Dans 24h
@@ -121,7 +116,6 @@ declare(strict_types=1);
 // Tâche qui s'exécute toutes les 5 minutes (300 secondes)
 $signature = $registry->register(
     taskClass: ProcessQueueTask::class,
-    mode: TaskMode::DEFER,
     payload: $payload,
     delaySeconds: 300,
 );
@@ -140,7 +134,6 @@ declare(strict_types=1);
 // Si elle n'est pas exécutée avant endAt, elle est définitivement ignorée
 $taskId = $registry->register(
     taskClass: TimeCriticalTask::class,
-    mode: TaskMode::SYNC,
     payload: $payload,
     startAt: date('c'),
     endAt: date('c', strtotime('+1 hour')),
@@ -173,7 +166,6 @@ class MyTask extends AbstractTask
 // Les paramètres sont optionnels - la config de la tâche est utilisée
 $signature = $registry->register(
     taskClass: MyTask::class,
-    mode: TaskMode::SYNC,
     payload: $payload,
 );
 // Utilise startAt et delaySeconds de la config de la tâche
@@ -232,7 +224,6 @@ TaskRegistryService
 namespace App\Http\Controllers;
 
 use AndyDefer\Task\Services\TaskRegistryService;
-use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 
 class TaskController extends Controller
@@ -243,7 +234,6 @@ class TaskController extends Controller
         
         $taskId = $registry->register(
             taskClass: $request->input('class'),
-            mode: TaskMode::from($request->input('mode', 'sync')),
             payload: $payload,
             startAt: $request->input('start_at'),
             endAt: $request->input('end_at'),
@@ -282,7 +272,6 @@ declare(strict_types=1);
 use AndyDefer\Task\Services\TaskRegistryService;
 use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Services\TaskValidatorService;
-use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskConfigRecord;
 use AndyDefer\Task\AbstractTask;
@@ -301,9 +290,8 @@ final class BackupDatabaseTask extends AbstractTask
     
     protected function process(): void
     {
-        // Logique de sauvegarde
         $this->info("Starting database backup...");
-        // ...
+        // Logique de sauvegarde
         $this->info("Database backup completed");
     }
 }
@@ -325,7 +313,6 @@ $registry = new TaskRegistryService(
 
 $taskId = $registry->register(
     taskClass: BackupDatabaseTask::class,
-    mode: TaskMode::SYNC,
     payload: $payload,
     startAt: date('c', strtotime('tomorrow 02:00')),
     enforceExactSchedule: true,
@@ -336,7 +323,6 @@ echo "Tâche programmée pour demain 02h00 : {$taskId}\n";
 // 4. Enregistrer une tâche récurrente
 $signature = $registry->register(
     taskClass: CleanupLogsTask::class,
-    mode: TaskMode::DEFER,
     payload: $payload,
     delaySeconds: 86400, // Une fois par jour
 );

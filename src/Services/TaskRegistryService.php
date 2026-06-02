@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
-use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
@@ -21,14 +20,12 @@ final class TaskRegistryService
     /**
      * Register a new task.
      *
-     * @param string $taskClass Fully qualified class name extending AbstractTask
-     * @param TaskMode $mode Execution mode (SYNC/DEFER)
-     * @param TaskPayloadRecord $payload Task payload data
-     * @param string|null $startAt ISO 8601 datetime when task can start
-     * @param string|null $endAt ISO 8601 datetime when task expires
-     * @param int|null $delaySeconds Delay between recurring executions
-     * @param bool $enforceExactSchedule Whether grace period is disabled
-     *
+     * @param  string  $taskClass  Fully qualified class name extending AbstractTask
+     * @param  TaskPayloadRecord  $payload  Task payload data
+     * @param  string|null  $startAt  ISO 8601 datetime when task can start
+     * @param  string|null  $endAt  ISO 8601 datetime when task expires
+     * @param  int|null  $delaySeconds  Delay between recurring executions
+     * @param  bool  $enforceExactSchedule  Whether grace period is disabled
      * @return string Task ID (for unique tasks) or signature (for recurring tasks)
      *
      * @throws InvalidArgumentException If task class is invalid
@@ -36,7 +33,6 @@ final class TaskRegistryService
      */
     public function register(
         string $taskClass,
-        TaskMode $mode,
         TaskPayloadRecord $payload,
         ?string $startAt = null,
         ?string $endAt = null,
@@ -53,7 +49,6 @@ final class TaskRegistryService
         if ($this->isRecurringTask($resolvedEndAt, $resolvedDelaySeconds)) {
             return $this->registerRecurringTask(
                 taskClass: $taskClass,
-                mode: $mode,
                 payload: $payload,
                 signature: $config->signature,
                 startAt: $resolvedStartAt,
@@ -64,7 +59,6 @@ final class TaskRegistryService
 
         return $this->registerUniqueTask(
             taskClass: $taskClass,
-            mode: $mode,
             payload: $payload,
             signature: $config->signature,
             startAt: $resolvedStartAt,
@@ -85,14 +79,15 @@ final class TaskRegistryService
 
     private function validateTaskClass(string $taskClass): void
     {
-        if (!$this->validator->validateTaskClass($taskClass)) {
+        if (! $this->validator->validateTaskClass($taskClass)) {
             throw new \InvalidArgumentException('Task must extend AbstractTask');
         }
     }
 
     private function getTaskConfig(string $taskClass): object
     {
-        $instance = new $taskClass();
+        $instance = new $taskClass;
+
         return $instance->getConfig();
     }
 
@@ -103,7 +98,6 @@ final class TaskRegistryService
 
     private function registerRecurringTask(
         string $taskClass,
-        TaskMode $mode,
         TaskPayloadRecord $payload,
         string $signature,
         string $startAt,
@@ -123,7 +117,6 @@ final class TaskRegistryService
             signature: $signature,
             class: $taskClass,
             payload: $payload,
-            mode: $mode,
             startAt: $startAt,
             endAt: $endAt,
             delaySeconds: $delaySeconds,
@@ -140,7 +133,6 @@ final class TaskRegistryService
 
     private function registerUniqueTask(
         string $taskClass,
-        TaskMode $mode,
         TaskPayloadRecord $payload,
         string $signature,
         string $startAt,
@@ -156,7 +148,6 @@ final class TaskRegistryService
             signature: $signature,
             class: $taskClass,
             payload: $payload,
-            mode: $mode,
             status: TaskStatus::PENDING,
             createdAt: date('c'),
             startAt: $startAt,

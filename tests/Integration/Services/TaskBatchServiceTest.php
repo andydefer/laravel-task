@@ -8,7 +8,6 @@ use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Logger;
 use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Enums\TaskMode;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
@@ -27,15 +26,19 @@ use PHPUnit\Framework\MockObject\Stub;
 final class TaskBatchServiceTest extends IntegrationTestCase
 {
     private TaskStorageService $storage;
+
     private TaskBatchService $batch;
+
     private string $storagePath;
+
     private Logger $logger;
+
     private TaskConfig&Stub $config;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
     }
 
     private function createBatchServiceWithConfig(array $configOverrides = []): void
@@ -44,9 +47,9 @@ final class TaskBatchServiceTest extends IntegrationTestCase
 
         $defaults = [
             'storagePath' => $this->storagePath,
-            'storagePendingPath' => $this->storagePath . '/pending',
-            'storageRecurringPath' => $this->storagePath . '/recurring',
-            'storageCompletedPath' => $this->storagePath . '/completed',
+            'storagePendingPath' => $this->storagePath.'/pending',
+            'storageRecurringPath' => $this->storagePath.'/recurring',
+            'storageCompletedPath' => $this->storagePath.'/completed',
             'batchLimit' => 1000,
             'batchOrder' => 'oldest',
             'gracePeriodEnabled' => false,
@@ -70,6 +73,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
             if ($limit !== null) {
                 return $limit;
             }
+
             return $config['batchLimit'];
         });
 
@@ -77,7 +81,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
         $this->logger = $this->app->make(Logger::class);
         $validator = new TaskValidatorService($this->config);
         $runner = new TaskRunnerService($this->storage, $this->logger, $validator);
-        $batchResultService = new BatchResultService();
+        $batchResultService = new BatchResultService;
 
         $this->batch = new TaskBatchService(
             $this->storage,
@@ -99,10 +103,10 @@ final class TaskBatchServiceTest extends IntegrationTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (!is_dir($path)) {
+        if (! is_dir($path)) {
             return;
         }
-        foreach (glob($path . '/*') as $file) {
+        foreach (glob($path.'/*') as $file) {
             is_dir($file) ? $this->removeDirectory($file) : unlink($file);
         }
         rmdir($path);
@@ -110,7 +114,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
+        $payloadCollection = new StrictDataObjectCollection;
         $payloadCollection->add(StrictDataObject::from(['test_data' => 'batch_test']));
 
         return new TaskPayloadRecord(type: 'test', payload: $payloadCollection);
@@ -123,7 +127,6 @@ final class TaskBatchServiceTest extends IntegrationTestCase
             signature: $signature,
             class: TestTask::class,
             payload: $this->createTaskPayload(),
-            mode: TaskMode::SYNC,
             status: TaskStatus::PENDING,
             createdAt: date('c'),
             startAt: date('c', strtotime('-1 minute')),
@@ -141,7 +144,6 @@ final class TaskBatchServiceTest extends IntegrationTestCase
             signature: 'failing-task',
             class: FailingTask::class,
             payload: $this->createTaskPayload(),
-            mode: TaskMode::SYNC,
             status: TaskStatus::PENDING,
             createdAt: date('c'),
             startAt: date('c', strtotime('-1 minute')),
@@ -158,7 +160,6 @@ final class TaskBatchServiceTest extends IntegrationTestCase
             signature: $signature,
             class: TestTask::class,
             payload: $this->createTaskPayload(),
-            mode: TaskMode::DEFER,
             startAt: date('c', strtotime('-1 hour')),
             endAt: null,
             delaySeconds: 300,
@@ -176,7 +177,6 @@ final class TaskBatchServiceTest extends IntegrationTestCase
             signature: 'test-task',
             class: TestTask::class,
             payload: $this->createTaskPayload(),
-            mode: TaskMode::SYNC,
             status: TaskStatus::PENDING,
             createdAt: date('c'),
             startAt: date('c', strtotime('-1 minute')),
@@ -195,7 +195,6 @@ final class TaskBatchServiceTest extends IntegrationTestCase
             signature: $signature,
             class: TestTask::class,
             payload: $this->createTaskPayload(),
-            mode: TaskMode::DEFER,
             startAt: date('c', strtotime('-1 hour')),
             endAt: null,
             delaySeconds: 300,
@@ -315,7 +314,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
         $this->assertSame(1, $record->uniqueFailed);
         $this->assertFalse($record->errors->isEmpty());
 
-        $failingError = $record->errors->find(fn($error) => $error->taskId === 'failing-1');
+        $failingError = $record->errors->find(fn ($error) => $error->taskId === 'failing-1');
         $this->assertNotNull($failingError);
     }
 
@@ -490,7 +489,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
         // Arrange
         $this->createBatchServiceWithConfig([
             'batchLimit' => 1000,
-            'batchOrder' => 'newest'
+            'batchOrder' => 'newest',
         ]);
 
         $task1 = $this->createTestTask('task-first');

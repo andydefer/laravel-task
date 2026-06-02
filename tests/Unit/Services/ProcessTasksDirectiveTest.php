@@ -53,78 +53,78 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     private function createSuccessUniqueResult(): BatchResultRecord
     {
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime(),
+            startedAt: new Iso8601DateTime,
             uniqueSuccess: 1,
             uniqueFailed: 0,
             recurringSuccess: 0,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
-            errors: new TaskErrorCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
         );
     }
 
     private function createSuccessRecurringResult(): BatchResultRecord
     {
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime(),
+            startedAt: new Iso8601DateTime,
             uniqueSuccess: 0,
             uniqueFailed: 0,
             recurringSuccess: 1,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
-            errors: new TaskErrorCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
         );
     }
 
     private function createFailureResult(): BatchResultRecord
     {
-        $errors = new TaskErrorCollection();
+        $errors = new TaskErrorCollection;
         $errors->add(new TaskErrorRecord('task-1', 'Failed'));
 
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime(),
+            startedAt: new Iso8601DateTime,
             uniqueSuccess: 0,
             uniqueFailed: 1,
             recurringSuccess: 0,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
             errors: $errors,
         );
     }
 
     private function createMixedResult(): BatchResultRecord
     {
-        $errors = new TaskErrorCollection();
+        $errors = new TaskErrorCollection;
         $errors->add(new TaskErrorRecord('task-2', 'Failed'));
 
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime(),
+            startedAt: new Iso8601DateTime,
             uniqueSuccess: 1,
             uniqueFailed: 1,
             recurringSuccess: 0,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
             errors: $errors,
         );
     }
 
     private function createErrorResult(): BatchResultRecord
     {
-        $errors = new TaskErrorCollection();
+        $errors = new TaskErrorCollection;
         $errors->add(new TaskErrorRecord('task-1', 'Something went wrong'));
 
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime(),
+            startedAt: new Iso8601DateTime,
             uniqueSuccess: 0,
             uniqueFailed: 1,
             recurringSuccess: 0,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
             errors: $errors,
         );
     }
@@ -132,30 +132,30 @@ final class ProcessTasksDirectiveTest extends UnitTestCase
     private function createFullSuccessResult(): BatchResultRecord
     {
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime(),
+            startedAt: new Iso8601DateTime,
             uniqueSuccess: 1,
             uniqueFailed: 0,
             recurringSuccess: 1,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
-            errors: new TaskErrorCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
+            errors: new TaskErrorCollection,
         );
     }
 
     private function createFailureWithoutVerboseResult(): BatchResultRecord
     {
-        $errors = new TaskErrorCollection();
+        $errors = new TaskErrorCollection;
         $errors->add(new TaskErrorRecord('task-1', 'Connection timeout'));
 
         return new BatchResultRecord(
-            startedAt: new Iso8601DateTime(),
+            startedAt: new Iso8601DateTime,
             uniqueSuccess: 0,
             uniqueFailed: 1,
             recurringSuccess: 0,
             recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection(),
-            recurringResults: new RecurringResultCollection(),
+            uniqueResults: new UniqueResultCollection,
+            recurringResults: new RecurringResultCollection,
             errors: $errors,
         );
     }
