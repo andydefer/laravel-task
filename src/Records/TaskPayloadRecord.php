@@ -13,6 +13,6 @@ final class TaskPayloadRecord extends AbstractRecord
 {
     public function __construct(
         public readonly string $type,
-        public readonly StrictDataObjectCollection $payload,
+        public readonly StrictDataObjectCollection $data,
     ) {}
 }

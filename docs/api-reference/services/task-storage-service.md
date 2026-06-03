@@ -268,7 +268,7 @@ $task = new TaskRecord(
     id: '550e8400-e29b-41d4-a716-446655440000',
     signature: 'backup-database',
     class: BackupDatabaseTask::class,
-    payload: new TaskPayloadRecord(type: 'backup', payload: $payloadCollection),
+    payload: new TaskPayloadRecord(type: 'backup', data: $payloadCollection),
     status: TaskStatus::PENDING,
     createdAt: date('c'),
     startAt: date('c'),

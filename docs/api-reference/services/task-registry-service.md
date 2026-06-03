@@ -93,7 +93,7 @@ use AndyDefer\Task\Records\TaskPayloadRecord;
 
 $payload = new TaskPayloadRecord(
     type: 'email',
-    payload: new StrictDataObjectCollection()
+    data: new StrictDataObjectCollection()
 );
 
 $taskId = $registry->register(
@@ -276,7 +276,7 @@ final class BackupDatabaseTask extends AbstractTask
 // 2. Créer le payload
 $payload = new TaskPayloadRecord(
     type: 'backup',
-    payload: StrictDataObjectCollection::from([
+    data: StrictDataObjectCollection::from([
         'database' => 'mysql',
         'destination' => '/backups',
     ])

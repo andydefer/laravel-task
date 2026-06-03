@@ -99,7 +99,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
 
         return new TaskPayloadRecord(
             type: 'test',
-            payload: $payloadCollection,
+            data: $payloadCollection,
         );
     }
 
@@ -264,7 +264,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
 
         // Assert: Payload was preserved after retry
         $this->assertSame($task->payload->type, $updatedTask->payload->type);
-        $this->assertSame($task->payload->payload->count(), $updatedTask->payload->payload->count());
+        $this->assertSame($task->payload->data->count(), $updatedTask->payload->data->count());
     }
 
     public function test_expired_task_does_not_retry(): void

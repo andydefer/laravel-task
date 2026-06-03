@@ -44,7 +44,7 @@ final class TaskRegistryServiceTest extends UnitTestCase
 
         return new TaskPayloadRecord(
             type: 'test',
-            payload: $payloadCollection,
+            data: $payloadCollection,
         );
     }
 

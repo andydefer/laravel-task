@@ -111,7 +111,7 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
 
         return new TaskPayloadRecord(
             type: 'test',
-            payload: $payloadCollection,
+            data: $payloadCollection,
         );
     }
 

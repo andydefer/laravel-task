@@ -248,7 +248,7 @@ $config = new TaskConfig();
 // 3. Créer le payload
 $payload = new TaskPayloadRecord(
     type: 'backup',
-    payload: StrictDataObjectCollection::from([
+    data: StrictDataObjectCollection::from([
         'database' => 'mysql',
         'destination' => '/backups',
     ])

@@ -149,7 +149,7 @@ class ScheduleTaskCommand extends Command
     {
         $payload = new TaskPayloadRecord(
             type: 'clear_orders',
-            payload: StrictDataObjectCollection::from([
+            data: StrictDataObjectCollection::from([
                 StrictDataObject::from(['minutes' => 30]),
             ]),
         );
@@ -410,7 +410,7 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
 $payload = new TaskPayloadRecord(
     type: 'clear_orders',
-    payload: StrictDataObjectCollection::from([
+    data: StrictDataObjectCollection::from([
         StrictDataObject::from(['minutes' => 30, 'force' => true]),
     ]),
 );
@@ -451,7 +451,7 @@ class TaskScheduler
     {
         $payload = new TaskPayloadRecord(
             type: 'clear_orders',
-            payload: StrictDataObjectCollection::from([
+            data: StrictDataObjectCollection::from([
                 StrictDataObject::from(['minutes' => 30]),
             ]),
         );
@@ -493,7 +493,7 @@ final class ReportController extends Controller
     {
         $payload = new TaskPayloadRecord(
             type: 'generate_report',
-            payload: StrictDataObjectCollection::from([
+            data: StrictDataObjectCollection::from([
                 StrictDataObject::from([
                     'format' => $request->format,
                     'date_from' => $request->date_from,
@@ -705,7 +705,7 @@ final class ClearUnconfirmedOrdersTaskTest extends UnitTestCase
         
         $payload = new TaskPayloadRecord(
             type: 'clear_orders',
-            payload: StrictDataObjectCollection::from([
+            data: StrictDataObjectCollection::from([
                 StrictDataObject::from(['minutes' => 30]),
             ]),
         );

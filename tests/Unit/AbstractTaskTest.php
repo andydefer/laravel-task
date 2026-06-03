@@ -91,7 +91,7 @@ final class AbstractTaskTest extends UnitTestCase
 
         return new TaskPayloadRecord(
             type: 'test',
-            payload: $payloadCollection,
+            data: $payloadCollection,
         );
     }
 

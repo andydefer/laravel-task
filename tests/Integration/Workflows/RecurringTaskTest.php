@@ -100,7 +100,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         return new TaskPayloadRecord(
             type: 'test',
-            payload: $payloadCollection,
+            data: $payloadCollection,
         );
     }
 
@@ -300,7 +300,7 @@ final class RecurringTaskTest extends IntegrationTestCase
         // Assert: Payload was preserved
         $this->assertNotNull($updated);
         $this->assertSame($task->payload->type, $updated->payload->type);
-        $this->assertSame($task->payload->payload->count(), $updated->payload->payload->count());
+        $this->assertSame($task->payload->data->count(), $updated->payload->data->count());
     }
 
     public function test_multiple_recurring_tasks_can_coexist(): void

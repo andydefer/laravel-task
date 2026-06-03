@@ -57,7 +57,7 @@ final class TaskStorageServiceTest extends IntegrationTestCase
 
         return new TaskPayloadRecord(
             type: 'test',
-            payload: $payloadCollection,
+            data: $payloadCollection,
         );
     }
 
@@ -276,7 +276,7 @@ final class TaskStorageServiceTest extends IntegrationTestCase
         // Assert
         $this->assertNotNull($savedTask);
         $this->assertSame($task->payload->type, $savedTask->payload->type);
-        $this->assertSame($task->payload->payload->count(), $savedTask->payload->payload->count());
+        $this->assertSame($task->payload->data->count(), $savedTask->payload->data->count());
     }
 
     // ==================== Limit Tests ====================
