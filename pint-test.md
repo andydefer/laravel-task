@@ -1,13 +1,14 @@
 # Pint Formatting Test Report
-*Generated: mer. 03 juin 2026 07:24:45 WAT*
+*Generated: jeu. 04 juin 2026 07:09:02 WAT*
 
 
-  ⨯.................⨯..⨯.⨯⨯⨯⨯.⨯....⨯⨯⨯.⨯⨯⨯⨯.⨯.⨯....
+  ⨯.................⨯⨯.⨯.⨯⨯⨯⨯.⨯....⨯⨯⨯.⨯⨯⨯⨯.⨯.⨯....
 
   ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── Laravel  
-    FAIL   ................................................................................................................................................. 49 files, 17 style issues  
+    FAIL   ................................................................................................................................................. 49 files, 18 style issues  
   ⨯ src/AbstractTask.php                                               class_attributes_separation, braces_position, single_line_empty_body, blank_line_before_statement, phpdoc_align  
   ⨯ src/Configs/TaskConfig.php                                                                                                                                            concat_space  
+  ⨯ src/Directives/ProcessTasksDirective.php                                                     class_attributes_separation, unary_operator_spaces, not_operator_with_successor_space  
   ⨯ src/Enums/TaskStatus.php                                                                                                                                               phpdoc_trim  
   ⨯ src/Services/TaskRegistryService.php                               concat_space, unary_operator_spaces, braces_position, not_operator_with_successor_space, single_line_empty_body  
   ⨯ src/Services/TaskRunnerService.php new_with_parentheses, concat_space, braces_position, not_operator_with_successor_space, single_line_empty_body, blank_line_before_statement, p…  
