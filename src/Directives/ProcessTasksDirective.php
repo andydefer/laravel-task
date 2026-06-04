@@ -184,9 +184,4 @@ final class ProcessTasksDirective extends AbstractDirective
 
         return (int) (($end - $start) * 1000);
     }
-
-    private function newLine(): void
-    {
-        $this->info('');
-    }
 }
