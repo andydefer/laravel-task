@@ -8,7 +8,7 @@
     "packages": [
         {
             "name": "andydefer/domain-structures",
-            "version": "v1.14.2",
+            "version": "v1.14.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/domain-structures.git",
@@ -53,7 +53,7 @@
             "description": "A complete domain structures package for PHP: Records, Value Objects, Data DTOs, and TypedCollections. Brings type safety and clean architecture to your application.",
             "support": {
                 "issues": "https://github.com/andydefer/domain-structures/issues",
-                "source": "https://github.com/andydefer/domain-structures/tree/v1.14.2"
+                "source": "https://github.com/andydefer/domain-structures/tree/v1.14.4"
             },
             "time": "2026-06-04T07:12:46+00:00"
         },
@@ -122,16 +122,16 @@
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "v3.2.3",
+            "version": "v3.2.4",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "ca4da35bfe13d095b042e4411135266969278ee2"
+                "reference": "b2d014871ec455a242e34af059ac54565781b44c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/ca4da35bfe13d095b042e4411135266969278ee2",
-                "reference": "ca4da35bfe13d095b042e4411135266969278ee2",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/b2d014871ec455a242e34af059ac54565781b44c",
+                "reference": "b2d014871ec455a242e34af059ac54565781b44c",
                 "shasum": ""
             },
             "require": {
@@ -176,9 +176,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/v3.2.3"
+                "source": "https://github.com/andydefer/laravel-logger/tree/v3.2.4"
             },
-            "time": "2026-06-04T07:13:30+00:00"
+            "time": "2026-06-04T07:49:37+00:00"
         },
         {
             "name": "brick/math",
