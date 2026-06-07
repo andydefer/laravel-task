@@ -8,16 +8,16 @@
     "packages": [
         {
             "name": "andydefer/domain-structures",
-            "version": "v1.16.1",
+            "version": "v1.17.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/domain-structures.git",
-                "reference": "19229bc300b18c78cc721ea626aa8bdf98fd4960"
+                "reference": "4445f0e595a9961aed3f8807c1473c8add957dd5"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/domain-structures/zipball/19229bc300b18c78cc721ea626aa8bdf98fd4960",
-                "reference": "19229bc300b18c78cc721ea626aa8bdf98fd4960",
+                "url": "https://api.github.com/repos/andydefer/domain-structures/zipball/4445f0e595a9961aed3f8807c1473c8add957dd5",
+                "reference": "4445f0e595a9961aed3f8807c1473c8add957dd5",
                 "shasum": ""
             },
             "require": {
@@ -53,9 +53,9 @@
             "description": "A complete domain structures package for PHP: Records, Value Objects, Data DTOs, and TypedCollections. Brings type safety and clean architecture to your application.",
             "support": {
                 "issues": "https://github.com/andydefer/domain-structures/issues",
-                "source": "https://github.com/andydefer/domain-structures/tree/v1.16.1"
+                "source": "https://github.com/andydefer/domain-structures/tree/v1.17.0"
             },
-            "time": "2026-06-06T16:32:28+00:00"
+            "time": "2026-06-07T12:56:29+00:00"
         },
         {
             "name": "andydefer/laravel-directive",
