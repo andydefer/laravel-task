@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task;
 
+use AndyDefer\Directive\Contexts\DirectiveContext;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\Logger\Logger;
 use AndyDefer\Task\Configs\TaskConfig;
@@ -71,8 +72,9 @@ final class TaskServiceProvider extends ServiceProvider
         });
 
         // ProcessTasksDirective
-        $this->app->singleton(ProcessTasksDirective::class, function (Application $app) {
+        $this->app->singleton(ProcessTasksDirective::class, function (Application $app): ProcessTasksDirective {
             return new ProcessTasksDirective(
+                context: $app->make(DirectiveContext::class),
                 interaction: $app->make(DirectiveInteractionService::class),
                 batch: $app->make(TaskBatchService::class),
             );

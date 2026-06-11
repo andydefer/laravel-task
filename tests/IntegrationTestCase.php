@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests;
 
+use AndyDefer\Directive\DirectiveServiceProvider;
 use AndyDefer\Logger\LoggerServiceProvider;
 use AndyDefer\Task\TaskServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -48,12 +49,13 @@ abstract class IntegrationTestCase extends Orchestra
         $app['config']->set('queue.default', 'sync');
 
         // Task storage for tests (temporary directory)
-        $app['config']->set('task.storage_path', sys_get_temp_dir().'/task_tests_'.uniqid());
+        $app['config']->set('task.storage_path', sys_get_temp_dir() . '/task_tests_' . uniqid());
     }
 
     protected function getPackageProviders($app): array
     {
         return [
+            DirectiveServiceProvider::class,
             TaskServiceProvider::class,
             LoggerServiceProvider::class,
         ];
@@ -61,12 +63,12 @@ abstract class IntegrationTestCase extends Orchestra
 
     protected function defineEnvironment($app): void
     {
-        $app['config']->set('view.paths', [__DIR__.'/Fixtures/views']);
+        $app['config']->set('view.paths', [__DIR__ . '/Fixtures/views']);
     }
 
     protected function runDatabaseMigrations(): void
     {
-        $migrationPath = __DIR__.'/database/migrations';
+        $migrationPath = __DIR__ . '/database/migrations';
 
         if (is_dir($migrationPath)) {
             $this->loadMigrationsFrom($migrationPath);

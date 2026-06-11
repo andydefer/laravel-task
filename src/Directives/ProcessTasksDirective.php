@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Directives;
 
 use AndyDefer\Directive\AbstractDirective;
+use AndyDefer\Directive\Contexts\DirectiveContext;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
@@ -27,17 +28,17 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTime;
 final class ProcessTasksDirective extends AbstractDirective
 {
     public function __construct(
+        DirectiveContext $context,
         DirectiveInteractionService $interaction,
         private readonly TaskBatchService $batch,
     ) {
-        parent::__construct($interaction);
+        parent::__construct($context, $interaction);
     }
 
     public function getSignature(): string
     {
         return 'process-tasks {--unique-only : Process only unique tasks} {--recurring-only : Process only recurring tasks} {--verbose : Show detailed task results} {--limit= : Maximum number of tasks to process}';
     }
-
 
     public function shouldBootLaravel(): bool
     {
@@ -51,8 +52,9 @@ final class ProcessTasksDirective extends AbstractDirective
 
     public function getAliases(): StringTypedCollection
     {
-        $aliases = new StringTypedCollection;
-        $aliases->add('task:process', 'tasks:process');
+        $aliases = new StringTypedCollection();
+        $aliases->add('task:process');
+        $aliases->add('tasks:process');
 
         return $aliases;
     }
@@ -143,7 +145,7 @@ final class ProcessTasksDirective extends AbstractDirective
         $this->displayTaskTypeSummary('Unique tasks', $record->uniqueSuccess, $record->uniqueFailed);
         $this->displayTaskTypeSummary('Recurring tasks', $record->recurringSuccess, $record->recurringFailed);
 
-        $this->info(\sprintf(
+        $this->info(sprintf(
             '  Total:          %d tasks in %d ms',
             $totalProcessed,
             $this->getDurationMilliseconds($record)
@@ -154,7 +156,7 @@ final class ProcessTasksDirective extends AbstractDirective
     {
         $processedCount = $successCount + $failureCount;
 
-        $this->info(\sprintf(
+        $this->info(sprintf(
             '  %s: %d processed (✅ %d, ❌ %d)',
             $taskTypeLabel,
             $processedCount,
@@ -165,22 +167,22 @@ final class ProcessTasksDirective extends AbstractDirective
 
     private function displayErrorsIfVerbose(bool $verbose, BatchResultRecord $record): void
     {
-        if (! $verbose || $record->errors->isEmpty()) {
+        if (!$verbose || $record->errors->isEmpty()) {
             return;
         }
 
         $this->newLine();
         $this->info('<fg=red>=== Failed Tasks ===</>');
 
-        $record->errors->each(function (TaskErrorRecord $error): void {
-            $this->info(\sprintf('  ❌ %s: %s', $error->taskId, $error->error));
-        });
+        foreach ($record->errors as $error) {
+            $this->info(sprintf('  ❌ %s: %s', $error->taskId, $error->error));
+        }
     }
 
     private function getDurationMilliseconds(BatchResultRecord $record): int
     {
         $start = $record->startedAt->toDateTime()->getTimestamp();
-        $end = (new Iso8601DateTime)->toDateTime()->getTimestamp();
+        $end = (new Iso8601DateTime())->toDateTime()->getTimestamp();
 
         return (int) (($end - $start) * 1000);
     }
