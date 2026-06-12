@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "53659a43da71752410733146d5c911bb",
+    "content-hash": "ec2a96a3160cef50ffd4545f43ffa52c",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -59,21 +59,21 @@
         },
         {
             "name": "andydefer/laravel-directive",
-            "version": "v3.19.0",
+            "version": "v3.19.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-directive.git",
-                "reference": "d4c1b3c477fb515d04e2b234ee39fd585896d046"
+                "reference": "dda1cd3cebe0142de16e87370b72795574f9c989"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/d4c1b3c477fb515d04e2b234ee39fd585896d046",
-                "reference": "d4c1b3c477fb515d04e2b234ee39fd585896d046",
+                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/dda1cd3cebe0142de16e87370b72795574f9c989",
+                "reference": "dda1cd3cebe0142de16e87370b72795574f9c989",
                 "shasum": ""
             },
             "require": {
-                "andydefer/domain-structures": "^1.14",
-                "andydefer/php-vo": "^0.8.0",
+                "andydefer/domain-structures": "^1.18.1",
+                "andydefer/php-vo": "^0.8.1",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "php": ">=8.1"
             },
@@ -117,26 +117,26 @@
             "description": "A flexible CLI command system for Laravel that breaks free from Artisan's constraints. Directives introduces a clean separation between what your command does (business logic) and how it's presented (output/UI).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-directive/issues",
-                "source": "https://github.com/andydefer/laravel-directive/tree/v3.19.0"
+                "source": "https://github.com/andydefer/laravel-directive/tree/v3.19.1"
             },
-            "time": "2026-06-11T15:39:59+00:00"
+            "time": "2026-06-12T07:45:22+00:00"
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "v3.4.0",
+            "version": "v3.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "b743e80065450eac5e1961b312c062819797b54b"
+                "reference": "e185a88d4860f1cab76135dcba5d1f758b99737d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/b743e80065450eac5e1961b312c062819797b54b",
-                "reference": "b743e80065450eac5e1961b312c062819797b54b",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/e185a88d4860f1cab76135dcba5d1f758b99737d",
+                "reference": "e185a88d4860f1cab76135dcba5d1f758b99737d",
                 "shasum": ""
             },
             "require": {
-                "andydefer/laravel-directive": "^3.6",
+                "andydefer/laravel-directive": "^3.19.0",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "php": ">=8.1"
             },
@@ -177,9 +177,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/v3.4.0"
+                "source": "https://github.com/andydefer/laravel-logger/tree/v3.4.1"
             },
-            "time": "2026-06-11T14:20:11+00:00"
+            "time": "2026-06-12T07:44:03+00:00"
         },
         {
             "name": "andydefer/php-vo",
