@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "65a9e4978a39dccd916bd1f62d948f19",
+    "content-hash": "53659a43da71752410733146d5c911bb",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -183,20 +183,20 @@
         },
         {
             "name": "andydefer/php-vo",
-            "version": "0.8.0",
+            "version": "v0.8.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/php-vo.git",
-                "reference": "b7175428f50261d1166decd4561206ee3137dcf5"
+                "reference": "df0d1a249538e5f1af751d265839fde87978bba4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/php-vo/zipball/b7175428f50261d1166decd4561206ee3137dcf5",
-                "reference": "b7175428f50261d1166decd4561206ee3137dcf5",
+                "url": "https://api.github.com/repos/andydefer/php-vo/zipball/df0d1a249538e5f1af751d265839fde87978bba4",
+                "reference": "df0d1a249538e5f1af751d265839fde87978bba4",
                 "shasum": ""
             },
             "require": {
-                "andydefer/domain-structures": "^1.3",
+                "andydefer/domain-structures": "^1.18.1",
                 "php": ">=8.1"
             },
             "require-dev": {
@@ -223,9 +223,9 @@
             "description": "A collection of reusable Value Objects and Enums for PHP applications (Email, Money, Address, PostalCode, Iso8601DateTime, Currency, etc.)",
             "support": {
                 "issues": "https://github.com/andydefer/php-vo/issues",
-                "source": "https://github.com/andydefer/php-vo/tree/0.8.0"
+                "source": "https://github.com/andydefer/php-vo/tree/v0.8.1"
             },
-            "time": "2026-06-08T03:19:23+00:00"
+            "time": "2026-06-12T07:32:42+00:00"
         },
         {
             "name": "brick/math",
