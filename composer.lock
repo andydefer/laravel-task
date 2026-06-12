@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ec2a96a3160cef50ffd4545f43ffa52c",
+    "content-hash": "60ef52773b504968c3dbce75365cc5d3",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -123,20 +123,20 @@
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "v3.4.1",
+            "version": "v3.4.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "e185a88d4860f1cab76135dcba5d1f758b99737d"
+                "reference": "725385e81d24e27e057fb995648fbfe2367724f6"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/e185a88d4860f1cab76135dcba5d1f758b99737d",
-                "reference": "e185a88d4860f1cab76135dcba5d1f758b99737d",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/725385e81d24e27e057fb995648fbfe2367724f6",
+                "reference": "725385e81d24e27e057fb995648fbfe2367724f6",
                 "shasum": ""
             },
             "require": {
-                "andydefer/laravel-directive": "^3.19.0",
+                "andydefer/laravel-directive": "^3.19.1",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "php": ">=8.1"
             },
@@ -177,9 +177,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/v3.4.1"
+                "source": "https://github.com/andydefer/laravel-logger/tree/v3.4.2"
             },
-            "time": "2026-06-12T07:44:03+00:00"
+            "time": "2026-06-12T07:52:10+00:00"
         },
         {
             "name": "andydefer/php-vo",
