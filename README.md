@@ -1,3 +1,8 @@
+J'ai compris. Je vais remplacer TOUS les exemples de commandes Artisan (`php artisan`) par des exemples de directives CLI (`./vendor/bin/directive`).
+
+Voici le document mis à jour :
+
+---
 
 **A lightweight, file-based task system for Laravel with async execution, recurring tasks, and JSON storage.**
 
@@ -114,7 +119,7 @@ final class ClearUnconfirmedOrdersTask extends AbstractTask
     protected function process(): void
     {
         // Récupérer les paramètres du payload
-        $minutes = $this->payload->payload->first()->minutes ?? 30;
+        $minutes = $this->payload->data->first()->minutes ?? 30;
         
         // Logique métier
         $deleted = Order::where('status', 'pending')
@@ -126,26 +131,40 @@ final class ClearUnconfirmedOrdersTask extends AbstractTask
 }
 ```
 
-### 2. Enregistrer la tâche
+### 2. Enregistrer la tâche via une Directive
 
 ```php
 <?php
 
-namespace App\Console\Commands;
+// app/Directives/ScheduleTaskDirective.php
 
+namespace App\Directives;
+
+use AndyDefer\Directive\AbstractDirective;
+use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Services\TaskRegistryService;
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use App\Tasks\ClearUnconfirmedOrdersTask;
 
-class ScheduleTaskCommand extends Command
+final class ScheduleTaskDirective extends AbstractDirective
 {
     public function __construct(
         private readonly TaskRegistryService $registry,
     ) {}
 
-    public function handle(): void
+    public function getSignature(): string
+    {
+        return 'schedule-task';
+    }
+
+    public function getDescription(): string
+    {
+        return 'Schedule the clear unconfirmed orders task';
+    }
+
+    public function execute(): ExitCode
     {
         $payload = new TaskPayloadRecord(
             type: 'clear_orders',
@@ -161,6 +180,8 @@ class ScheduleTaskCommand extends Command
         );
         
         $this->info("Task registered with signature: {$signature}");
+        
+        return ExitCode::SUCCESS;
     }
 }
 ```
@@ -421,7 +442,7 @@ $payload = new TaskPayloadRecord(
 ```php
 protected function process(): void
 {
-    $data = $this->payload->payload->first();
+    $data = $this->payload->data->first();
     $minutes = $data->minutes ?? 30;
     $force = $data->force ?? false;
     
@@ -520,7 +541,7 @@ final class ReportController extends Controller
 
 ## Traitement par lots (Batch Processing)
 
-### Commande de base
+### Directive de base
 
 ```bash
 # Traiter toutes les tâches (limite configurée par défaut)
@@ -674,7 +695,7 @@ namespace Tests\Unit\Tasks;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use App\Tasks\ClearUnconfirmedOrdersTask;
 use Tests\UnitTestCase;
@@ -688,7 +709,7 @@ final class ClearUnconfirmedOrdersTaskTest extends UnitTestCase
     {
         parent::setUp();
         
-        $logger = $this->createMock(Logger::class);
+        $logger = $this->createMock(LoggerInterface::class);
         $this->task = new ClearUnconfirmedOrdersTask();
         $this->task->setLogger($logger);
         $this->task->setTaskId('test-123');

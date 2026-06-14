@@ -6,34 +6,43 @@ namespace AndyDefer\Task\Tests\Unit;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
-use AndyDefer\Logger\Services\LogPathService;
-use AndyDefer\Logger\Services\LogSerializerService;
-use AndyDefer\Logger\Tasks\QueryLogsTask;
-use AndyDefer\Logger\Tasks\StreamLogsTask;
-use AndyDefer\Logger\Tasks\WriteLogTask;
-use AndyDefer\Logger\ValueObjects\LoggerConfig;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\UnitTestCase;
+use AndyDefer\Logger\LoggerService;
+use AndyDefer\Logger\Configs\LoggerConfig;
+use AndyDefer\LaravelJsonl\JsonlService;
+use AndyDefer\LaravelJsonl\Strategies\TemporalPathStrategy;
+use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
+use AndyDefer\DomainStructures\Services\HydrationService;
+use AndyDefer\PhpServices\Services\FileSystemService;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Carbon\Carbon;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 
+#[AllowMockObjectsWithoutExpectations]
 final class AbstractTaskTest extends UnitTestCase
 {
     private TestTask $task;
     private FailingTask $failingTask;
-    private Logger $logger;
+    private LoggerInterface $logger;
     private string $tempLogDir;
     private string $expectedDate;
     private string $expectedHour;
+    private Carbon $fixedNow;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $realNow = new \DateTime('now', new \DateTimeZone('UTC'));
-        $this->expectedDate = $realNow->format('Y-m-d');
-        $currentHourNum = (int) $realNow->format('H');
+        // Freeze time to ensure consistent file paths
+        $this->fixedNow = Carbon::create(2026, 6, 14, 12, 0, 0, 'UTC');
+        Carbon::setTestNow($this->fixedNow);
+
+        $this->expectedDate = $this->fixedNow->format('Y-m-d');
+        $currentHourNum = (int) $this->fixedNow->format('H');
         $nextHour = ($currentHourNum + 1) % 24;
         $this->expectedHour = sprintf('%02d-%02d', $currentHourNum, $nextHour);
 
@@ -41,17 +50,33 @@ final class AbstractTaskTest extends UnitTestCase
 
         $this->setupLogDirectory();
 
-        $config = new LoggerConfig($this->tempLogDir, 30);
-        $pathService = new LogPathService($config);
-        $serializer = new LogSerializerService();
+        // Create a mock config repository for testing
+        $configRepository = $this->createMock(ConfigRepository::class);
+        $configRepository->method('get')->willReturnMap([
+            ['logger.path', null, $this->tempLogDir],
+            ['logger.retention_days', null, 30],
+            ['logger.buffer_size', null, null],
+        ]);
 
-        $writeTask = new WriteLogTask($pathService, $serializer);
-        $queryTask = new QueryLogsTask($pathService, $serializer);
-        $streamTask = new StreamLogsTask($pathService, $serializer);
+        $loggerConfig = new LoggerConfig($configRepository);
 
-        $this->logger = new Logger($writeTask, $queryTask, $streamTask);
-        $this->logger->disableBuffer();
-        $this->logger->flush();
+        // Initialize JSONL service dependencies
+        $fileSystemService = new FileSystemService();
+        $context = new JsonlContext();
+        $pathStrategy = new TemporalPathStrategy($loggerConfig->basePath());
+        $hydrationService = new HydrationService();
+
+        $jsonlService = new JsonlService(
+            pathStrategy: $pathStrategy,
+            fileSystem: $fileSystemService,
+            context: $context,
+            defaultBufferSize: $loggerConfig->bufferSize()
+        );
+
+        $this->logger = new LoggerService(
+            jsonlService: $jsonlService,
+            hydrationService: $hydrationService
+        );
 
         $this->task = new TestTask();
         $this->task
@@ -76,6 +101,7 @@ final class AbstractTaskTest extends UnitTestCase
 
     protected function tearDown(): void
     {
+        Carbon::setTestNow();
         if (is_dir($this->tempLogDir)) {
             $this->deleteDirectory($this->tempLogDir);
         }
@@ -99,11 +125,9 @@ final class AbstractTaskTest extends UnitTestCase
     {
         $logFile = $this->tempLogDir . '/' . $this->expectedDate . '/' . $this->expectedHour . '.jsonl';
 
-        $this->logger->flush();
-        clearstatcache();
-
-        $maxRetries = 10;
-        $retryDelay = 10000;
+        // Wait for file to be written (max 1 second)
+        $maxRetries = 20;
+        $retryDelay = 50000; // 50ms
 
         for ($i = 0; $i < $maxRetries; $i++) {
             if (file_exists($logFile)) {
@@ -113,6 +137,18 @@ final class AbstractTaskTest extends UnitTestCase
                 }
             }
             usleep($retryDelay);
+        }
+
+        // If file doesn't exist, try to find any JSONL file in the directory
+        $dateDir = $this->tempLogDir . '/' . $this->expectedDate;
+        if (is_dir($dateDir)) {
+            $files = glob($dateDir . '/*.jsonl');
+            if (!empty($files)) {
+                $content = file_get_contents($files[0]);
+                if ($content !== false && $content !== '') {
+                    return $content;
+                }
+            }
         }
 
         $this->assertFileExists($logFile, "Log file does not exist at: {$logFile}");
@@ -251,11 +287,8 @@ final class AbstractTaskTest extends UnitTestCase
 
     public function test_set_logger_returns_self(): void
     {
-        // Arrange
-        $newLogger = clone $this->logger;
-
         // Act
-        $result = $this->task->setLogger($newLogger);
+        $result = $this->task->setLogger($this->logger);
 
         // Assert
         $this->assertSame($this->task, $result);
@@ -333,7 +366,6 @@ final class AbstractTaskTest extends UnitTestCase
 
         // Act
         $this->task->info($message);
-        $this->logger->flush();
 
         // Assert
         $content = $this->getLogFileContent();

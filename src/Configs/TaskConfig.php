@@ -4,22 +4,31 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Configs;
 
-use AndyDefer\DomainStructures\Abstracts\AbstractConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 /**
- * Configuration for the task system.
+ * Configuration for the task system - Laravel implementation.
  *
  * Provides access to task storage paths, grace period settings,
  * and batch processing limits.
  *
- * All values are read directly from Laravel config.
- * NO CONSTRUCTOR, NO PROPERTIES.
+ * All values are read directly from Laravel config via ConfigRepository injection.
+ * NO PROPERTIES, NO STATE.
+ *
+ * @see TaskConfigInterface
  */
-class TaskConfig extends AbstractConfig
+final class TaskConfig implements TaskConfigInterface
 {
+    public function __construct(
+        private readonly ConfigRepository $config,
+    ) {}
+
+    // ==================== Storage Paths ====================
+
     public function storagePath(): string
     {
-        return config('task.storage_path', storage_path('tasks'));
+        return $this->config->get('task.storage_path', storage_path('tasks'));
     }
 
     public function storageGracePeriodPath(): string
@@ -42,27 +51,33 @@ class TaskConfig extends AbstractConfig
         return $this->storagePath() . '/completed';
     }
 
+    // ==================== Grace Period ====================
+
     public function gracePeriodEnabled(): bool
     {
-        return config('task.grace_period.enabled', true);
+        return $this->config->get('task.grace_period.enabled', true);
     }
 
     public function gracePeriodSeconds(): int
     {
-        return config('task.grace_period.seconds', 86400);
+        return (int) $this->config->get('task.grace_period.seconds', 86400);
     }
+
+    // ==================== Batch Processing ====================
 
     public function batchLimit(): ?int
     {
-        $limit = config('task.batch.limit', 1000);
+        $limit = $this->config->get('task.batch.limit', 1000);
 
         return $limit > 0 ? $limit : null;
     }
 
     public function batchOrder(): string
     {
-        return config('task.batch.order', 'oldest');
+        return $this->config->get('task.batch.order', 'oldest');
     }
+
+    // ==================== Utility Methods ====================
 
     public function isOldestOrder(): bool
     {

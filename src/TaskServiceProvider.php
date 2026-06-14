@@ -6,8 +6,9 @@ namespace AndyDefer\Task;
 
 use AndyDefer\Directive\Contexts\DirectiveContext;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
 use AndyDefer\Task\Services\BatchResultService;
 use AndyDefer\Task\Services\TaskBatchService;
@@ -15,6 +16,7 @@ use AndyDefer\Task\Services\TaskRegistryService;
 use AndyDefer\Task\Services\TaskRunnerService;
 use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Services\TaskValidatorService;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
 
@@ -24,26 +26,31 @@ final class TaskServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/task.php', 'task');
 
-        // TaskConfig - Configuration object
-        $this->app->singleton(TaskConfig::class, function () {
-            return new TaskConfig();
+        // Register TaskConfigInterface with ConfigRepository injection
+        $this->app->singleton(TaskConfigInterface::class, function (Application $app) {
+            return new TaskConfig(
+                $app->make(ConfigRepository::class)
+            );
         });
 
-        // Core services
+        // Keep TaskConfig alias for backward compatibility
+        $this->app->alias(TaskConfigInterface::class, TaskConfig::class);
+
+        // Core services - now depending on TaskConfigInterface
         $this->app->singleton(TaskStorageService::class, function (Application $app) {
-            return new TaskStorageService($app->make(TaskConfig::class));
+            return new TaskStorageService($app->make(TaskConfigInterface::class));
         });
 
         $this->app->singleton(TaskValidatorService::class, function (Application $app) {
-            return new TaskValidatorService($app->make(TaskConfig::class));
+            return new TaskValidatorService($app->make(TaskConfigInterface::class));
         });
 
         $this->app->singleton(TaskRunnerService::class, function (Application $app) {
             return new TaskRunnerService(
                 storage: $app->make(TaskStorageService::class),
-                logger: $app->make(Logger::class),
+                logger: $app->make(LoggerInterface::class),
                 validator: $app->make(TaskValidatorService::class),
-                config: $app->make(TaskConfig::class),
+                config: $app->make(TaskConfigInterface::class),
             );
         });
 
@@ -65,9 +72,9 @@ final class TaskServiceProvider extends ServiceProvider
                 storage: $app->make(TaskStorageService::class),
                 runner: $app->make(TaskRunnerService::class),
                 validator: $app->make(TaskValidatorService::class),
-                logger: $app->make(Logger::class),
+                logger: $app->make(LoggerInterface::class),
                 batchResultService: $app->make(BatchResultService::class),
-                config: $app->make(TaskConfig::class),
+                config: $app->make(TaskConfigInterface::class),
             );
         });
 
@@ -76,7 +83,6 @@ final class TaskServiceProvider extends ServiceProvider
             return new ProcessTasksDirective(
                 context: $app->make(DirectiveContext::class),
                 interaction: $app->make(DirectiveInteractionService::class),
-                batch: $app->make(TaskBatchService::class),
             );
         });
     }

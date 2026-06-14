@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Services;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Collections\RecurringResultCollection;
 use AndyDefer\Task\Collections\TaskErrorCollection;
@@ -34,7 +34,7 @@ class TaskBatchService implements TaskProcessorInterface
         private readonly TaskStorageService $storage,
         private readonly TaskRunnerService $runner,
         private readonly TaskValidatorService $validator,
-        private readonly Logger $logger,
+        private readonly LoggerInterface $logger,
         private readonly BatchResultService $batchResultService,
         private readonly TaskConfig $config,
     ) {}
@@ -222,7 +222,7 @@ class TaskBatchService implements TaskProcessorInterface
     {
         $effectiveLimit = $this->config->getEffectiveLimit($limit);
 
-        $payload = StrictDataObject::from([
+        $payload = new StrictDataObject([
             'event' => 'batch_started',
             'mode' => $mode,
             'limit' => $effectiveLimit ?? 'unlimited',
@@ -237,7 +237,7 @@ class TaskBatchService implements TaskProcessorInterface
 
     private function logBatchComplete(BatchResultRecord $result): void
     {
-        $payload = StrictDataObject::from(
+        $payload = new StrictDataObject(
             $result->toArray() + ['event' => 'batch_completed']
         );
 
@@ -249,7 +249,7 @@ class TaskBatchService implements TaskProcessorInterface
 
     private function logTaskResult(string $type, string $id, string $signature, bool $success, ?string $error): void
     {
-        $payload = StrictDataObject::from([
+        $payload = new StrictDataObject([
             'event' => $success ? 'task_succeeded' : 'task_failed',
             'type' => $type,
             'id' => $id,
@@ -257,7 +257,7 @@ class TaskBatchService implements TaskProcessorInterface
         ]);
 
         if ($error !== null) {
-            $payload = StrictDataObject::from($payload->toArray() + ['error' => $error]);
+            $payload = new StrictDataObject($payload->toArray() + ['error' => $error]);
         }
 
         $this->logger->info(new LogDataRecord(

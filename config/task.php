@@ -5,40 +5,38 @@ declare(strict_types=1);
 return [
     /*
     |--------------------------------------------------------------------------
-    | Tasks Storage Path
+    | Storage Path
     |--------------------------------------------------------------------------
     |
-    | This path is used by the task system to store pending, recurring,
-    | and completed tasks. Ensure this directory is writable.
+    | The base directory where all task data will be stored.
     |
     */
     'storage_path' => env('TASK_STORAGE_PATH', storage_path('tasks')),
 
     /*
     |--------------------------------------------------------------------------
-    | Grace Period
+    | Grace Period Settings
     |--------------------------------------------------------------------------
     |
-    | Configuration for expired task grace period. Tasks that have passed their
-    | end_at date can still be executed within this grace period.
+    | Grace period allows expired tasks to be executed within a certain
+    | window after their expiration date.
     |
     */
     'grace_period' => [
         'enabled' => env('TASK_GRACE_PERIOD_ENABLED', true),
-        'seconds' => env('TASK_GRACE_PERIOD_SECONDS', 86400),
+        'seconds' => (int) env('TASK_GRACE_PERIOD_SECONDS', 86400), // 24 hours
     ],
 
     /*
     |--------------------------------------------------------------------------
-    | Batch Processing Limits
+    | Batch Processing Settings
     |--------------------------------------------------------------------------
     |
-    | Maximum number of tasks to process in a single batch.
-    | Set to null or 0 for no limit.
+    | Configure how tasks are processed in batches.
     |
     */
     'batch' => [
-        'limit' => env('TASK_BATCH_LIMIT', 1000),
+        'limit' => (int) env('TASK_BATCH_LIMIT', 1000),
         'order' => env('TASK_BATCH_ORDER', 'oldest'), // 'oldest' or 'newest'
     ],
 ];

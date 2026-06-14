@@ -7,37 +7,49 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use PHPUnit\Framework\MockObject\Stub;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class TaskStorageServiceTest extends IntegrationTestCase
 {
     private string $tempDir;
     private TaskStorageService $storage;
-    private TaskConfig&Stub $config;
+    private TaskConfigInterface $config;
+    private ConfigRepository $configRepository;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->tempDir = sys_get_temp_dir() . '/task_storage_test_' . uniqid();
 
-        $this->config = $this->createStub(TaskConfig::class);
-        $this->configureDefaultConfig();
+        // Get the config repository from Laravel container
+        $this->configRepository = $this->app->make(ConfigRepository::class);
 
+        // Set configuration values
+        $this->setConfigDefaults();
+
+        // Create real config instance
+        $this->config = new TaskConfig($this->configRepository);
         $this->storage = new TaskStorageService($this->config);
     }
 
-    private function configureDefaultConfig(): void
+    private function setConfigDefaults(): void
     {
-        $this->config->method('storagePath')->willReturn($this->tempDir);
-        $this->config->method('storagePendingPath')->willReturn($this->tempDir . '/pending');
-        $this->config->method('storageRecurringPath')->willReturn($this->tempDir . '/recurring');
-        $this->config->method('storageCompletedPath')->willReturn($this->tempDir . '/completed');
+        $this->configRepository->set('task.storage_path', $this->tempDir);
+        $this->configRepository->set('task.storage_pending_path', $this->tempDir . '/pending');
+        $this->configRepository->set('task.storage_recurring_path', $this->tempDir . '/recurring');
+        $this->configRepository->set('task.storage_completed_path', $this->tempDir . '/completed');
+        $this->configRepository->set('task.storage_grace_period_path', $this->tempDir . '/grace_period');
+        $this->configRepository->set('task.grace_period.enabled', false);
+        $this->configRepository->set('task.grace_period.seconds', 86400);
+        $this->configRepository->set('task.batch.limit', 1000);
+        $this->configRepository->set('task.batch.order', 'oldest');
     }
 
     protected function tearDown(): void

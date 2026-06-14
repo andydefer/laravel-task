@@ -6,8 +6,9 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
@@ -19,51 +20,52 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use Carbon\Carbon;
-use PHPUnit\Framework\MockObject\Stub;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class TaskRunnerServiceTest extends IntegrationTestCase
 {
     private TaskStorageService $storage;
     private TaskRunnerService $runner;
     private string $storagePath;
-    private TaskConfig&Stub $config;
+    private TaskConfigInterface $config;
+    private ConfigRepository $configRepository;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+
+        // Get the config repository from Laravel container
+        $this->configRepository = $this->app->make(ConfigRepository::class);
+
+        // Set default configuration values
+        $this->setConfigDefaults();
     }
 
-    private function createServiceWithConfig(array $configOverrides = []): void
+    private function setConfigDefaults(array $configOverrides = []): void
     {
-        $this->config = $this->createStub(TaskConfig::class);
-
         $defaults = [
-            'storagePath' => $this->storagePath,
-            'storagePendingPath' => $this->storagePath . '/pending',
-            'storageRecurringPath' => $this->storagePath . '/recurring',
-            'storageCompletedPath' => $this->storagePath . '/completed',
-            'storageGracePeriodPath' => $this->storagePath . '/grace_period',
-            'gracePeriodEnabled' => false,
-            'gracePeriodSeconds' => 86400,
-            'batchLimit' => 1000,
-            'batchOrder' => 'oldest',
+            'task.storage_path' => $this->storagePath,
+            'task.grace_period.enabled' => false,
+            'task.grace_period.seconds' => 86400,
+            'task.batch.limit' => 1000,
+            'task.batch.order' => 'oldest',
         ];
 
         $config = array_merge($defaults, $configOverrides);
 
-        $this->config->method('storagePath')->willReturn($config['storagePath']);
-        $this->config->method('storagePendingPath')->willReturn($config['storagePendingPath']);
-        $this->config->method('storageRecurringPath')->willReturn($config['storageRecurringPath']);
-        $this->config->method('storageCompletedPath')->willReturn($config['storageCompletedPath']);
-        $this->config->method('storageGracePeriodPath')->willReturn($config['storageGracePeriodPath']);
-        $this->config->method('gracePeriodEnabled')->willReturn($config['gracePeriodEnabled']);
-        $this->config->method('gracePeriodSeconds')->willReturn($config['gracePeriodSeconds']);
-        $this->config->method('batchLimit')->willReturn($config['batchLimit']);
-        $this->config->method('batchOrder')->willReturn($config['batchOrder']);
+        foreach ($config as $key => $value) {
+            $this->configRepository->set($key, $value);
+        }
 
+        // Create real config instance
+        $this->config = new TaskConfig($this->configRepository);
+    }
+
+    private function createService(): void
+    {
         $this->storage = new TaskStorageService($this->config);
-        $logger = $this->app->make(Logger::class);
+        $logger = $this->app->make(LoggerInterface::class);
         $validator = new TaskValidatorService($this->config);
         $this->runner = new TaskRunnerService(
             storage: $this->storage,
@@ -206,7 +208,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_task_success(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createTaskRecord('123', 'test', TestTask::class);
         $this->storage->savePending($task);
@@ -221,7 +224,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_task_failure(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createTaskRecord('456', 'failing', FailingTask::class);
         $this->storage->savePending($task);
@@ -236,7 +240,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_task_returns_false_when_task_not_pending(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createTaskRecord('789', 'test', TestTask::class, 0, 3, TaskStatus::RUNNING);
         $this->storage->savePending($task);
@@ -251,7 +256,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_task_returns_false_when_max_attempts_reached(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createTaskRecord('999', 'failing', FailingTask::class, 3, 3);
         $this->storage->savePending($task);
@@ -266,7 +272,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_task_returns_false_when_task_expired(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createTaskRecord(
             id: '111',
@@ -286,7 +293,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_task_increments_attempts_on_failure(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createTaskRecord('222', 'failing', FailingTask::class, 0, 3);
         $this->storage->savePending($task);
@@ -308,7 +316,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_task_archives_after_max_attempts(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createTaskRecord('333', 'failing', FailingTask::class, 2, 3);
         $this->storage->savePending($task);
@@ -326,7 +335,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_task_with_invalid_class_returns_false(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createTaskRecord('invalid', 'invalid', 'NonExistentClass');
         $this->storage->savePending($task);
@@ -346,7 +356,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_recurring_task_success(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createRecurringTask('recurring-test');
         $this->storage->saveRecurring($task);
@@ -366,7 +377,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_recurring_task_failure(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = new RecurringTaskRecord(
             signature: 'recurring-failing',
@@ -397,7 +409,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_recurring_task_increments_success_count(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = $this->createRecurringTaskWithCounts('recurring-counter', 5, 2);
         $this->storage->saveRecurring($task);
@@ -417,7 +430,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_recurring_task_updates_next_run_at(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $payload = $this->createTaskPayload();
 
@@ -452,7 +466,8 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     public function test_run_recurring_task_with_invalid_class_returns_false(): void
     {
         // Arrange
-        $this->createServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createService();
 
         $task = new RecurringTaskRecord(
             signature: 'invalid-recurring',
@@ -486,10 +501,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     {
         // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
-        $this->createServiceWithConfig([
-            'gracePeriodEnabled' => true,
-            'gracePeriodSeconds' => 86400,
+        $this->setConfigDefaults([
+            'task.grace_period.enabled' => true,
+            'task.grace_period.seconds' => 86400,
         ]);
+        $this->createService();
 
         $task = $this->createExpiredTask(false);
         $this->storage->savePending($task);
@@ -507,10 +523,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     {
         // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
-        $this->createServiceWithConfig([
-            'gracePeriodEnabled' => true,
-            'gracePeriodSeconds' => 86400,
+        $this->setConfigDefaults([
+            'task.grace_period.enabled' => true,
+            'task.grace_period.seconds' => 86400,
         ]);
+        $this->createService();
 
         $task = $this->createExpiredTask(true);
         $this->storage->savePending($task);
@@ -528,10 +545,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     {
         // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
-        $this->createServiceWithConfig([
-            'gracePeriodEnabled' => true,
-            'gracePeriodSeconds' => 86400,
+        $this->setConfigDefaults([
+            'task.grace_period.enabled' => true,
+            'task.grace_period.seconds' => 86400,
         ]);
+        $this->createService();
 
         $task = $this->createRecurringTask('recurring-task');
         $this->storage->saveRecurring($task);
@@ -547,10 +565,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     {
         // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
-        $this->createServiceWithConfig([
-            'gracePeriodEnabled' => true,
-            'gracePeriodSeconds' => 86400,
+        $this->setConfigDefaults([
+            'task.grace_period.enabled' => true,
+            'task.grace_period.seconds' => 86400,
         ]);
+        $this->createService();
 
         $task = $this->createExpiredTask(true);
         $this->storage->savePending($task);
@@ -566,10 +585,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     {
         // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
-        $this->createServiceWithConfig([
-            'gracePeriodEnabled' => false,
-            'gracePeriodSeconds' => 86400,
+        $this->setConfigDefaults([
+            'task.grace_period.enabled' => false,
+            'task.grace_period.seconds' => 86400,
         ]);
+        $this->createService();
 
         $task = $this->createExpiredTask(false);
         $this->storage->savePending($task);
@@ -587,10 +607,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     {
         // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
-        $this->createServiceWithConfig([
-            'gracePeriodEnabled' => true,
-            'gracePeriodSeconds' => 3600,
+        $this->setConfigDefaults([
+            'task.grace_period.enabled' => true,
+            'task.grace_period.seconds' => 3600,
         ]);
+        $this->createService();
 
         $task = $this->createExpiredTask(false);
         $this->storage->savePending($task);

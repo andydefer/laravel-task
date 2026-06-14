@@ -10,7 +10,6 @@ use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Task\Records\BatchResultRecord;
-use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Services\TaskBatchService;
 use AndyDefer\Task\ValueObjects\Iso8601DateTime;
 
@@ -30,7 +29,6 @@ final class ProcessTasksDirective extends AbstractDirective
     public function __construct(
         DirectiveContext $context,
         DirectiveInteractionService $interaction,
-        private readonly TaskBatchService $batch,
     ) {
         parent::__construct($context, $interaction);
     }
@@ -74,7 +72,10 @@ final class ProcessTasksDirective extends AbstractDirective
 
         $this->displayProcessingStart($limit);
 
-        $record = $this->executeBatchProcessing($uniqueOnly, $recurringOnly, $limit);
+        // Récupérer TaskBatchService depuis le container Laravel
+        $batch = $this->getBatchService();
+
+        $record = $this->executeBatchProcessing($batch, $uniqueOnly, $recurringOnly, $limit);
 
         $this->displayResultsSummary($record);
         $this->displayErrorsIfVerbose($verbose, $record);
@@ -82,6 +83,17 @@ final class ProcessTasksDirective extends AbstractDirective
         $hasFailures = $record->uniqueFailed > 0 || $record->recurringFailed > 0;
 
         return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
+    }
+
+    private function getBatchService(): TaskBatchService
+    {
+        $laravel = $this->getLaravel();
+
+        if ($laravel === null) {
+            throw new \RuntimeException('Laravel container is not available. Task processing requires Laravel.');
+        }
+
+        return $laravel->make(TaskBatchService::class);
     }
 
     private function validateOptions(): ?ExitCode
@@ -122,17 +134,17 @@ final class ProcessTasksDirective extends AbstractDirective
         }
     }
 
-    private function executeBatchProcessing(bool $uniqueOnly, bool $recurringOnly, ?int $limit): BatchResultRecord
+    private function executeBatchProcessing(TaskBatchService $batch, bool $uniqueOnly, bool $recurringOnly, ?int $limit): BatchResultRecord
     {
         if ($uniqueOnly) {
-            return $this->batch->processUniqueOnly($limit);
+            return $batch->processUniqueOnly($limit);
         }
 
         if ($recurringOnly) {
-            return $this->batch->processRecurringOnly($limit);
+            return $batch->processRecurringOnly($limit);
         }
 
-        return $this->batch->process($limit);
+        return $batch->process($limit);
     }
 
     private function displayResultsSummary(BatchResultRecord $record): void

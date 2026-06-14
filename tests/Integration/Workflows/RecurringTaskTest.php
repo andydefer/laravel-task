@@ -6,8 +6,9 @@ namespace AndyDefer\Task\Tests\Integration\Workflows;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Services\TaskRunnerService;
@@ -16,7 +17,7 @@ use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use PHPUnit\Framework\MockObject\Stub;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class RecurringTaskTest extends IntegrationTestCase
 {
@@ -28,7 +29,9 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     private string $storagePath;
 
-    private TaskConfig&Stub $config;
+    private TaskConfigInterface $config;
+
+    private ConfigRepository $configRepository;
 
     protected function setUp(): void
     {
@@ -36,20 +39,17 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
 
-        // Create mock config with all required methods
-        $this->config = $this->createStub(TaskConfig::class);
-        $this->config->method('storagePath')->willReturn($this->storagePath);
-        $this->config->method('storagePendingPath')->willReturn($this->storagePath . '/pending');
-        $this->config->method('storageRecurringPath')->willReturn($this->storagePath . '/recurring');
-        $this->config->method('storageCompletedPath')->willReturn($this->storagePath . '/completed');
-        $this->config->method('storageGracePeriodPath')->willReturn($this->storagePath . '/grace_period');
-        $this->config->method('gracePeriodEnabled')->willReturn(false);
-        $this->config->method('gracePeriodSeconds')->willReturn(86400);
-        $this->config->method('batchLimit')->willReturn(1000);
-        $this->config->method('batchOrder')->willReturn('oldest');
+        // Get the config repository from Laravel container
+        $this->configRepository = $this->app->make(ConfigRepository::class);
+
+        // Set configuration values
+        $this->setConfigDefaults();
+
+        // Create real config instance
+        $this->config = new TaskConfig($this->configRepository);
 
         $this->storage = new TaskStorageService($this->config);
-        $logger = $this->app->make(Logger::class);
+        $logger = $this->app->make(LoggerInterface::class);
         $this->validator = new TaskValidatorService($this->config);
         $this->runner = new TaskRunnerService(
             storage: $this->storage,
@@ -57,6 +57,19 @@ final class RecurringTaskTest extends IntegrationTestCase
             validator: $this->validator,
             config: $this->config,
         );
+    }
+
+    private function setConfigDefaults(): void
+    {
+        $this->configRepository->set('task.storage_path', $this->storagePath);
+        $this->configRepository->set('task.storage_pending_path', $this->storagePath . '/pending');
+        $this->configRepository->set('task.storage_recurring_path', $this->storagePath . '/recurring');
+        $this->configRepository->set('task.storage_completed_path', $this->storagePath . '/completed');
+        $this->configRepository->set('task.storage_grace_period_path', $this->storagePath . '/grace_period');
+        $this->configRepository->set('task.grace_period.enabled', false);
+        $this->configRepository->set('task.grace_period.seconds', 86400);
+        $this->configRepository->set('task.batch.limit', 1000);
+        $this->configRepository->set('task.batch.order', 'oldest');
     }
 
     protected function tearDown(): void

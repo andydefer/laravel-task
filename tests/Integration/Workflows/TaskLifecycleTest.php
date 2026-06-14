@@ -6,8 +6,9 @@ namespace AndyDefer\Task\Tests\Integration\Workflows;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
@@ -17,7 +18,7 @@ use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use PHPUnit\Framework\MockObject\Stub;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class TaskLifecycleTest extends IntegrationTestCase
 {
@@ -29,7 +30,9 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     private string $storagePath;
 
-    private TaskConfig&Stub $config;
+    private TaskConfigInterface $config;
+
+    private ConfigRepository $configRepository;
 
     protected function setUp(): void
     {
@@ -37,20 +40,21 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
         $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
 
-        // Create mock config with all required methods
-        $this->config = $this->createStub(TaskConfig::class);
-        $this->config->method('storagePath')->willReturn($this->storagePath);
-        $this->config->method('storagePendingPath')->willReturn($this->storagePath . '/pending');
-        $this->config->method('storageRecurringPath')->willReturn($this->storagePath . '/recurring');
-        $this->config->method('storageCompletedPath')->willReturn($this->storagePath . '/completed');
-        $this->config->method('storageGracePeriodPath')->willReturn($this->storagePath . '/grace_period');
-        $this->config->method('gracePeriodEnabled')->willReturn(false);
-        $this->config->method('gracePeriodSeconds')->willReturn(86400);
-        $this->config->method('batchLimit')->willReturn(1000);
-        $this->config->method('batchOrder')->willReturn('oldest');
+        // Get the config repository from Laravel container
+        $this->configRepository = $this->app->make(ConfigRepository::class);
+
+        // Set configuration values for the test
+        $this->configRepository->set('task.storage_path', $this->storagePath);
+        $this->configRepository->set('task.grace_period.enabled', false);
+        $this->configRepository->set('task.grace_period.seconds', 86400);
+        $this->configRepository->set('task.batch.limit', 1000);
+        $this->configRepository->set('task.batch.order', 'oldest');
+
+        // Create real config instance
+        $this->config = new TaskConfig($this->configRepository);
 
         $this->storage = new TaskStorageService($this->config);
-        $logger = $this->app->make(Logger::class);
+        $logger = $this->app->make(LoggerInterface::class);
         $this->validator = new TaskValidatorService($this->config);
         $this->runner = new TaskRunnerService(
             storage: $this->storage,
@@ -59,6 +63,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
             config: $this->config,
         );
     }
+
     protected function tearDown(): void
     {
         if (is_dir($this->storagePath)) {

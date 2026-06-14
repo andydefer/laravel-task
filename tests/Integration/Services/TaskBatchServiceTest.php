@@ -6,8 +6,9 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
@@ -21,7 +22,7 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use Carbon\Carbon;
-use PHPUnit\Framework\MockObject\Stub;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class TaskBatchServiceTest extends IntegrationTestCase
 {
@@ -31,56 +32,48 @@ final class TaskBatchServiceTest extends IntegrationTestCase
 
     private string $storagePath;
 
-    private Logger $logger;
+    private LoggerInterface $logger;
 
-    private TaskConfig&Stub $config;
+    private TaskConfigInterface $config;
+
+    private ConfigRepository $configRepository;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+
+        // Get the config repository from Laravel container
+        $this->configRepository = $this->app->make(ConfigRepository::class);
+
+        // Set default configuration values
+        $this->setConfigDefaults();
     }
 
-    private function createBatchServiceWithConfig(array $configOverrides = []): void
+    private function setConfigDefaults(array $configOverrides = []): void
     {
-        $this->config = $this->createStub(TaskConfig::class);
-
         $defaults = [
-            'storagePath' => $this->storagePath,
-            'storagePendingPath' => $this->storagePath . '/pending',
-            'storageRecurringPath' => $this->storagePath . '/recurring',
-            'storageCompletedPath' => $this->storagePath . '/completed',
-            'storageGracePeriodPath' => $this->storagePath . '/grace_period',
-            'batchLimit' => 1000,
-            'batchOrder' => 'oldest',
-            'gracePeriodEnabled' => false,
-            'gracePeriodSeconds' => 86400,
+            'task.storage_path' => $this->storagePath,
+            'task.grace_period.enabled' => false,
+            'task.grace_period.seconds' => 86400,
+            'task.batch.limit' => 1000,
+            'task.batch.order' => 'oldest',
         ];
 
         $config = array_merge($defaults, $configOverrides);
 
-        $this->config->method('storagePath')->willReturn($config['storagePath']);
-        $this->config->method('storagePendingPath')->willReturn($config['storagePendingPath']);
-        $this->config->method('storageRecurringPath')->willReturn($config['storageRecurringPath']);
-        $this->config->method('storageCompletedPath')->willReturn($config['storageCompletedPath']);
-        $this->config->method('storageGracePeriodPath')->willReturn($config['storageGracePeriodPath']);
-        $this->config->method('batchLimit')->willReturn($config['batchLimit']);
-        $this->config->method('batchOrder')->willReturn($config['batchOrder']);
-        $this->config->method('gracePeriodEnabled')->willReturn($config['gracePeriodEnabled']);
-        $this->config->method('gracePeriodSeconds')->willReturn($config['gracePeriodSeconds']);
-        $this->config->method('getEffectiveLimit')->willReturnCallback(function ($limit) use ($config) {
-            if ($limit === 0) {
-                return 0;
-            }
-            if ($limit !== null) {
-                return $limit;
-            }
+        foreach ($config as $key => $value) {
+            $this->configRepository->set($key, $value);
+        }
 
-            return $config['batchLimit'];
-        });
+        // Create real config instance
+        $this->config = new TaskConfig($this->configRepository);
+    }
 
+    private function createBatchService(): void
+    {
         $this->storage = new TaskStorageService($this->config);
-        $this->logger = $this->app->make(Logger::class);
+        $this->logger = $this->app->make(LoggerInterface::class);
         $validator = new TaskValidatorService($this->config);
         $runner = new TaskRunnerService(
             storage: $this->storage,
@@ -217,7 +210,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_processes_all_pending_unique_tasks(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createUniqueTask("unique-{$i}");
@@ -240,7 +234,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_processes_all_pending_recurring_tasks(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createRecurringTask("recurring-{$i}");
@@ -262,7 +257,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_unique_only_processes_only_unique_tasks(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         $uniqueTask = $this->createUniqueTask('unique-1');
         $recurringTask = $this->createRecurringTask('recurring-1');
@@ -283,7 +279,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_recurring_only_processes_only_recurring_tasks(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         $uniqueTask = $this->createUniqueTask('unique-1');
         $recurringTask = $this->createRecurringTask('recurring-1');
@@ -306,7 +303,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_handles_failing_tasks_gracefully(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         $successTask = $this->createUniqueTask('success-1');
         $failingTask = $this->createFailingUniqueTask('failing-1');
@@ -330,7 +328,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_returns_correct_statistics(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         for ($i = 1; $i <= 2; $i++) {
             $task = $this->createUniqueTask("unique-{$i}");
@@ -356,7 +355,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_empty_queue_returns_empty_result(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         // Act
         $record = $this->batch->process();
@@ -372,7 +372,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_unique_only_on_empty_queue(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         // Act
         $record = $this->batch->processUniqueOnly();
@@ -386,7 +387,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_process_recurring_only_on_empty_queue(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         // Act
         $record = $this->batch->processRecurringOnly();
@@ -402,7 +404,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_respects_config_limit(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig(['batchLimit' => 3]);
+        $this->setConfigDefaults(['task.batch.limit' => 3]);
+        $this->createBatchService();
 
         for ($i = 1; $i <= 10; $i++) {
             $task = $this->createTestTask("task-{$i}");
@@ -424,7 +427,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_with_custom_limit_overrides_config(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig(['batchLimit' => 3]);
+        $this->setConfigDefaults(['task.batch.limit' => 3]);
+        $this->createBatchService();
 
         for ($i = 1; $i <= 10; $i++) {
             $task = $this->createTestTask("task-{$i}");
@@ -446,7 +450,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_with_limit_zero_processes_nothing(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig();
+        $this->setConfigDefaults();
+        $this->createBatchService();
 
         for ($i = 1; $i <= 10; $i++) {
             $task = $this->createTestTask("task-{$i}");
@@ -468,7 +473,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_processes_oldest_tasks_first_with_limit(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig(['batchLimit' => 1000]);
+        $this->setConfigDefaults(['task.batch.limit' => 1000]);
+        $this->createBatchService();
 
         $task1 = $this->createTestTask('task-first');
         $this->storage->savePending($task1);
@@ -494,10 +500,11 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_processes_newest_tasks_first_when_configured(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig([
-            'batchLimit' => 1000,
-            'batchOrder' => 'newest',
+        $this->setConfigDefaults([
+            'task.batch.limit' => 1000,
+            'task.batch.order' => 'newest',
         ]);
+        $this->createBatchService();
 
         $task1 = $this->createTestTask('task-first');
         $this->storage->savePending($task1);
@@ -523,7 +530,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_unique_only_respects_limit(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig(['batchLimit' => 1000]);
+        $this->setConfigDefaults(['task.batch.limit' => 1000]);
+        $this->createBatchService();
 
         for ($i = 1; $i <= 10; $i++) {
             $task = $this->createTestTask("task-{$i}");
@@ -542,7 +550,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_recurring_only_respects_limit(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig(['batchLimit' => 1000]);
+        $this->setConfigDefaults(['task.batch.limit' => 1000]);
+        $this->createBatchService();
 
         for ($i = 1; $i <= 10; $i++) {
             $task = $this->createRecurringTaskWithNextRun("recurring-{$i}");
@@ -561,7 +570,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_limit_with_more_tasks_than_limit(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig(['batchLimit' => 1000]);
+        $this->setConfigDefaults(['task.batch.limit' => 1000]);
+        $this->createBatchService();
 
         for ($i = 1; $i <= 20; $i++) {
             $task = $this->createTestTask("task-{$i}");
@@ -583,7 +593,8 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     public function test_batch_limit_with_exact_number(): void
     {
         // Arrange
-        $this->createBatchServiceWithConfig(['batchLimit' => 1000]);
+        $this->setConfigDefaults(['task.batch.limit' => 1000]);
+        $this->createBatchService();
 
         for ($i = 1; $i <= 5; $i++) {
             $task = $this->createTestTask("task-{$i}");

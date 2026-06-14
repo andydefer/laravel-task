@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Services;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\AbstractTask;
 use AndyDefer\Task\Configs\TaskConfig;
@@ -24,7 +24,7 @@ final class TaskRunnerService
 {
     public function __construct(
         private readonly TaskStorageService $storage,
-        private readonly Logger $logger,
+        private readonly LoggerInterface $logger,
         private readonly TaskValidatorService $validator,
         private readonly TaskConfig $config,
     ) {}

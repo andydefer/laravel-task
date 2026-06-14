@@ -339,7 +339,7 @@ final class ProcessOrderTask extends AbstractTask
     
     protected function before(): void
     {
-        $payload = $this->payload->payload->first();
+        $payload = $this->payload->data->first();
         $this->orderId = $payload->order_id;
         $this->info("Début du traitement de la commande {$this->orderId}");
     }

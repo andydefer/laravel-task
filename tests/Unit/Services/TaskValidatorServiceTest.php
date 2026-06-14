@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
@@ -14,11 +15,12 @@ use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use Carbon\Carbon;
-use PHPUnit\Framework\MockObject\Stub;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class TaskValidatorServiceTest extends IntegrationTestCase
 {
     private Carbon $now;
+    private ConfigRepository $configRepository;
 
     protected function setUp(): void
     {
@@ -27,22 +29,23 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
         // Freeze time in UTC to avoid timezone issues
         $this->now = Carbon::create(2026, 5, 24, 12, 15, 0, 'UTC');
         Carbon::setTestNow($this->now);
+
+        // Get the config repository from Laravel container
+        $this->configRepository = $this->app->make(ConfigRepository::class);
+
+        // Set default configuration values
+        $this->setConfigDefaults();
     }
 
-    private function createValidatorWithConfig(array $configOverrides = []): TaskValidatorService
+    private function setConfigDefaults(): void
     {
-        $config = $this->createStub(TaskConfig::class);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $this->configRepository->set('task.grace_period.seconds', 86400);
+    }
 
-        $defaults = [
-            'gracePeriodEnabled' => true,
-            'gracePeriodSeconds' => 86400,
-        ];
-
-        $settings = array_merge($defaults, $configOverrides);
-
-        $config->method('gracePeriodEnabled')->willReturn($settings['gracePeriodEnabled']);
-        $config->method('gracePeriodSeconds')->willReturn($settings['gracePeriodSeconds']);
-
+    private function createValidator(): TaskValidatorService
+    {
+        $config = new TaskConfig($this->configRepository);
         return new TaskValidatorService($config);
     }
 
@@ -101,7 +104,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_validate_task_class_returns_true_for_valid_class(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $className = TestTask::class;
 
         // Act
@@ -114,7 +117,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_validate_task_class_returns_false_for_invalid_class(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $className = 'NonExistentClass';
 
         // Act
@@ -129,7 +132,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_can_run_task_returns_true_for_pending_task_with_valid_dates(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
             endAt: $this->getRelativeDate('+1 hour'),
@@ -145,7 +148,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_can_run_task_returns_false_for_task_not_started_yet(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('+1 hour'),
             endAt: $this->getRelativeDate('+2 hours'),
@@ -161,7 +164,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_can_run_task_returns_false_for_completed_task(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
             endAt: $this->getRelativeDate('+1 hour'),
@@ -178,7 +181,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_can_run_task_returns_false_when_max_attempts_reached(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
             endAt: $this->getRelativeDate('+1 hour'),
@@ -195,7 +198,8 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_can_run_task_returns_false_for_expired_task_without_grace_period(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => false]);
+        $this->configRepository->set('task.grace_period.enabled', false);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
             endAt: $this->getRelativeDate('-1 day'),
@@ -206,12 +210,16 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
         // Assert
         $this->assertFalse($result);
+
+        // Reset to default
+        $this->setConfigDefaults();
     }
 
     public function test_can_run_task_returns_true_for_expired_task_with_grace_period(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => true]);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
             endAt: $this->getRelativeDate('-1 day'),
@@ -230,7 +238,8 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_is_task_expired_returns_true_for_expired_task(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => false]);
+        $this->configRepository->set('task.grace_period.enabled', false);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
             endAt: $this->getRelativeDate('-1 day'),
@@ -241,12 +250,15 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
         // Assert
         $this->assertTrue($result);
+
+        // Reset to default
+        $this->setConfigDefaults();
     }
 
     public function test_is_task_expired_returns_false_for_non_expired_task(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
             endAt: $this->getRelativeDate('+1 hour'),
@@ -264,7 +276,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_can_run_task_with_enforce_exact_schedule_not_executable_when_expired(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
             endAt: $this->getRelativeDate('-1 day'),
@@ -282,7 +294,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_can_run_task_with_enforce_exact_schedule_executable_when_within_window(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
             endAt: $this->getRelativeDate('+1 hour'),
@@ -299,7 +311,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_is_task_expired_with_enforce_exact_schedule_returns_true(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
             endAt: $this->getRelativeDate('-1 day'),
@@ -318,7 +330,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_is_unique_task_with_grace_period_true(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->now->toIso8601String(),
             endAt: $this->getRelativeDate('+1 hour'),
@@ -335,7 +347,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_is_unique_task_with_grace_period_false_when_enforce_exact_schedule(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->now->toIso8601String(),
             endAt: $this->getRelativeDate('+1 hour'),
@@ -353,7 +365,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_is_unique_task_with_grace_period_false_for_recurring_task(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->now->toIso8601String(),
             endAt: $this->getRelativeDate('+1 hour'),
@@ -372,7 +384,9 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_unique_task_expired_but_within_grace_period_is_executable(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => true]);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $this->configRepository->set('task.grace_period.seconds', 86400);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: '2026-05-24T12:00:00Z',
             endAt: '2026-05-24T12:10:00Z',
@@ -389,7 +403,9 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_unique_task_expired_and_outside_grace_period_is_not_executable(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => true]);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $this->configRepository->set('task.grace_period.seconds', 86400);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: '2026-05-23T12:00:00Z',
             endAt: '2026-05-23T12:10:00Z',
@@ -406,7 +422,8 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_recurring_task_does_not_get_grace_period(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => true]);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: '2026-05-24T12:00:00Z',
             endAt: '2026-05-24T12:10:00Z',
@@ -423,7 +440,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_unique_task_within_time_window_is_executable(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: '2026-05-24T12:00:00Z',
             endAt: '2026-05-24T12:30:00Z',
@@ -440,7 +457,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_get_grace_period_delay(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig();
+        $validator = $this->createValidator();
         $endAt = $this->now->copy()->subMinutes(5);
 
         $task = $this->createTestTask(
@@ -459,7 +476,8 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_is_task_expired_with_grace_period(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => true]);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: '2026-05-24T12:00:00Z',
             endAt: '2026-05-24T12:10:00Z',
@@ -476,7 +494,8 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_is_task_expired_outside_grace_period(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => true]);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: '2026-05-23T12:00:00Z',
             endAt: '2026-05-23T12:10:00Z',
@@ -495,7 +514,8 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     public function test_grace_period_disabled_via_config(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig(['gracePeriodEnabled' => false]);
+        $this->configRepository->set('task.grace_period.enabled', false);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: '2026-05-24T12:00:00Z',
             endAt: '2026-05-24T12:10:00Z',
@@ -507,15 +527,17 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
         // Assert
         $this->assertFalse($result);
+
+        // Reset to default
+        $this->setConfigDefaults();
     }
 
     public function test_grace_period_seconds_can_be_customized_via_config(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig([
-            'gracePeriodEnabled' => true,
-            'gracePeriodSeconds' => 3600,
-        ]);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $this->configRepository->set('task.grace_period.seconds', 3600);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
             endAt: $this->getRelativeDate('-1 day'),
@@ -527,15 +549,17 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
         // Assert
         $this->assertFalse($result);
+
+        // Reset to default
+        $this->setConfigDefaults();
     }
 
     public function test_grace_period_seconds_customized_allows_execution_within_window(): void
     {
         // Arrange
-        $validator = $this->createValidatorWithConfig([
-            'gracePeriodEnabled' => true,
-            'gracePeriodSeconds' => 3600,
-        ]);
+        $this->configRepository->set('task.grace_period.enabled', true);
+        $this->configRepository->set('task.grace_period.seconds', 3600);
+        $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: '2026-05-24T12:00:00Z',
             endAt: '2026-05-24T12:10:00Z',
@@ -547,5 +571,8 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
         // Assert
         $this->assertTrue($result);
+
+        // Reset to default
+        $this->setConfigDefaults();
     }
 }

@@ -228,7 +228,7 @@ $payload = new TaskPayloadRecord(
 // Dans la tâche
 protected function process(): void
 {
-    $data = $this->payload->payload->first();
+    $data = $this->payload->data->first();
     $orderId = $data->order_id;     // ← typé : int
     $force = $data->force;          // ← typé : bool
     $priority = $data->priority;    // ← typé : string
@@ -489,7 +489,7 @@ final class ProcessOrderTask extends AbstractTask
     
     protected function process(): void
     {
-        $data = $this->payload->payload->first();
+        $data = $this->payload->data->first();
         $order = Order::find($data->order_id);
         $order->process();
     }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Logger\Logger;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Records\TaskConfigRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
@@ -23,7 +23,7 @@ abstract class AbstractTask
     protected TaskPayloadRecord $payload;
     protected string $taskId;
     protected string $signature;
-    protected Logger $logger;
+    protected LoggerInterface $logger;
 
     /**
      * Get the configuration for this task.
@@ -59,7 +59,7 @@ abstract class AbstractTask
 
         $this->logger->info(new LogDataRecord(
             type: 'task',
-            payload: StrictDataObject::from([
+            payload: new StrictDataObject([
                 'event' => 'task_started',
                 'task_id' => $this->taskId,
                 'signature' => $this->signature,
@@ -74,7 +74,7 @@ abstract class AbstractTask
 
             $this->logger->info(new LogDataRecord(
                 type: 'task',
-                payload: StrictDataObject::from([
+                payload: new StrictDataObject([
                     'event' => 'task_completed',
                     'task_id' => $this->taskId,
                     'signature' => $this->signature,
@@ -86,7 +86,7 @@ abstract class AbstractTask
 
             $this->logger->error(new LogDataRecord(
                 type: 'task',
-                payload: StrictDataObject::from([
+                payload: new StrictDataObject([
                     'event' => 'task_failed',
                     'task_id' => $this->taskId,
                     'signature' => $this->signature,
@@ -106,7 +106,7 @@ abstract class AbstractTask
     {
         $this->logger->info(new LogDataRecord(
             type: 'task_output',
-            payload: StrictDataObject::from([
+            payload: new StrictDataObject([
                 'event' => 'info',
                 'message' => $message,
             ])
@@ -120,7 +120,7 @@ abstract class AbstractTask
     {
         $this->logger->error(new LogDataRecord(
             type: 'task_output',
-            payload: StrictDataObject::from([
+            payload: new StrictDataObject([
                 'event' => 'error',
                 'message' => $message,
             ])
@@ -132,7 +132,7 @@ abstract class AbstractTask
      *
      * @return $this
      */
-    public function setLogger(Logger $logger): self
+    public function setLogger(LoggerInterface $logger): self
     {
         $this->logger = $logger;
         return $this;
