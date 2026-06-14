@@ -19,7 +19,7 @@ use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Foundation\Application;
 use Ramsey\Uuid\UuidFactoryInterface;
 
-final class TaskRegistryService implements TaskRegistryServiceInterface
+class TaskRegistryService implements TaskRegistryServiceInterface
 {
     public function __construct(
         private readonly TaskRepositoryInterface $taskRepository,

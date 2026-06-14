@@ -365,3 +365,4 @@ $result = $processor->processDailyBatch(50, 100);
 - `CounterVO` - Value Object pour les compteurs
 - `TaskOrder` - Enum pour l'ordre de traitement (OLDEST/NEWEST)
 - `BatchMode` - Enum pour le mode de traitement (FULL/UNIQUE_ONLY/RECURRING_ONLY)
+---

@@ -408,3 +408,4 @@ Une tâche unique exécutée après son `end_at` génère :
 - `CounterVO` - Value Object pour les compteurs
 - `UnixTimestampVO` - Value Object pour les timestamps
 - `TaskContext` - Contexte d'exécution des tâches
+---

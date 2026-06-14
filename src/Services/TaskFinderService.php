@@ -18,7 +18,7 @@ use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 /**
  * Implémentation du service de recherche de tâches.
  */
-final class TaskFinderService implements TaskFinderServiceInterface
+class TaskFinderService implements TaskFinderServiceInterface
 {
     public function __construct(
         private readonly TaskRepositoryInterface $taskRepository,

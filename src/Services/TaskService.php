@@ -30,7 +30,7 @@ use AndyDefer\Task\ValueObjects\TaskSignatureVO;
  * Cette classe délègue chaque méthode au service spécialisé correspondant.
  * Elle implémente l'interface unifiée qui étend toutes les interfaces spécialisées.
  */
-final class TaskService implements TaskServiceInterface
+class TaskService implements TaskServiceInterface
 {
     public function __construct(
         private readonly TaskRegistryServiceInterface $registry,

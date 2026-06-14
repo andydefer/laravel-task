@@ -29,7 +29,7 @@ use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use AndyDefer\Task\ValueObjects\UnixTimestampVO;
 use Illuminate\Contracts\Foundation\Application;
 
-final class TaskRunnerService implements TaskRunnerServiceInterface
+class TaskRunnerService implements TaskRunnerServiceInterface
 {
     public function __construct(
         private readonly TaskRepositoryInterface $taskRepository,

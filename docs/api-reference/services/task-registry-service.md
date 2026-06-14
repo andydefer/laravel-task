@@ -472,3 +472,4 @@ $registry->unregisterRecurring(new TaskSignatureVO('old-cleanup-task'));
 - `AbstractTask` - Classe de base des tâches
 - `CounterVO` - Value Object pour les compteurs
 - `TaskIdVO` / `TaskSignatureVO` - Value Objects d'identifiants
+---

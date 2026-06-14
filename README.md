@@ -1,4 +1,3 @@
-
 # Laravel Task
 
 **Un système de tâches asynchrones et récurrentes pour Laravel, basé sur des fichiers JSONL.**
@@ -252,15 +251,15 @@ final class ClearUnconfirmedOrdersTask extends AbstractTask
 
 ### 2. Enregistrer la tâche
 
-Vous pouvez enregistrer une tâche depuis n'importe où (commande, contrôleur, événement) :
+Vous pouvez enregistrer une tâche depuis n'importe où (commande, contrôleur, événement). La façon la plus simple est d'utiliser le service unifié `TaskService` :
 
 ```php
 <?php
 
 namespace App\Console\Commands;
 
+use AndyDefer\Task\Contracts\Services\TaskServiceInterface;
 use AndyDefer\Task\Records\TaskPayloadRecord;
-use AndyDefer\Task\Services\TaskRegistryService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use App\Tasks\ClearUnconfirmedOrdersTask;
 use Illuminate\Console\Command;
@@ -271,7 +270,7 @@ final class ScheduleTaskCommand extends Command
     protected $description = 'Schedule the clear unconfirmed orders task';
 
     public function __construct(
-        private readonly TaskRegistryService $registry,
+        private readonly TaskServiceInterface $task,
     ) {
         parent::__construct();
     }
@@ -288,10 +287,7 @@ final class ScheduleTaskCommand extends Command
         );
 
         // Enregistrer comme tâche récurrente (delay_seconds > 0)
-        $signature = $this->registry->register(
-            taskClass: ClearUnconfirmedOrdersTask::class,
-            payload: $payload,
-        );
+        $signature = $this->task->register(ClearUnconfirmedOrdersTask::class, $payload);
         
         $this->info("Task registered with signature: {$signature}");
         
@@ -493,10 +489,7 @@ Sans période de grâce, ces tâches seraient définitivement perdues.
 
 ```php
 // Tâche unique avec période de grâce (par défaut)
-$taskId = $registry->register(
-    taskClass: SendReportTask::class,
-    payload: $payload,
-);
+$taskId = $this->task->register(SendReportTask::class, $payload);
 
 // Tâche qui exige une exécution stricte (pas de grâce)
 $overrideConfig = new TaskConfigRecord(
@@ -508,11 +501,7 @@ $overrideConfig = new TaskConfigRecord(
     end_at: new Iso8601DateTimeVO('2026-05-24T23:59:59+00:00'),
 );
 
-$taskId = $registry->register(
-    taskClass: CriticalTask::class,
-    payload: $payload,
-    override_config: $overrideConfig,
-);
+$taskId = $this->task->register(CriticalTask::class, $payload, $overrideConfig);
 ```
 
 ---
@@ -547,21 +536,25 @@ $taskId = $registry->register(
 | `--recurring-only` | Traite uniquement les tâches récurrentes | `false` |
 | `--verbose` | Affiche les détails des erreurs | `false` |
 
-### Utilisation programmatique
+### Utilisation programmatique avec TaskService
 
 ```php
-use AndyDefer\Task\Services\TaskBatchService;
+use AndyDefer\Task\Contracts\Services\TaskServiceInterface;
 
-class TaskController
+final class TaskController
 {
-    public function process(TaskBatchService $batch): JsonResponse
+    public function __construct(
+        private readonly TaskServiceInterface $task,
+    ) {}
+
+    public function process(): JsonResponse
     {
         // Traitement standard
-        $result = $batch->process(50);
+        $result = $this->task->process(50);
         
         // Ou filtrage
-        $uniqueOnly = $batch->processUniqueOnly(20);
-        $recurringOnly = $batch->processRecurringOnly(10);
+        $uniqueOnly = $this->task->processUniqueOnly(20);
+        $recurringOnly = $this->task->processRecurringOnly(10);
         
         return response()->json([
             'unique_success' => $result->unique_success->value,
@@ -747,81 +740,79 @@ final class ClearUnconfirmedOrdersTaskTest extends TestCase
 }
 ```
 
-### Tester le TaskBatchService
-
-```php
-use AndyDefer\Task\Services\TaskBatchService;
-
-public function test_process_returns_batch_result(): void
-{
-    $result = $this->batch->process(10);
-    
-    $this->assertIsInt($result->unique_success->value);
-    $this->assertIsInt($result->unique_failed->value);
-    $this->assertInstanceOf(TaskErrorCollection::class, $result->unique_errors);
-}
-```
-
 ---
 
 ## Architecture technique
 
+### Vue d'ensemble
+
+Le package est organisé autour d'une architecture orientée services avec une séparation claire des responsabilités. Le point d'entrée principal est le service unifié `TaskService` qui agit comme une **façade** (design pattern Facade) et délègue à six services spécialisés :
+
+
+### Le service unifié TaskService
+
+`TaskService` est le point d'entrée unique recommandé pour tous les consommateurs du package. Il est conçu selon le pattern **Facade** et ne contient **aucune logique métier** - il se contente de déléguer chaque appel au service spécialisé correspondant.
+
+**Pourquoi utiliser TaskService ?**
+
+| Sans TaskService (injection multiple) | Avec TaskService (injection unique) |
+
+
+```php
+class MyController {
+    public function __construct(
+        private TaskRegistryService $registry,
+        private TaskRunnerService $runner,
+        private TaskValidatorService $validator,
+        private TaskBatchService $batch,
+        private TaskFinderService $finder,
+    ) {}
+}
+``` 
+```php
+class MyController {
+    public function __construct(
+        private TaskService $task,
+    ) {}
+}
+``` 
+
+**Avantages :**
+- Une seule dépendance à injecter
+- API unifiée et cohérente
+- Facilité de mocking dans les tests
+- Moins de couplage avec l'implémentation interne
+
+### Interfaces et inversion de dépendances
+
+Chaque service expose une interface, permettant une inversion de dépendances complète :
+
+```
+TaskServiceInterface extends
+    ├── TaskRegistryServiceInterface
+    ├── TaskRunnerServiceInterface
+    ├── TaskValidatorServiceInterface
+    ├── TaskBatchServiceInterface
+    ├── BatchResultServiceInterface
+    └── TaskFinderServiceInterface
+```
+
+Cette architecture permet de :
+- **Tester unitairement** : chaque dépendance peut être mockée
+- **Remplacer une implémentation** : vous pouvez étendre ou remplacer n'importe quel service
+- **Découpler** : les services ne dépendent que d'interfaces, pas d'implémentations concrètes
+
 ### Composants principaux
 
-| Composant | Rôle |
-|-----------|------|
-| `AbstractTask` | Classe de base avec template method (`before()`, `process()`, `after()`) |
-| `TaskContext` | Contexte d'exécution (payload, taskId, signature, app Laravel) |
-| `TaskStorageContext` | Contexte de stockage (chemins des dossiers pending/recurring/completed) |
-| `TaskRepositoryInterface` | Interface pour le CRUD des tâches uniques |
-| `RecurringTaskRepositoryInterface` | Interface pour le CRUD des tâches récurrentes |
-| `TaskRunnerService` | Exécution des tâches et gestion des tentatives |
-| `TaskValidatorService` | Validation (dates, statuts, classes, période de grâce) |
-| `TaskRegistryService` | Enregistrement des nouvelles tâches |
-| `TaskBatchService` | Traitement par lots (orchestration) |
-| `BatchResultService` | Construction immuable des résultats de batch |
-| `ProcessTasksDirective` | Directive CLI pour le traitement par lots |
-
-### Dépendances
-
-```
-TaskBatchService
-    ├── TaskRepositoryInterface
-    ├── RecurringTaskRepositoryInterface
-    ├── TaskRunnerService
-    │       ├── TaskRepositoryInterface
-    │       ├── RecurringTaskRepositoryInterface
-    │       ├── TaskValidatorService
-    │       └── HydrationService
-    ├── TaskValidatorService
-    │       ├── TaskConfigInterface
-    │       └── HydrationService
-    ├── BatchResultService
-    └── LoggerInterface
-```
-
-### Flux d'exécution
-
-```
-1. Enregistrement
-   TaskRegistryService → Repository::save() → Fichier JSONL
-
-2. Traitement par lots
-   ProcessTasksDirective → TaskBatchService
-       ├── TaskRepository::findAll() → Fichiers pending/*.jsonl
-       └── RecurringTaskRepository::findAll() → Fichiers recurring/*.jsonl
-
-3. Exécution
-   TaskRunnerService → AbstractTask::execute()
-       ├── before() hook
-       ├── process() hook (logique métier)
-       ├── after() hook
-       └── Logs → LoggerInterface
-
-4. Mise à jour
-   - Tâche unique : Repository::moveToCompleted() → completed/{date}/{id}.jsonl
-   - Tâche récurrente : Repository::updateAfterRun() → Append au fichier JSONL
-```
+| Composant | Interface | Rôle |
+|-----------|-----------|------|
+| `TaskService` | `TaskServiceInterface` | Façade unifiée - point d'entrée unique |
+| `TaskRegistryService` | `TaskRegistryServiceInterface` | Enregistrement et suppression des tâches |
+| `TaskRunnerService` | `TaskRunnerServiceInterface` | Exécution des tâches et retry |
+| `TaskValidatorService` | `TaskValidatorServiceInterface` | Validation (dates, statuts, grace period) |
+| `TaskBatchService` | `TaskBatchServiceInterface` | Traitement par lots (orchestration) |
+| `TaskFinderService` | `TaskFinderServiceInterface` | Recherche et interrogation |
+| `BatchResultService` | `BatchResultServiceInterface` | Construction immuable des résultats |
 
 ---
 
@@ -829,26 +820,29 @@ TaskBatchService
 
 ### Services
 
-| Service | Description | Documentation |
-|---------|-------------|---------------|
-| `TaskBatchService` | Orchestration du traitement par lots | [Voir référence](./docs/api-reference/services/task-batch-service.md) |
-| `TaskRunnerService` | Exécution des tâches et gestion des retry | [Voir référence](./docs/api-reference/services/task-runner-service.md) |
-| `TaskValidatorService` | Validation des tâches et période de grâce | [Voir référence](./docs/api-reference/services/task-validator-service.md) |
-| `TaskRegistryService` | Enregistrement des nouvelles tâches | [Voir référence](./docs/api-reference/services/task-registry-service.md) |
-| `BatchResultService` | Construction immuable des résultats | [Voir référence](./docs/api-reference/services/batch-result-service.md) |
+| Service | Interface | Description | Documentation |
+|---------|-----------|-------------|---------------|
+| `TaskService` | `TaskServiceInterface` | Façade unifiée - point d'entrée unique | [Voir référence](./docs/api-reference/services/task-service.md) |
+| `TaskFinderService` | `TaskFinderServiceInterface` | Recherche et interrogation des tâches | [Voir référence](./docs/api-reference/services/task-finder-service.md) |
+| `TaskBatchService` | `TaskBatchServiceInterface` | Orchestration du traitement par lots | [Voir référence](./docs/api-reference/services/task-batch-service.md) |
+| `TaskRunnerService` | `TaskRunnerServiceInterface` | Exécution des tâches et gestion des retry | [Voir référence](./docs/api-reference/services/task-runner-service.md) |
+| `TaskValidatorService` | `TaskValidatorServiceInterface` | Validation des tâches et période de grâce | [Voir référence](./docs/api-reference/services/task-validator-service.md) |
+| `TaskRegistryService` | `TaskRegistryServiceInterface` | Enregistrement des nouvelles tâches | [Voir référence](./docs/api-reference/services/task-registry-service.md) |
+| `BatchResultService` | `BatchResultServiceInterface` | Construction immuable des résultats | [Voir référence](./docs/api-reference/services/batch-result-service.md) |
 
 ### Repositories
 
-| Repository | Description | Documentation |
-|------------|-------------|---------------|
-| `TaskRepository` | Persistance des tâches uniques | [Voir référence](./docs/api-reference/repositories/task-repository.md) |
-| `RecurringTaskRepository` | Persistance des tâches récurrentes | [Voir référence](./docs/api-reference/repositories/recurring-task-repository.md) |
+| Repository | Interface | Description | Documentation |
+|------------|-----------|-------------|---------------|
+| `TaskRepository` | `TaskRepositoryInterface` | Persistance des tâches uniques | [Voir référence](./docs/api-reference/repositories/task-repository.md) |
+| `RecurringTaskRepository` | `RecurringTaskRepositoryInterface` | Persistance des tâches récurrentes | [Voir référence](./docs/api-reference/repositories/recurring-task-repository.md) |
 
 ### Directives CLI
 
 | Directive | Description | Documentation |
 |-----------|-------------|---------------|
 | `ProcessTasksDirective` | Traitement par lots depuis le CLI | [Voir référence](./docs/api-reference/directives/process-tasks-directive.md) |
+| `TaskUnregisterDirective` | Suppression de tâches depuis le CLI | [Voir référence](./docs/api-reference/directives/task-unregister-directive.md) |
 
 ### Classes de base
 
@@ -885,3 +879,4 @@ TaskBatchService
 
 MIT © [Andy Defer](https://github.com/andydefer)
 ```
+---
