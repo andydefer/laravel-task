@@ -5,36 +5,53 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
+use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use AndyDefer\Task\Contexts\TaskContext;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Carbon\Carbon;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class TaskValidatorServiceTest extends IntegrationTestCase
 {
     private Carbon $now;
+
     private ConfigRepository $configRepository;
+
+    private HydrationService $hydration;
+
+    private TaskContext $taskContext;
+
+    private LoggerInterface $logger;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Freeze time in UTC to avoid timezone issues
         $this->now = Carbon::create(2026, 5, 24, 12, 15, 0, 'UTC');
         Carbon::setTestNow($this->now);
 
-        // Get the config repository from Laravel container
         $this->configRepository = $this->app->make(ConfigRepository::class);
-
-        // Set default configuration values
+        $this->hydration = new HydrationService;
+        $this->logger = $this->app->make(LoggerInterface::class);
         $this->setConfigDefaults();
+
+        // Contexte partagé pour les tâches (utilise l'Application réelle)
+        $this->taskContext = new TaskContext;
+        $this->taskContext->setTaskId(new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'));
+        $this->taskContext->setSignature(new TaskSignatureVO('test'));
+        $this->taskContext->setLaravelApp($this->app);
     }
 
     private function setConfigDefaults(): void
@@ -46,7 +63,13 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     private function createValidator(): TaskValidatorService
     {
         $config = new TaskConfig($this->configRepository);
-        return new TaskValidatorService($config);
+
+        return new TaskValidatorService(
+            config: $config,
+            hydration: $this->hydration,
+            logger: $this->logger,
+            app: $this->app,
+        );
     }
 
     protected function tearDown(): void
@@ -57,7 +80,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
+        $payloadCollection = new StrictDataObjectCollection;
         $payloadCollection->add(StrictDataObject::from([
             'test_data' => 'validator_test',
         ]));
@@ -78,19 +101,23 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
     ): TaskRecord {
         $payload = $this->createTaskPayload();
 
+        // Créer une instance de TestTask avec le contexte et les dépendances réelles
+        $testTask = new TestTask($this->taskContext, $this->logger, $this->hydration);
+        $config = $testTask->getConfig();
+
         return new TaskRecord(
-            id: '123',
-            signature: 'test',
+            id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
+            signature: new TaskSignatureVO('test'),
             class: TestTask::class,
             payload: $payload,
             status: $status,
-            createdAt: $this->now->toIso8601String(),
-            startAt: $startAt,
-            endAt: $endAt,
-            delaySeconds: $delaySeconds,
-            attempts: $attempts,
-            maxAttempts: 3,
-            enforceExactSchedule: $enforceExactSchedule,
+            created_at: new Iso8601DateTimeVO($this->now->toIso8601String()),
+            start_at: new Iso8601DateTimeVO($startAt),
+            end_at: $endAt !== null ? new Iso8601DateTimeVO($endAt) : null,
+            delay_seconds: new CounterVO($delaySeconds),
+            attempts: new CounterVO($attempts),
+            max_attempts: new CounterVO(3),
+            enforce_exact_schedule: $enforceExactSchedule,
         );
     }
 
@@ -103,27 +130,15 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
     public function test_validate_task_class_returns_true_for_valid_class(): void
     {
-        // Arrange
         $validator = $this->createValidator();
-        $className = TestTask::class;
-
-        // Act
-        $result = $validator->validateTaskClass($className);
-
-        // Assert
+        $result = $validator->validateTaskClass(TestTask::class);
         $this->assertTrue($result);
     }
 
     public function test_validate_task_class_returns_false_for_invalid_class(): void
     {
-        // Arrange
         $validator = $this->createValidator();
-        $className = 'NonExistentClass';
-
-        // Act
-        $result = $validator->validateTaskClass($className);
-
-        // Assert
+        $result = $validator->validateTaskClass('NonExistentClass');
         $this->assertFalse($result);
     }
 
@@ -131,39 +146,30 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
     public function test_can_run_task_returns_true_for_pending_task_with_valid_dates(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
             endAt: $this->getRelativeDate('+1 hour'),
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertTrue($result);
     }
 
     public function test_can_run_task_returns_false_for_task_not_started_yet(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('+1 hour'),
             endAt: $this->getRelativeDate('+2 hours'),
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_can_run_task_returns_false_for_completed_task(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
@@ -171,16 +177,12 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             status: TaskStatus::SUCCESS,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_can_run_task_returns_false_when_max_attempts_reached(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
@@ -188,16 +190,12 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             attempts: 3,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_can_run_task_returns_false_for_expired_task_without_grace_period(): void
     {
-        // Arrange
         $this->configRepository->set('task.grace_period.enabled', false);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
@@ -205,20 +203,13 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             endAt: $this->getRelativeDate('-1 day'),
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
-
-        // Reset to default
         $this->setConfigDefaults();
     }
 
     public function test_can_run_task_returns_true_for_expired_task_with_grace_period(): void
     {
-        // Arrange
-        $this->configRepository->set('task.grace_period.enabled', true);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
@@ -226,10 +217,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             delaySeconds: 0,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertTrue($result);
     }
 
@@ -237,7 +225,6 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
     public function test_is_task_expired_returns_true_for_expired_task(): void
     {
-        // Arrange
         $this->configRepository->set('task.grace_period.enabled', false);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
@@ -245,29 +232,20 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             endAt: $this->getRelativeDate('-1 day'),
         );
 
-        // Act
         $result = $validator->isTaskExpired($task);
-
-        // Assert
         $this->assertTrue($result);
-
-        // Reset to default
         $this->setConfigDefaults();
     }
 
     public function test_is_task_expired_returns_false_for_non_expired_task(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
             endAt: $this->getRelativeDate('+1 hour'),
         );
 
-        // Act
         $result = $validator->isTaskExpired($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
@@ -275,7 +253,6 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
     public function test_can_run_task_with_enforce_exact_schedule_not_executable_when_expired(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
@@ -284,16 +261,12 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             enforceExactSchedule: true,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_can_run_task_with_enforce_exact_schedule_executable_when_within_window(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-1 hour'),
@@ -301,16 +274,12 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             enforceExactSchedule: true,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertTrue($result);
     }
 
     public function test_is_task_expired_with_enforce_exact_schedule_returns_true(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->getRelativeDate('-2 days'),
@@ -318,10 +287,7 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             enforceExactSchedule: true,
         );
 
-        // Act
         $result = $validator->isTaskExpired($task);
-
-        // Assert
         $this->assertTrue($result);
     }
 
@@ -329,7 +295,6 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
     public function test_is_unique_task_with_grace_period_true(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->now->toIso8601String(),
@@ -337,16 +302,12 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             delaySeconds: 0,
         );
 
-        // Act
         $result = $validator->isUniqueTaskWithGracePeriod($task);
-
-        // Assert
         $this->assertTrue($result);
     }
 
     public function test_is_unique_task_with_grace_period_false_when_enforce_exact_schedule(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->now->toIso8601String(),
@@ -355,16 +316,12 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             enforceExactSchedule: true,
         );
 
-        // Act
         $result = $validator->isUniqueTaskWithGracePeriod($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_is_unique_task_with_grace_period_false_for_recurring_task(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
             startAt: $this->now->toIso8601String(),
@@ -372,91 +329,71 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             delaySeconds: 300,
         );
 
-        // Act
         $result = $validator->isUniqueTaskWithGracePeriod($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
     // ==================== Grace Period Specific Tests ====================
 
+    private function getIso8601DateTime(string $dateTime): string
+    {
+        return Carbon::parse($dateTime)->toIso8601String();
+    }
+
     public function test_unique_task_expired_but_within_grace_period_is_executable(): void
     {
-        // Arrange
-        $this->configRepository->set('task.grace_period.enabled', true);
-        $this->configRepository->set('task.grace_period.seconds', 86400);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
-            startAt: '2026-05-24T12:00:00Z',
-            endAt: '2026-05-24T12:10:00Z',
+            startAt: $this->getIso8601DateTime('2026-05-24 12:00:00'),
+            endAt: $this->getIso8601DateTime('2026-05-24 12:10:00'),
             delaySeconds: 0,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertTrue($result);
     }
 
     public function test_unique_task_expired_and_outside_grace_period_is_not_executable(): void
     {
-        // Arrange
-        $this->configRepository->set('task.grace_period.enabled', true);
-        $this->configRepository->set('task.grace_period.seconds', 86400);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
-            startAt: '2026-05-23T12:00:00Z',
-            endAt: '2026-05-23T12:10:00Z',
+            startAt: $this->getIso8601DateTime('2026-05-23 12:00:00'),
+            endAt: $this->getIso8601DateTime('2026-05-23 12:10:00'),
             delaySeconds: 0,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_recurring_task_does_not_get_grace_period(): void
     {
-        // Arrange
-        $this->configRepository->set('task.grace_period.enabled', true);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
-            startAt: '2026-05-24T12:00:00Z',
-            endAt: '2026-05-24T12:10:00Z',
+            startAt: $this->getIso8601DateTime('2026-05-24 12:00:00'),
+            endAt: $this->getIso8601DateTime('2026-05-24 12:10:00'),
             delaySeconds: 300,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_unique_task_within_time_window_is_executable(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $task = $this->createTestTask(
-            startAt: '2026-05-24T12:00:00Z',
-            endAt: '2026-05-24T12:30:00Z',
+            startAt: $this->getIso8601DateTime('2026-05-24 12:00:00'),
+            endAt: $this->getIso8601DateTime('2026-05-24 12:30:00'),
             delaySeconds: 0,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertTrue($result);
     }
 
     public function test_get_grace_period_delay(): void
     {
-        // Arrange
         $validator = $this->createValidator();
         $endAt = $this->now->copy()->subMinutes(5);
 
@@ -466,46 +403,33 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             delaySeconds: 0,
         );
 
-        // Act
         $delay = $validator->getGracePeriodDelay($task);
-
-        // Assert
         $this->assertGreaterThanOrEqual(300, $delay);
     }
 
     public function test_is_task_expired_with_grace_period(): void
     {
-        // Arrange
-        $this->configRepository->set('task.grace_period.enabled', true);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
-            startAt: '2026-05-24T12:00:00Z',
-            endAt: '2026-05-24T12:10:00Z',
+            startAt: $this->getIso8601DateTime('2026-05-24 12:00:00'),
+            endAt: $this->getIso8601DateTime('2026-05-24 12:10:00'),
             delaySeconds: 0,
         );
 
-        // Act
         $isExpired = $validator->isTaskExpired($task);
-
-        // Assert
         $this->assertFalse($isExpired);
     }
 
     public function test_is_task_expired_outside_grace_period(): void
     {
-        // Arrange
-        $this->configRepository->set('task.grace_period.enabled', true);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
-            startAt: '2026-05-23T12:00:00Z',
-            endAt: '2026-05-23T12:10:00Z',
+            startAt: $this->getIso8601DateTime('2026-05-23 12:00:00'),
+            endAt: $this->getIso8601DateTime('2026-05-23 12:10:00'),
             delaySeconds: 0,
         );
 
-        // Act
         $isExpired = $validator->isTaskExpired($task);
-
-        // Assert
         $this->assertTrue($isExpired);
     }
 
@@ -513,28 +437,21 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
 
     public function test_grace_period_disabled_via_config(): void
     {
-        // Arrange
         $this->configRepository->set('task.grace_period.enabled', false);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
-            startAt: '2026-05-24T12:00:00Z',
-            endAt: '2026-05-24T12:10:00Z',
+            startAt: $this->getIso8601DateTime('2026-05-24 12:00:00'),
+            endAt: $this->getIso8601DateTime('2026-05-24 12:10:00'),
             delaySeconds: 0,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
-
-        // Reset to default
         $this->setConfigDefaults();
     }
 
     public function test_grace_period_seconds_can_be_customized_via_config(): void
     {
-        // Arrange
         $this->configRepository->set('task.grace_period.enabled', true);
         $this->configRepository->set('task.grace_period.seconds', 3600);
         $validator = $this->createValidator();
@@ -544,35 +461,24 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
             delaySeconds: 0,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertFalse($result);
-
-        // Reset to default
         $this->setConfigDefaults();
     }
 
     public function test_grace_period_seconds_customized_allows_execution_within_window(): void
     {
-        // Arrange
         $this->configRepository->set('task.grace_period.enabled', true);
         $this->configRepository->set('task.grace_period.seconds', 3600);
         $validator = $this->createValidator();
         $task = $this->createTestTask(
-            startAt: '2026-05-24T12:00:00Z',
-            endAt: '2026-05-24T12:10:00Z',
+            startAt: $this->getIso8601DateTime('2026-05-24 12:00:00'),
+            endAt: $this->getIso8601DateTime('2026-05-24 12:10:00'),
             delaySeconds: 0,
         );
 
-        // Act
         $result = $validator->canRunTask($task);
-
-        // Assert
         $this->assertTrue($result);
-
-        // Reset to default
         $this->setConfigDefaults();
     }
 }

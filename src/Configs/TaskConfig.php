@@ -33,22 +33,22 @@ final class TaskConfig implements TaskConfigInterface
 
     public function storageGracePeriodPath(): string
     {
-        return $this->storagePath() . '/grace_period';
+        return $this->storagePath().'/grace_period';
     }
 
     public function storagePendingPath(): string
     {
-        return $this->storagePath() . '/pending';
+        return $this->storagePath().'/pending';
     }
 
     public function storageRecurringPath(): string
     {
-        return $this->storagePath() . '/recurring';
+        return $this->storagePath().'/recurring';
     }
 
     public function storageCompletedPath(): string
     {
-        return $this->storagePath() . '/completed';
+        return $this->storagePath().'/completed';
     }
 
     // ==================== Grace Period ====================

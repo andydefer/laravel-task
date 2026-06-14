@@ -8,6 +8,8 @@ namespace AndyDefer\Task\Tests\Fixtures\Tasks;
 
 use AndyDefer\Task\AbstractTask;
 use AndyDefer\Task\Records\TaskConfigRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
 class TestTask extends AbstractTask
 {
@@ -24,10 +26,10 @@ class TestTask extends AbstractTask
     public function getConfig(): TaskConfigRecord
     {
         return new TaskConfigRecord(
-            signature: 'test-task',
+            signature: new TaskSignatureVO('test-task'),
             description: 'Test task for unit tests',
-            delaySeconds: 0,
-            maxAttempts: 3,
+            delay_seconds: new CounterVO(0),
+            max_attempts: new CounterVO(3),
         );
     }
 

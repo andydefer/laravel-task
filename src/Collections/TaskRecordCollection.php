@@ -50,7 +50,7 @@ final class TaskRecordCollection extends AbstractTypedCollection
         $failed = new self;
 
         foreach ($this as $task) {
-            if ($task->attempts >= $task->maxAttempts) {
+            if ($task->attempts >= $task->max_attempts) {
                 $failed->add($task);
             }
         }

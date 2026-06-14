@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Enums;
 
-use AndyDefer\DomainStructures\Traits\Enumable;
-
 /**
  * Represents the lifecycle state of a task.
  *
  * Tracks a task's progress from creation to completion, including
  * pending, running, success, and failure states. This enum is used
  * by the task scheduler and executor to manage task flow.
- *
  */
 enum TaskStatus: string
 {
-    use Enumable;
-
     case PENDING = 'pending';
     case RUNNING = 'running';
     case SUCCESS = 'success';

@@ -5,63 +5,104 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Workflows;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
+use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
+use AndyDefer\LaravelJsonl\JsonlService;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\PhpServices\Contracts\FileSystemInterface;
+use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
+use AndyDefer\Task\Contexts\TaskStorageContext;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
+use AndyDefer\Task\Repositories\TaskRepository;
 use AndyDefer\Task\Services\TaskRunnerService;
-use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Services\TaskValidatorService;
+use AndyDefer\Task\Strategies\TaskPathStrategy;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class TaskLifecycleTest extends IntegrationTestCase
 {
-    private TaskStorageService $storage;
-
+    private TaskRepositoryInterface $taskRepository;
     private TaskRunnerService $runner;
-
     private TaskValidatorService $validator;
-
     private string $storagePath;
-
     private TaskConfigInterface $config;
-
     private ConfigRepository $configRepository;
+    private HydrationService $hydration;
+    private FileSystemInterface $fs;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
-
-        // Get the config repository from Laravel container
         $this->configRepository = $this->app->make(ConfigRepository::class);
+        $this->hydration = new HydrationService();
+        $this->fs = new FileSystemService();
 
-        // Set configuration values for the test
+        $this->setConfigDefaults();
+
+        $this->config = new TaskConfig($this->configRepository);
+
+        $context = new TaskStorageContext($this->config);
+        $strategy = new TaskPathStrategy($this->config->storagePath());
+        $jsonlContext = new JsonlContext();
+        $jsonlService = new JsonlService(
+            pathStrategy: $strategy,
+            fileSystem: $this->fs,
+            context: $jsonlContext,
+        );
+
+        $this->taskRepository = new TaskRepository(
+            context: $context,
+            jsonl: $jsonlService,
+            hydration: $this->hydration,
+            fs: $this->fs,
+        );
+
+        $logger = $this->app->make(LoggerInterface::class);
+        $this->validator = new TaskValidatorService(
+            config: $this->config,
+            hydration: $this->hydration,
+            logger: $logger,
+            app: $this->app,
+        );
+
+        $this->runner = new TaskRunnerService(
+            taskRepository: $this->taskRepository,
+            recurringTaskRepository: $this->app->make(\AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface::class),
+            logger: $logger,
+            validator: $this->validator,
+            config: $this->config,
+            hydration: $this->hydration,
+            fs: $this->fs,
+            app: $this->app,
+        );
+    }
+
+    private function setConfigDefaults(): void
+    {
         $this->configRepository->set('task.storage_path', $this->storagePath);
+        $this->configRepository->set('task.storage_pending_path', $this->storagePath . '/pending');
+        $this->configRepository->set('task.storage_recurring_path', $this->storagePath . '/recurring');
+        $this->configRepository->set('task.storage_completed_path', $this->storagePath . '/completed');
+        $this->configRepository->set('task.storage_grace_period_path', $this->storagePath . '/grace_period');
         $this->configRepository->set('task.grace_period.enabled', false);
         $this->configRepository->set('task.grace_period.seconds', 86400);
         $this->configRepository->set('task.batch.limit', 1000);
         $this->configRepository->set('task.batch.order', 'oldest');
-
-        // Create real config instance
-        $this->config = new TaskConfig($this->configRepository);
-
-        $this->storage = new TaskStorageService($this->config);
-        $logger = $this->app->make(LoggerInterface::class);
-        $this->validator = new TaskValidatorService($this->config);
-        $this->runner = new TaskRunnerService(
-            storage: $this->storage,
-            logger: $logger,
-            validator: $this->validator,
-            config: $this->config,
-        );
     }
 
     protected function tearDown(): void
@@ -75,7 +116,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (! is_dir($path)) {
+        if (!is_dir($path)) {
             return;
         }
 
@@ -93,7 +134,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection;
+        $payloadCollection = new StrictDataObjectCollection();
         $payloadCollection->add(StrictDataObject::from([
             'test_data' => 'lifecycle_test',
         ]));
@@ -117,34 +158,30 @@ final class TaskLifecycleTest extends IntegrationTestCase
         $payload = $this->createTaskPayload();
 
         return new TaskRecord(
-            id: $id,
-            signature: $signature,
+            id: new TaskIdVO($id),
+            signature: new TaskSignatureVO($signature),
             class: $class,
             payload: $payload,
-
             status: TaskStatus::PENDING,
-            createdAt: date('c'),
-            startAt: $startAt ?? date('c', strtotime('-1 minute')),
-            endAt: $endAt ?? date('c', strtotime('+1 hour')),
-            delaySeconds: 0,
-            attempts: $attempts,
-            maxAttempts: $maxAttempts,
-            enforceExactSchedule: $enforceExactSchedule,
+            created_at: new Iso8601DateTimeVO(),
+            start_at: $startAt !== null ? new Iso8601DateTimeVO($startAt) : new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
+            end_at: $endAt !== null ? new Iso8601DateTimeVO($endAt) : new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
+            delay_seconds: new CounterVO(0),
+            attempts: new CounterVO($attempts),
+            max_attempts: new CounterVO($maxAttempts),
+            enforce_exact_schedule: $enforceExactSchedule,
         );
     }
 
     public function test_complete_task_lifecycle(): void
     {
-        // Arrange: Create and save a pending task
-        $task = $this->createTestTask('lifecycle-test');
-        $this->storage->savePending($task);
+        $task = $this->createTestTask('550e8400-e29b-41d4-a716-446655440100');
+        $this->taskRepository->save($task);
 
-        // Act: Verify task exists, then execute it
-        $pendingBefore = $this->storage->findPending();
+        $pendingBefore = $this->taskRepository->findAll();
         $result = $this->runner->runTask($task);
-        $pendingAfter = $this->storage->findPending();
+        $pendingAfter = $this->taskRepository->findAll();
 
-        // Assert: Task was executed and removed from pending
         $this->assertSame(1, $pendingBefore->count());
         $this->assertTrue($result);
         $this->assertSame(0, $pendingAfter->count());
@@ -152,135 +189,111 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     public function test_task_created_with_pending_status(): void
     {
-        // Arrange: Create a new task
-        $task = $this->createTestTask('status-test');
+        $task = $this->createTestTask('550e8400-e29b-41d4-a716-446655440101');
 
-        // Act: Save the task and retrieve it
-        $this->storage->savePending($task);
-        $pending = $this->storage->findPending();
+        $this->taskRepository->save($task);
+        $pending = $this->taskRepository->findAll();
         $savedTask = $pending->first();
 
-        // Assert: Task has PENDING status
         $this->assertNotNull($savedTask);
         $this->assertSame(TaskStatus::PENDING, $savedTask->status);
     }
 
     public function test_task_moves_to_completed_after_success(): void
     {
-        // Arrange: Create and save a pending task
-        $task = $this->createTestTask('completed-test');
-        $this->storage->savePending($task);
+        $task = $this->createTestTask('550e8400-e29b-41d4-a716-446655440102');
+        $this->taskRepository->save($task);
 
-        // Act: Execute the task
         $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Task was removed from pending (moved to completed)
         $this->assertSame(0, $pending->count());
     }
 
     public function test_task_not_started_before_start_at(): void
     {
-        // Arrange: Create a task that starts in the future
         $task = $this->createTestTask(
-            id: 'future-test',
+            id: '550e8400-e29b-41d4-a716-446655440103',
             startAt: date('c', strtotime('+1 hour')),
             endAt: date('c', strtotime('+2 hours'))
         );
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act: Check if task can run
         $canRun = $this->validator->canRunTask($task);
 
-        // Assert: Task should not run (not started yet)
         $this->assertFalse($canRun);
     }
 
     public function test_task_does_not_run_after_end_at(): void
     {
-        // Arrange: Create an expired task with exact schedule enforcement
         $task = $this->createTestTask(
-            id: 'expired-test',
+            id: '550e8400-e29b-41d4-a716-446655440104',
             startAt: date('c', strtotime('-2 days')),
             endAt: date('c', strtotime('-1 day')),
             enforceExactSchedule: true
         );
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act: Attempt to execute the expired task
         $result = $this->runner->runTask($task);
 
-        // Assert: Task should not run (expired with exact schedule)
         $this->assertFalse($result);
     }
 
     public function test_task_can_be_deleted_before_execution(): void
     {
-        // Arrange: Create and save a pending task
-        $task = $this->createTestTask('delete-test');
-        $this->storage->savePending($task);
+        $task = $this->createTestTask('550e8400-e29b-41d4-a716-446655440105');
+        $this->taskRepository->save($task);
 
-        // Act: Delete the task before execution
-        $this->storage->deletePending('delete-test');
-        $pending = $this->storage->findPending();
+        $this->taskRepository->delete(new TaskIdVO('550e8400-e29b-41d4-a716-446655440105'));
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Task was removed
         $this->assertSame(0, $pending->count());
     }
 
     public function test_task_failure_does_not_remove_from_pending(): void
     {
-        // Arrange: Create a failing task
         $task = $this->createTestTask(
-            id: 'failure-stay',
+            id: '550e8400-e29b-41d4-a716-446655440106',
             class: FailingTask::class,
             signature: 'failing'
         );
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act: Execute the failing task
         $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Task remains in pending (for retry)
         $this->assertSame(1, $pending->count());
     }
 
     public function test_task_can_be_retrieved_by_id(): void
     {
-        // Arrange: Create and save a task with specific ID
-        $taskId = 'retrieve-test';
+        $taskId = '550e8400-e29b-41d4-a716-446655440107';
         $task = $this->createTestTask($taskId);
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act: Retrieve the task from storage
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $foundTask = $pending->first();
 
-        // Assert: Task can be retrieved by ID
         $this->assertNotNull($foundTask);
-        $this->assertSame($taskId, $foundTask->id);
+        $this->assertSame($taskId, $foundTask->id->value);
         $this->assertSame(TestTask::class, $foundTask->class);
     }
 
     public function test_multiple_tasks_can_be_processed_sequentially(): void
     {
-        // Arrange: Create and save 3 pending tasks
         for ($i = 1; $i <= 3; $i++) {
-            $task = $this->createTestTask("sequential-{$i}");
-            $this->storage->savePending($task);
+            $task = $this->createTestTask("550e8400-e29b-41d4-a716-44665544020{$i}");
+            $this->taskRepository->save($task);
         }
 
-        // Act: Verify tasks exist, then execute them all
-        $pendingBefore = $this->storage->findPending();
+        $pendingBefore = $this->taskRepository->findAll();
 
         foreach ($pendingBefore as $task) {
             $this->runner->runTask($task);
         }
 
-        $pendingAfter = $this->storage->findPending();
+        $pendingAfter = $this->taskRepository->findAll();
 
-        // Assert: All tasks were executed and removed
         $this->assertSame(3, $pendingBefore->count());
         $this->assertSame(0, $pendingAfter->count());
     }

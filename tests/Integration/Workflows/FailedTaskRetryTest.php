@@ -5,56 +5,90 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Workflows;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
+use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
+use AndyDefer\LaravelJsonl\JsonlService;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\PhpServices\Contracts\FileSystemInterface;
+use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
+use AndyDefer\Task\Contexts\TaskStorageContext;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
+use AndyDefer\Task\Repositories\TaskRepository;
 use AndyDefer\Task\Services\TaskRunnerService;
-use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Services\TaskValidatorService;
+use AndyDefer\Task\Strategies\TaskPathStrategy;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class FailedTaskRetryTest extends IntegrationTestCase
 {
-    private TaskStorageService $storage;
-
+    private TaskRepositoryInterface $taskRepository;
     private TaskRunnerService $runner;
-
     private string $storagePath;
-
     private TaskConfigInterface $config;
-
     private ConfigRepository $configRepository;
+    private HydrationService $hydration;
+    private FileSystemInterface $fs;
 
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
-
-        // Get the config repository from Laravel container
         $this->configRepository = $this->app->make(ConfigRepository::class);
+        $this->hydration = new HydrationService();
+        $this->fs = new FileSystemService();
 
-        // Set configuration values
         $this->setConfigDefaults();
 
-        // Create real config instance
         $this->config = new TaskConfig($this->configRepository);
 
-        $this->storage = new TaskStorageService($this->config);
+        $context = new TaskStorageContext($this->config);
+        $strategy = new TaskPathStrategy($this->config->storagePath());
+        $jsonlContext = new JsonlContext();
+        $jsonlService = new JsonlService(
+            pathStrategy: $strategy,
+            fileSystem: $this->fs,
+            context: $jsonlContext,
+        );
+
+        $this->taskRepository = new TaskRepository(
+            context: $context,
+            jsonl: $jsonlService,
+            hydration: $this->hydration,
+            fs: $this->fs,
+        );
+
         $logger = $this->app->make(LoggerInterface::class);
-        $validator = new TaskValidatorService($this->config);
+        $validator = new TaskValidatorService(
+            config: $this->config,
+            hydration: $this->hydration,
+            logger: $logger,
+            app: $this->app,
+        );
+
         $this->runner = new TaskRunnerService(
-            storage: $this->storage,
+            taskRepository: $this->taskRepository,
+            recurringTaskRepository: $this->app->make(RecurringTaskRepositoryInterface::class),
             logger: $logger,
             validator: $validator,
             config: $this->config,
+            hydration: $this->hydration,
+            fs: $this->fs,
+            app: $this->app,
         );
     }
 
@@ -82,7 +116,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (! is_dir($path)) {
+        if (!is_dir($path)) {
             return;
         }
 
@@ -100,7 +134,7 @@ final class FailedTaskRetryTest extends IntegrationTestCase
 
     private function createTaskPayload(?array $customData = null): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection;
+        $payloadCollection = new StrictDataObjectCollection();
 
         if ($customData !== null) {
             $payloadCollection->add(StrictDataObject::from($customData));
@@ -125,18 +159,17 @@ final class FailedTaskRetryTest extends IntegrationTestCase
         $payload = $this->createTaskPayload();
 
         return new TaskRecord(
-            id: $id,
-            signature: 'failing',
+            id: new TaskIdVO($id),
+            signature: new TaskSignatureVO('failing'),
             class: FailingTask::class,
             payload: $payload,
-
             status: TaskStatus::PENDING,
-            createdAt: date('c'),
-            startAt: date('c', strtotime('-1 minute')),
-            endAt: $endAt ?? date('c', strtotime('+1 hour')),
-            delaySeconds: 0,
-            attempts: $attempts,
-            maxAttempts: $maxAttempts,
+            created_at: new Iso8601DateTimeVO(),
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
+            end_at: $endAt !== null ? new Iso8601DateTimeVO($endAt) : new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
+            delay_seconds: new CounterVO(0),
+            attempts: new CounterVO($attempts),
+            max_attempts: new CounterVO($maxAttempts),
         );
     }
 
@@ -145,208 +178,176 @@ final class FailedTaskRetryTest extends IntegrationTestCase
         $payload = $this->createTaskPayload();
 
         return new TaskRecord(
-            id: 'success-no-retry',
-            signature: 'test',
+            id: new TaskIdVO('ddde8400-e29b-41d4-a716-446655440008'),
+            signature: new TaskSignatureVO('test'),
             class: TestTask::class,
             payload: $payload,
-
             status: TaskStatus::PENDING,
-            createdAt: date('c'),
-            startAt: date('c', strtotime('-1 minute')),
-            endAt: date('c', strtotime('+1 hour')),
-            delaySeconds: 0,
-            attempts: 0,
-            maxAttempts: 3,
+            created_at: new Iso8601DateTimeVO(),
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
+            end_at: new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
+            delay_seconds: new CounterVO(0),
+            attempts: new CounterVO(0),
+            max_attempts: new CounterVO(3),
         );
     }
 
     public function test_failed_task_increments_attempts(): void
     {
-        // Arrange: Create a failing task with 0 attempts
-        $task = $this->createFailingTask('retry-test-1', attempts: 0, maxAttempts: 3);
-        $this->storage->savePending($task);
+        $task = $this->createFailingTask('550e8400-e29b-41d4-a716-446655440000', attempts: 0, maxAttempts: 3);
+        $this->taskRepository->save($task);
 
-        // Act: Execute the failing task
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Task failed and attempts were incremented
         $this->assertFalse($result);
         $this->assertSame(1, $pending->count());
 
         $updatedTask = $pending->first();
-        $this->assertSame(1, $updatedTask->attempts);
-        $this->assertNotNull($updatedTask->lastError);
+        $this->assertSame(1, $updatedTask->attempts->value);
+        $this->assertNotNull($updatedTask->last_error);
     }
 
     public function test_failed_task_increments_attempts_multiple_times(): void
     {
-        // Arrange: Create a failing task with 0 attempts
-        $task = $this->createFailingTask('retry-test-2', attempts: 0, maxAttempts: 3);
-        $this->storage->savePending($task);
+        $task = $this->createFailingTask('660e8400-e29b-41d4-a716-446655440001', attempts: 0, maxAttempts: 3);
+        $this->taskRepository->save($task);
 
-        // Act: First execution attempt
         $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $updatedTask = $pending->first();
 
-        // Act: Second execution attempt
         $this->runner->runTask($updatedTask);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Attempts incremented to 2
         $this->assertSame(1, $pending->count());
         $finalTask = $pending->first();
-        $this->assertSame(2, $finalTask->attempts);
+        $this->assertSame(2, $finalTask->attempts->value);
     }
 
     public function test_task_is_archived_after_max_attempts(): void
     {
-        // Arrange: Create a failing task with 2 attempts (1 more to reach max)
-        $task = $this->createFailingTask('max-retry-test-1', attempts: 2, maxAttempts: 3);
-        $this->storage->savePending($task);
+        $task = $this->createFailingTask('770e8400-e29b-41d4-a716-446655440002', attempts: 2, maxAttempts: 3);
+        $this->taskRepository->save($task);
 
-        // Act: Execute the task (3rd attempt)
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Task failed and was archived (no retry left)
         $this->assertFalse($result);
         $this->assertSame(0, $pending->count());
     }
 
     public function test_task_with_no_retry_possible_is_archived_immediately(): void
     {
-        // Arrange: Create a failing task with maxAttempts = 1 (no retry)
-        $task = $this->createFailingTask('no-retry-test', attempts: 0, maxAttempts: 1);
-        $this->storage->savePending($task);
+        $task = $this->createFailingTask('880e8400-e29b-41d4-a716-446655440003', attempts: 0, maxAttempts: 1);
+        $this->taskRepository->save($task);
 
-        // Act: Execute the task
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Task failed and was archived immediately
         $this->assertFalse($result);
         $this->assertSame(0, $pending->count());
     }
 
     public function test_successful_task_does_not_retry(): void
     {
-        // Arrange: Create a successful task
         $task = $this->createSuccessfulTask();
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act: Execute the task
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Task succeeded and was archived (no retry needed)
         $this->assertTrue($result);
         $this->assertSame(0, $pending->count());
     }
 
     public function test_failed_task_preserves_payload_after_retry(): void
     {
-        // Arrange: Create a failing task with custom payload
         $customPayload = $this->createTaskPayload([
             'custom_data' => 123,
             'test_value' => 'test_value',
         ]);
 
         $task = new TaskRecord(
-            id: 'payload-test',
-            signature: 'failing',
+            id: new TaskIdVO('990e8400-e29b-41d4-a716-446655440004'),
+            signature: new TaskSignatureVO('failing'),
             class: FailingTask::class,
             payload: $customPayload,
-
             status: TaskStatus::PENDING,
-            createdAt: date('c'),
-            startAt: date('c', strtotime('-1 minute')),
-            endAt: date('c', strtotime('+1 hour')),
-            delaySeconds: 0,
-            attempts: 0,
-            maxAttempts: 3,
+            created_at: new Iso8601DateTimeVO(),
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
+            end_at: new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
+            delay_seconds: new CounterVO(0),
+            attempts: new CounterVO(0),
+            max_attempts: new CounterVO(3),
         );
 
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act: Execute the failing task
         $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $updatedTask = $pending->first();
 
-        // Assert: Payload was preserved after retry
         $this->assertSame($task->payload->type, $updatedTask->payload->type);
         $this->assertSame($task->payload->data->count(), $updatedTask->payload->data->count());
     }
 
     public function test_expired_task_does_not_retry(): void
     {
-        // Arrange: Create an expired failing task
         $task = $this->createFailingTask(
-            id: 'expired-retry',
+            id: 'aaae8400-e29b-41d4-a716-446655440005',
             attempts: 0,
             maxAttempts: 3,
             endAt: date('c', strtotime('-1 day'))
         );
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act: Execute the expired task
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert: Task not executed and was archived
         $this->assertFalse($result);
         $this->assertSame(0, $pending->count());
     }
 
     public function test_task_retry_respects_max_attempts_boundary(): void
     {
-        // Arrange: Create a failing task with maxAttempts = 5
         $maxAttempts = 5;
-        $task = $this->createFailingTask('boundary-test', attempts: 0, maxAttempts: $maxAttempts);
-        $this->storage->savePending($task);
+        $task = $this->createFailingTask('bbbe8400-e29b-41d4-a716-446655440006', attempts: 0, maxAttempts: $maxAttempts);
+        $this->taskRepository->save($task);
 
-        // Act: Execute the task up to max attempts
         $currentTask = $task;
         for ($i = 0; $i < $maxAttempts; $i++) {
             $this->runner->runTask($currentTask);
-            $pending = $this->storage->findPending();
+            $pending = $this->taskRepository->findAll();
             if ($pending->isNotEmpty()) {
                 $currentTask = $pending->first();
             }
         }
 
-        // Assert: Task is archived after reaching max attempts
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $this->assertSame(0, $pending->count());
     }
 
     public function test_task_retry_stores_error_message_each_time(): void
     {
-        // Arrange: Create a failing task
-        $task = $this->createFailingTask('error-message-test', attempts: 0, maxAttempts: 3);
-        $this->storage->savePending($task);
+        $task = $this->createFailingTask('ccce8400-e29b-41d4-a716-446655440007', attempts: 0, maxAttempts: 3);
+        $this->taskRepository->save($task);
 
-        // Act: First execution attempt
         $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $updatedTask = $pending->first();
 
-        // Assert: First error message is stored
-        $this->assertNotNull($updatedTask->lastError, 'First error message should not be null');
-        $firstError = $updatedTask->lastError;
+        $this->assertNotNull($updatedTask->last_error, 'First error message should not be null');
+        $firstError = $updatedTask->last_error;
         $this->assertIsString($firstError);
         $this->assertStringContainsString('Test exception', $firstError);
 
-        // Act: Second execution attempt
         $this->runner->runTask($updatedTask);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $finalTask = $pending->first();
 
-        // Assert: Second error message is stored
-        $this->assertNotNull($finalTask->lastError, 'Second error message should not be null');
-        $secondError = $finalTask->lastError;
+        $this->assertNotNull($finalTask->last_error, 'Second error message should not be null');
+        $secondError = $finalTask->last_error;
         $this->assertIsString($secondError);
         $this->assertStringContainsString('Test exception', $secondError);
 

@@ -5,40 +5,56 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
+use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
+use AndyDefer\LaravelJsonl\JsonlService;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\PhpServices\Contracts\FileSystemInterface;
+use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
+use AndyDefer\Task\Contexts\TaskStorageContext;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
+use AndyDefer\Task\Repositories\RecurringTaskRepository;
+use AndyDefer\Task\Repositories\TaskRepository;
 use AndyDefer\Task\Services\TaskRunnerService;
-use AndyDefer\Task\Services\TaskStorageService;
 use AndyDefer\Task\Services\TaskValidatorService;
+use AndyDefer\Task\Strategies\TaskPathStrategy;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Carbon\Carbon;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class TaskRunnerServiceTest extends IntegrationTestCase
 {
-    private TaskStorageService $storage;
+    private TaskRepositoryInterface $taskRepository;
+    private RecurringTaskRepositoryInterface $recurringTaskRepository;
     private TaskRunnerService $runner;
     private string $storagePath;
     private TaskConfigInterface $config;
     private ConfigRepository $configRepository;
+    private HydrationService $hydration;
+    private FileSystemInterface $fs;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
-
-        // Get the config repository from Laravel container
         $this->configRepository = $this->app->make(ConfigRepository::class);
+        $this->hydration = new HydrationService();
+        $this->fs = new FileSystemService();
 
-        // Set default configuration values
         $this->setConfigDefaults();
     }
 
@@ -58,20 +74,52 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
             $this->configRepository->set($key, $value);
         }
 
-        // Create real config instance
         $this->config = new TaskConfig($this->configRepository);
     }
 
     private function createService(): void
     {
-        $this->storage = new TaskStorageService($this->config);
+        $context = new TaskStorageContext($this->config);
+        $strategy = new TaskPathStrategy($this->config->storagePath());
+        $jsonlContext = new JsonlContext();
+        $jsonlService = new JsonlService(
+            pathStrategy: $strategy,
+            fileSystem: $this->fs,
+            context: $jsonlContext,
+        );
+
+        // Repositories
+        $this->taskRepository = new TaskRepository(
+            context: $context,
+            jsonl: $jsonlService,
+            hydration: $this->hydration,
+            fs: $this->fs,
+        );
+
+        $this->recurringTaskRepository = new RecurringTaskRepository(
+            context: $context,
+            jsonl: $jsonlService,
+            hydration: $this->hydration,
+            fs: $this->fs,
+        );
+
         $logger = $this->app->make(LoggerInterface::class);
-        $validator = new TaskValidatorService($this->config);
+        $validator = new TaskValidatorService(
+            config: $this->config,
+            hydration: $this->hydration,
+            logger: $logger,
+            app: $this->app,
+        );
+
         $this->runner = new TaskRunnerService(
-            storage: $this->storage,
+            taskRepository: $this->taskRepository,
+            recurringTaskRepository: $this->recurringTaskRepository,
             logger: $logger,
             validator: $validator,
             config: $this->config,
+            hydration: $this->hydration,
+            fs: $this->fs,
+            app: $this->app,
         );
     }
 
@@ -130,36 +178,38 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $payload = $this->createTaskPayload();
 
         return new TaskRecord(
-            id: $id,
-            signature: $signature,
+            id: new TaskIdVO($id),
+            signature: new TaskSignatureVO($signature),
             class: $class,
             payload: $payload,
             status: $status,
-            createdAt: date('c'),
-            startAt: date('c', strtotime('-1 minute')),
-            endAt: $endAt ?? date('c', strtotime('+1 hour')),
-            delaySeconds: 0,
-            attempts: $attempts,
-            maxAttempts: $maxAttempts,
-            enforceExactSchedule: $enforceExactSchedule,
+            created_at: new Iso8601DateTimeVO(),
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
+            end_at: $endAt !== null ? new Iso8601DateTimeVO($endAt) : new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
+            delay_seconds: new CounterVO(0),
+            attempts: new CounterVO($attempts),
+            max_attempts: new CounterVO($maxAttempts),
+            enforce_exact_schedule: $enforceExactSchedule,
         );
     }
 
     private function createExpiredTask(bool $enforceExactSchedule = false): TaskRecord
     {
+        $payload = $this->createTaskPayload();
+
         return new TaskRecord(
-            id: 'expired-task',
-            signature: 'test-task',
+            id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
+            signature: new TaskSignatureVO('test-task'),
             class: TestTask::class,
-            payload: $this->createTaskPayload(),
+            payload: $payload,
             status: TaskStatus::PENDING,
-            createdAt: date('c'),
-            startAt: '2026-05-24T12:00:00Z',
-            endAt: '2026-05-24T12:10:00Z',
-            delaySeconds: 0,
-            attempts: 0,
-            maxAttempts: 3,
-            enforceExactSchedule: $enforceExactSchedule,
+            created_at: new Iso8601DateTimeVO(),
+            start_at: new Iso8601DateTimeVO('2026-05-24T12:00:00+00:00'),
+            end_at: new Iso8601DateTimeVO('2026-05-24T12:10:00+00:00'),
+            delay_seconds: new CounterVO(0),
+            attempts: new CounterVO(0),
+            max_attempts: new CounterVO(3),
+            enforce_exact_schedule: $enforceExactSchedule,
         );
     }
 
@@ -168,16 +218,16 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $payload = $this->createTaskPayload();
 
         return new RecurringTaskRecord(
-            signature: $signature,
+            signature: new TaskSignatureVO($signature),
             class: TestTask::class,
             payload: $payload,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
-            delaySeconds: $delaySeconds,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 hour'))),
+            end_at: null,
+            delay_seconds: new CounterVO($delaySeconds),
+            last_run_at: null,
+            next_run_at: new Iso8601DateTimeVO(date('c', strtotime('-5 minutes'))),
+            success_count: new CounterVO(0),
+            failure_count: new CounterVO(0),
         );
     }
 
@@ -190,16 +240,16 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $payload = $this->createTaskPayload();
 
         return new RecurringTaskRecord(
-            signature: $signature,
+            signature: new TaskSignatureVO($signature),
             class: TestTask::class,
             payload: $payload,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
-            delaySeconds: $delaySeconds,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
-            successCount: $successCount,
-            failureCount: $failureCount,
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 hour'))),
+            end_at: null,
+            delay_seconds: new CounterVO($delaySeconds),
+            last_run_at: null,
+            next_run_at: new Iso8601DateTimeVO(date('c', strtotime('-5 minutes'))),
+            success_count: new CounterVO($successCount),
+            failure_count: new CounterVO($failureCount),
         );
     }
 
@@ -207,147 +257,123 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
 
     public function test_run_task_success(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
-        $task = $this->createTaskRecord('123', 'test', TestTask::class);
-        $this->storage->savePending($task);
+        $task = $this->createTaskRecord('550e8400-e29b-41d4-a716-446655440000', 'test', TestTask::class);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertTrue($result);
     }
 
     public function test_run_task_failure(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
-        $task = $this->createTaskRecord('456', 'failing', FailingTask::class);
-        $this->storage->savePending($task);
+        $task = $this->createTaskRecord('660e8400-e29b-41d4-a716-446655440001', 'failing', FailingTask::class);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_run_task_returns_false_when_task_not_pending(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
-        $task = $this->createTaskRecord('789', 'test', TestTask::class, 0, 3, TaskStatus::RUNNING);
-        $this->storage->savePending($task);
+        $task = $this->createTaskRecord('770e8400-e29b-41d4-a716-446655440002', 'test', TestTask::class, 0, 3, TaskStatus::RUNNING);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_run_task_returns_false_when_max_attempts_reached(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
-        $task = $this->createTaskRecord('999', 'failing', FailingTask::class, 3, 3);
-        $this->storage->savePending($task);
+        $task = $this->createTaskRecord('880e8400-e29b-41d4-a716-446655440003', 'failing', FailingTask::class, 3, 3);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_run_task_returns_false_when_task_expired(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
         $task = $this->createTaskRecord(
-            id: '111',
+            id: '990e8400-e29b-41d4-a716-446655440004',
             signature: 'test',
             class: TestTask::class,
             endAt: date('c', strtotime('-1 day'))
         );
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_run_task_increments_attempts_on_failure(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
-        $task = $this->createTaskRecord('222', 'failing', FailingTask::class, 0, 3);
-        $this->storage->savePending($task);
+        $task = $this->createTaskRecord('aaae8400-e29b-41d4-a716-446655440005', 'failing', FailingTask::class, 0, 3);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertFalse($result);
 
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $this->assertSame(1, $pending->count());
 
         $updatedTask = $pending->first();
-        $this->assertSame(1, $updatedTask->attempts);
-        $this->assertNotNull($updatedTask->lastError);
+        $this->assertSame(1, $updatedTask->attempts->value);
+        $this->assertNotNull($updatedTask->last_error);
     }
 
     public function test_run_task_archives_after_max_attempts(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
-        $task = $this->createTaskRecord('333', 'failing', FailingTask::class, 2, 3);
-        $this->storage->savePending($task);
+        $task = $this->createTaskRecord('bbbe8400-e29b-41d4-a716-446655440006', 'failing', FailingTask::class, 2, 3);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertFalse($result);
 
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $this->assertSame(0, $pending->count());
     }
 
     public function test_run_task_with_invalid_class_returns_false(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
-        $task = $this->createTaskRecord('invalid', 'invalid', 'NonExistentClass');
-        $this->storage->savePending($task);
+        $task = $this->createTaskRecord('ccce8400-e29b-41d4-a716-446655440007', 'invalid', 'NonExistentClass');
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertFalse($result);
 
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
         $this->assertSame(0, $pending->count());
     }
 
@@ -355,151 +381,135 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
 
     public function test_run_recurring_task_success(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
         $task = $this->createRecurringTask('recurring-test');
-        $this->storage->saveRecurring($task);
+        $this->recurringTaskRepository->save($task);
 
-        // Act
         $result = $this->runner->runRecurringTask($task);
 
-        // Assert
         $this->assertTrue($result);
 
-        $updated = $this->storage->getRecurring('recurring-test');
+        $updated = $this->recurringTaskRepository->find(new TaskSignatureVO('recurring-test'));
         $this->assertNotNull($updated);
-        $this->assertSame(1, $updated->successCount);
-        $this->assertNotNull($updated->lastRunAt);
+        $this->assertSame(1, $updated->success_count->value);
+        $this->assertNotNull($updated->last_run_at);
     }
 
     public function test_run_recurring_task_failure(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
         $task = new RecurringTaskRecord(
-            signature: 'recurring-failing',
+            signature: new TaskSignatureVO('recurring-failing'),
             class: FailingTask::class,
             payload: $this->createTaskPayload(),
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
-            delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 hour'))),
+            end_at: null,
+            delay_seconds: new CounterVO(300),
+            last_run_at: null,
+            next_run_at: new Iso8601DateTimeVO(date('c', strtotime('-5 minutes'))),
+            success_count: new CounterVO(0),
+            failure_count: new CounterVO(0),
         );
-        $this->storage->saveRecurring($task);
+        $this->recurringTaskRepository->save($task);
 
-        // Act
         $result = $this->runner->runRecurringTask($task);
 
-        // Assert
         $this->assertFalse($result);
 
-        $updated = $this->storage->getRecurring('recurring-failing');
+        $updated = $this->recurringTaskRepository->find(new TaskSignatureVO('recurring-failing'));
         $this->assertNotNull($updated);
-        $this->assertSame(1, $updated->failureCount);
-        $this->assertNotNull($updated->lastError);
+        $this->assertSame(1, $updated->failure_count->value);
+        $this->assertNotNull($updated->last_error);
     }
 
     public function test_run_recurring_task_increments_success_count(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
         $task = $this->createRecurringTaskWithCounts('recurring-counter', 5, 2);
-        $this->storage->saveRecurring($task);
+        $this->recurringTaskRepository->save($task);
 
-        // Act
         $result = $this->runner->runRecurringTask($task);
 
-        // Assert
         $this->assertTrue($result);
 
-        $updated = $this->storage->getRecurring('recurring-counter');
+        $updated = $this->recurringTaskRepository->find(new TaskSignatureVO('recurring-counter'));
         $this->assertNotNull($updated);
-        $this->assertSame(6, $updated->successCount);
-        $this->assertSame(2, $updated->failureCount);
+        $this->assertSame(6, $updated->success_count->value);
+        $this->assertSame(2, $updated->failure_count->value);
     }
 
     public function test_run_recurring_task_updates_next_run_at(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
         $payload = $this->createTaskPayload();
 
         $task = new RecurringTaskRecord(
-            signature: 'recurring-next-run',
+            signature: new TaskSignatureVO('recurring-next-run'),
             class: TestTask::class,
             payload: $payload,
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
-            delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-10 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 hour'))),
+            end_at: null,
+            delay_seconds: new CounterVO(300),
+            last_run_at: null,
+            next_run_at: new Iso8601DateTimeVO(date('c', strtotime('-10 minutes'))),
+            success_count: new CounterVO(0),
+            failure_count: new CounterVO(0),
         );
-        $this->storage->saveRecurring($task);
+        $this->recurringTaskRepository->save($task);
 
-        $oldNextRunAt = $task->nextRunAt;
+        $oldNextRunAt = $task->next_run_at->value;
 
-        // Act
         $result = $this->runner->runRecurringTask($task);
 
-        // Assert
         $this->assertTrue($result);
 
-        $updated = $this->storage->getRecurring('recurring-next-run');
+        $updated = $this->recurringTaskRepository->find(new TaskSignatureVO('recurring-next-run'));
         $this->assertNotNull($updated);
-        $this->assertNotSame($oldNextRunAt, $updated->nextRunAt);
-        $this->assertNotNull($updated->lastRunAt);
+        $this->assertNotSame($oldNextRunAt, $updated->next_run_at->value);
+        $this->assertNotNull($updated->last_run_at);
     }
 
     public function test_run_recurring_task_with_invalid_class_returns_false(): void
     {
-        // Arrange
         $this->setConfigDefaults();
         $this->createService();
 
         $task = new RecurringTaskRecord(
-            signature: 'invalid-recurring',
+            signature: new TaskSignatureVO('invalid-recurring'),
             class: 'NonExistentClass',
             payload: $this->createTaskPayload(),
-            startAt: date('c', strtotime('-1 hour')),
-            endAt: null,
-            delaySeconds: 300,
-            lastRunAt: null,
-            nextRunAt: date('c', strtotime('-5 minutes')),
-            successCount: 0,
-            failureCount: 0,
+            start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 hour'))),
+            end_at: null,
+            delay_seconds: new CounterVO(300),
+            last_run_at: null,
+            next_run_at: new Iso8601DateTimeVO(date('c', strtotime('-5 minutes'))),
+            success_count: new CounterVO(0),
+            failure_count: new CounterVO(0),
         );
-        $this->storage->saveRecurring($task);
+        $this->recurringTaskRepository->save($task);
 
-        // Act
         $result = $this->runner->runRecurringTask($task);
 
-        // Assert
         $this->assertFalse($result);
 
-        $updated = $this->storage->getRecurring('invalid-recurring');
+        $updated = $this->recurringTaskRepository->find(new TaskSignatureVO('invalid-recurring'));
         $this->assertNotNull($updated);
-        $this->assertSame(1, $updated->failureCount);
-        $this->assertNotNull($updated->lastError);
+        $this->assertSame(1, $updated->failure_count->value);
+        $this->assertNotNull($updated->last_error);
     }
 
     // ==================== Grace Period Tests ====================
 
     public function test_expired_unique_task_is_executed_during_grace_period(): void
     {
-        // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
         $this->setConfigDefaults([
             'task.grace_period.enabled' => true,
@@ -508,20 +518,17 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $this->createService();
 
         $task = $this->createExpiredTask(false);
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert
         $this->assertTrue($result);
         $this->assertSame(0, $pending->count());
     }
 
     public function test_expired_unique_task_archived_if_grace_period_expired(): void
     {
-        // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
         $this->setConfigDefaults([
             'task.grace_period.enabled' => true,
@@ -530,20 +537,17 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $this->createService();
 
         $task = $this->createExpiredTask(true);
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert
         $this->assertFalse($result);
         $this->assertSame(0, $pending->count());
     }
 
     public function test_recurring_task_not_affected_by_grace_period(): void
     {
-        // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
         $this->setConfigDefaults([
             'task.grace_period.enabled' => true,
@@ -552,18 +556,15 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $this->createService();
 
         $task = $this->createRecurringTask('recurring-task');
-        $this->storage->saveRecurring($task);
+        $this->recurringTaskRepository->save($task);
 
-        // Act
         $result = $this->runner->runRecurringTask($task);
 
-        // Assert
         $this->assertTrue($result);
     }
 
     public function test_unique_task_outside_grace_period_is_not_executed(): void
     {
-        // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
         $this->setConfigDefaults([
             'task.grace_period.enabled' => true,
@@ -572,18 +573,15 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $this->createService();
 
         $task = $this->createExpiredTask(true);
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
 
-        // Assert
         $this->assertFalse($result);
     }
 
     public function test_grace_period_can_be_disabled_via_config(): void
     {
-        // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
         $this->setConfigDefaults([
             'task.grace_period.enabled' => false,
@@ -592,20 +590,17 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $this->createService();
 
         $task = $this->createExpiredTask(false);
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert
         $this->assertFalse($result);
         $this->assertSame(0, $pending->count());
     }
 
     public function test_grace_period_seconds_can_be_customized_via_config(): void
     {
-        // Arrange
         Carbon::setTestNow(Carbon::create(2026, 5, 24, 12, 15, 0));
         $this->setConfigDefaults([
             'task.grace_period.enabled' => true,
@@ -614,13 +609,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
         $this->createService();
 
         $task = $this->createExpiredTask(false);
-        $this->storage->savePending($task);
+        $this->taskRepository->save($task);
 
-        // Act
         $result = $this->runner->runTask($task);
-        $pending = $this->storage->findPending();
+        $pending = $this->taskRepository->findAll();
 
-        // Assert
         $this->assertTrue($result);
         $this->assertSame(0, $pending->count());
     }

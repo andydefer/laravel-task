@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
+use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
@@ -11,44 +12,44 @@ use AndyDefer\Task\Collections\RecurringResultCollection;
 use AndyDefer\Task\Collections\TaskErrorCollection;
 use AndyDefer\Task\Collections\UniqueResultCollection;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Contracts\TaskProcessorInterface;
+use AndyDefer\Task\Enums\BatchMode;
+use AndyDefer\Task\Enums\TaskOrder;
+use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Records\BatchResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
+use AndyDefer\Task\Records\RecurringTaskResultRecord;
 use AndyDefer\Task\Records\TaskRecord;
-use AndyDefer\Task\ValueObjects\Iso8601DateTime;
+use AndyDefer\Task\Records\UniqueTaskResultRecord;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
 /**
  * Service for processing pending tasks in batches.
- *
- * Orchestrates the execution of unique and recurring tasks with configurable
- * limits and filtering options. Returns immutable batch result records.
- *
- * @example
- * $service = new TaskBatchService(...);
- * $result = $service->process(10);
- * echo $result->uniqueSuccess;
  */
 class TaskBatchService implements TaskProcessorInterface
 {
     public function __construct(
-        private readonly TaskStorageService $storage,
+        private readonly TaskRepositoryInterface $taskRepository,
+        private readonly RecurringTaskRepositoryInterface $recurringTaskRepository,
         private readonly TaskRunnerService $runner,
         private readonly TaskValidatorService $validator,
         private readonly LoggerInterface $logger,
         private readonly BatchResultService $batchResultService,
         private readonly TaskConfig $config,
+        private readonly HydrationService $hydration,
     ) {}
 
     public function process(?int $limit = null): BatchResultRecord
     {
-        $this->logBatchStart('full', $limit);
+        $this->logBatchStart(BatchMode::FULL, $limit);
         $result = $this->createEmptyRecord();
 
         $effectiveLimit = $this->config->getEffectiveLimit($limit);
 
-        [$result, $remainingLimit] = $this->processUniqueTasksWithLimit($result, $effectiveLimit);
-
-        $result = $this->processRecurringTasksIfNeeded($result, $remainingLimit);
+        [$result, $remaining_limit] = $this->processUniqueTasksWithLimit($result, $effectiveLimit);
+        $result = $this->processRecurringTasksIfNeeded($result, $remaining_limit);
 
         $this->logBatchComplete($result);
 
@@ -57,12 +58,9 @@ class TaskBatchService implements TaskProcessorInterface
 
     public function processUniqueOnly(?int $limit = null): BatchResultRecord
     {
-        $this->logBatchStart('unique_only', $limit);
+        $this->logBatchStart(BatchMode::UNIQUE_ONLY, $limit);
         $result = $this->createEmptyRecord();
-
-        $effectiveLimit = $this->config->getEffectiveLimit($limit);
-        $result = $this->processUniqueTasks($result, $effectiveLimit);
-
+        $result = $this->processUniqueTasks($result, $this->config->getEffectiveLimit($limit));
         $this->logBatchComplete($result);
 
         return $result;
@@ -70,12 +68,9 @@ class TaskBatchService implements TaskProcessorInterface
 
     public function processRecurringOnly(?int $limit = null): BatchResultRecord
     {
-        $this->logBatchStart('recurring_only', $limit);
+        $this->logBatchStart(BatchMode::RECURRING_ONLY, $limit);
         $result = $this->createEmptyRecord();
-
-        $effectiveLimit = $this->config->getEffectiveLimit($limit);
-        $result = $this->processRecurringTasks($result, $effectiveLimit);
-
+        $result = $this->processRecurringTasks($result, $this->config->getEffectiveLimit($limit));
         $this->logBatchComplete($result);
 
         return $result;
@@ -83,16 +78,17 @@ class TaskBatchService implements TaskProcessorInterface
 
     private function createEmptyRecord(): BatchResultRecord
     {
-        return new BatchResultRecord(
-            startedAt: new Iso8601DateTime,
-            uniqueSuccess: 0,
-            uniqueFailed: 0,
-            recurringSuccess: 0,
-            recurringFailed: 0,
-            uniqueResults: new UniqueResultCollection,
-            recurringResults: new RecurringResultCollection,
-            errors: new TaskErrorCollection,
-        );
+        return $this->hydration->hydrate(BatchResultRecord::class, [
+            'started_at' => new Iso8601DateTimeVO(),
+            'unique_success' => 0,
+            'unique_failed' => 0,
+            'recurring_success' => 0,
+            'recurring_failed' => 0,
+            'unique_results' => new UniqueResultCollection(),
+            'recurring_results' => new RecurringResultCollection(),
+            'unique_errors' => new TaskErrorCollection(),
+            'recurring_errors' => new TaskErrorCollection(),
+        ]);
     }
 
     private function processUniqueTasksWithLimit(BatchResultRecord $result, ?int $limit): array
@@ -107,23 +103,19 @@ class TaskBatchService implements TaskProcessorInterface
             return [$processedResult, null];
         }
 
-        $processedCount = $processedResult->uniqueSuccess + $processedResult->uniqueFailed;
+        $processedCount = $processedResult->unique_success->value + $processedResult->unique_failed->value;
         $remaining = $limit - $processedCount;
 
         return [$processedResult, $remaining > 0 ? $remaining : 0];
     }
 
-    private function processRecurringTasksIfNeeded(BatchResultRecord $result, ?int $remainingLimit): BatchResultRecord
+    private function processRecurringTasksIfNeeded(BatchResultRecord $result, ?int $remaining_limit): BatchResultRecord
     {
-        if ($remainingLimit !== null && $remainingLimit > 0) {
-            return $this->processRecurringTasks($result, $remainingLimit);
+        if ($remaining_limit !== null && $remaining_limit > 0) {
+            return $this->processRecurringTasks($result, $remaining_limit);
         }
 
-        if ($remainingLimit === null) {
-            return $this->processRecurringTasks($result, null);
-        }
-
-        return $result;
+        return $remaining_limit === null ? $this->processRecurringTasks($result, null) : $result;
     }
 
     private function processUniqueTasks(BatchResultRecord $result, ?int $limit = null): BatchResultRecord
@@ -132,9 +124,9 @@ class TaskBatchService implements TaskProcessorInterface
             return $result;
         }
 
-        $pendingTasks = $this->storage->findPending($limit, $this->config->batchOrder());
+        $order = $this->config->isOldestOrder() ? TaskOrder::OLDEST : TaskOrder::NEWEST;
 
-        foreach ($pendingTasks as $task) {
+        foreach ($this->taskRepository->findAll($limit, $order) as $task) {
             $result = $this->executeUniqueTask($result, $task);
         }
 
@@ -149,33 +141,32 @@ class TaskBatchService implements TaskProcessorInterface
         try {
             if ($this->validator->canRunTask($task)) {
                 $success = $this->runner->runTask($task);
-
-                if (! $success) {
-                    $error = $this->getTaskFailureError($task->id);
-                }
+                $error = $success ? null : $this->getTaskFailureError($task->id->value);
             } else {
                 $error = 'Task cannot be run (invalid state, expired, or max attempts reached)';
             }
         } catch (\Throwable $e) {
-            $success = false;
             $error = $e->getMessage();
         }
 
-        $this->logTaskResult('unique', $task->id, $task->signature, $success, $error);
+        $this->logTaskResult(TaskType::UNIQUE, $task->id->value, $task->signature->value, $success, $error);
 
-        return $this->batchResultService->withUniqueTask($result, $task->id, $success, $error);
+        return $this->batchResultService->withUniqueTask($result, new UniqueTaskResultRecord(
+            $task->id,
+            $success,
+            $error,
+        ));
     }
 
-    private function getTaskFailureError(string $taskId): string
+    private function getTaskFailureError(string $task_id): string
     {
-        $pending = $this->storage->findPending(1);
-        $updatedTask = $pending->first();
+        $order = $this->config->isOldestOrder() ? TaskOrder::OLDEST : TaskOrder::NEWEST;
+        $tasks = $this->taskRepository->findAll(1, $order);
+        $updatedTask = $tasks->first();
 
-        if ($updatedTask && $updatedTask->id === $taskId) {
-            return $updatedTask->lastError ?? 'Task failed without specific error';
-        }
-
-        return 'Task execution failed';
+        return ($updatedTask && $updatedTask->id->value === $task_id)
+            ? ($updatedTask->last_error ?? 'Task failed without specific error')
+            : 'Task execution failed';
     }
 
     private function processRecurringTasks(BatchResultRecord $result, ?int $limit = null): BatchResultRecord
@@ -184,9 +175,9 @@ class TaskBatchService implements TaskProcessorInterface
             return $result;
         }
 
-        $recurringTasks = $this->storage->findRecurring($limit, $this->config->batchOrder());
+        $order = $this->config->isOldestOrder() ? TaskOrder::OLDEST : TaskOrder::NEWEST;
 
-        foreach ($recurringTasks as $task) {
+        foreach ($this->recurringTaskRepository->findAll($limit, $order) as $task) {
             $result = $this->executeRecurringTask($result, $task);
         }
 
@@ -201,68 +192,61 @@ class TaskBatchService implements TaskProcessorInterface
         try {
             if ($this->validator->shouldRunRecurringNow($task)) {
                 $success = $this->runner->runRecurringTask($task);
-
-                if (! $success) {
-                    $error = 'Recurring task execution failed';
-                }
+                $error = $success ? null : 'Recurring task execution failed';
             } else {
                 $error = 'Recurring task not ready to run';
             }
         } catch (\Throwable $e) {
-            $success = false;
             $error = $e->getMessage();
         }
 
-        $this->logTaskResult('recurring', $task->signature, $task->signature, $success, $error);
+        $this->logTaskResult(TaskType::RECURRING, $task->signature->value, $task->signature->value, $success, $error);
 
-        return $this->batchResultService->withRecurringTask($result, $task->signature, $success, $error);
+        return $this->batchResultService->withRecurringTask($result, new RecurringTaskResultRecord(
+            $task->signature,
+            $success,
+            $error,
+        ));
     }
 
-    private function logBatchStart(string $mode, ?int $limit = null): void
+    private function logBatchStart(BatchMode $mode, ?int $limit = null): void
     {
-        $effectiveLimit = $this->config->getEffectiveLimit($limit);
-
-        $payload = new StrictDataObject([
+        $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'batch_started',
-            'mode' => $mode,
-            'limit' => $effectiveLimit ?? 'unlimited',
+            'mode' => $mode->value,
+            'limit' => $this->config->getEffectiveLimit($limit) ?? 'unlimited',
             'order' => $this->config->batchOrder(),
         ]);
 
-        $this->logger->info(new LogDataRecord(
-            type: 'batch',
-            payload: $payload,
-        ));
+        $this->logger->info(new LogDataRecord(type: 'batch', payload: $payload));
     }
 
     private function logBatchComplete(BatchResultRecord $result): void
     {
-        $payload = new StrictDataObject(
+        $payload = $this->hydration->hydrate(
+            StrictDataObject::class,
             $result->toArray() + ['event' => 'batch_completed']
         );
 
-        $this->logger->info(new LogDataRecord(
-            type: 'batch',
-            payload: $payload,
-        ));
+        $this->logger->info(new LogDataRecord(type: 'batch', payload: $payload));
     }
 
-    private function logTaskResult(string $type, string $id, string $signature, bool $success, ?string $error): void
+    private function logTaskResult(TaskType $type, string $id, string $signature, bool $success, ?string $error): void
     {
-        $payload = new StrictDataObject([
+        $data = [
             'event' => $success ? 'task_succeeded' : 'task_failed',
-            'type' => $type,
+            'type' => $type->value,
             'id' => $id,
             'signature' => $signature,
-        ]);
+        ];
 
         if ($error !== null) {
-            $payload = new StrictDataObject($payload->toArray() + ['error' => $error]);
+            $data['error'] = $error;
         }
 
         $this->logger->info(new LogDataRecord(
             type: 'batch',
-            payload: $payload,
+            payload: $this->hydration->hydrate(StrictDataObject::class, $data),
         ));
     }
 }

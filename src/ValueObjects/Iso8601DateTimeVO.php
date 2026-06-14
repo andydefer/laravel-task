@@ -11,7 +11,7 @@ use InvalidArgumentException;
 /**
  * Value Object representing an ISO 8601 datetime.
  */
-final class Iso8601DateTime extends AbstractValueObject
+final class Iso8601DateTimeVO extends AbstractValueObject
 {
     private const FORMAT = 'Y-m-d\TH:i:sP';
 

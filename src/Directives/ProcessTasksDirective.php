@@ -11,18 +11,14 @@ use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Task\Records\BatchResultRecord;
 use AndyDefer\Task\Services\TaskBatchService;
-use AndyDefer\Task\ValueObjects\Iso8601DateTime;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
 /**
  * Console directive for processing tasks in a single batch operation.
  *
- * This command-line directive executes pending tasks without polling or waiting,
- * providing real-time feedback and detailed result summaries. Supports filtering
- * by task type (unique/recurring) and configurable processing limits.
- *
- * @example php console process-tasks
- * @example php console process-tasks --unique-only --limit=10
- * @example php console process-tasks --recurring-only --verbose
+ * @example ./vendor/bin/directive process-tasks
+ * @example ./vendor/bin/directive process-tasks --unique-only --limit=10
+ * @example ./vendor/bin/directive process-tasks --recurring-only --verbose
  */
 final class ProcessTasksDirective extends AbstractDirective
 {
@@ -72,7 +68,6 @@ final class ProcessTasksDirective extends AbstractDirective
 
         $this->displayProcessingStart($limit);
 
-        // Récupérer TaskBatchService depuis le container Laravel
         $batch = $this->getBatchService();
 
         $record = $this->executeBatchProcessing($batch, $uniqueOnly, $recurringOnly, $limit);
@@ -80,7 +75,7 @@ final class ProcessTasksDirective extends AbstractDirective
         $this->displayResultsSummary($record);
         $this->displayErrorsIfVerbose($verbose, $record);
 
-        $hasFailures = $record->uniqueFailed > 0 || $record->recurringFailed > 0;
+        $hasFailures = $record->unique_failed->value > 0 || $record->recurring_failed->value > 0;
 
         return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
     }
@@ -103,7 +98,6 @@ final class ProcessTasksDirective extends AbstractDirective
 
         if ($uniqueOnly && $recurringOnly) {
             $this->error('Cannot use both --unique-only and --recurring-only');
-
             return ExitCode::INVALID_ARGUMENT;
         }
 
@@ -111,7 +105,6 @@ final class ProcessTasksDirective extends AbstractDirective
 
         if ($limit !== null && (int) $limit <= 0) {
             $this->error('Limit must be a positive integer');
-
             return ExitCode::INVALID_ARGUMENT;
         }
 
@@ -121,7 +114,6 @@ final class ProcessTasksDirective extends AbstractDirective
     private function getValidatedLimit(): ?int
     {
         $limit = $this->option('limit');
-
         return $limit !== null ? (int) $limit : null;
     }
 
@@ -149,13 +141,14 @@ final class ProcessTasksDirective extends AbstractDirective
 
     private function displayResultsSummary(BatchResultRecord $record): void
     {
-        $totalProcessed = $record->uniqueSuccess + $record->uniqueFailed + $record->recurringSuccess + $record->recurringFailed;
+        $totalProcessed = $record->unique_success->value + $record->unique_failed->value
+            + $record->recurring_success->value + $record->recurring_failed->value;
 
         $this->newLine();
         $this->info('<fg=cyan>=== Batch Results ===</>');
 
-        $this->displayTaskTypeSummary('Unique tasks', $record->uniqueSuccess, $record->uniqueFailed);
-        $this->displayTaskTypeSummary('Recurring tasks', $record->recurringSuccess, $record->recurringFailed);
+        $this->displayTaskTypeSummary('Unique tasks', $record->unique_success->value, $record->unique_failed->value);
+        $this->displayTaskTypeSummary('Recurring tasks', $record->recurring_success->value, $record->recurring_failed->value);
 
         $this->info(sprintf(
             '  Total:          %d tasks in %d ms',
@@ -179,22 +172,39 @@ final class ProcessTasksDirective extends AbstractDirective
 
     private function displayErrorsIfVerbose(bool $verbose, BatchResultRecord $record): void
     {
-        if (!$verbose || $record->errors->isEmpty()) {
+        if (!$verbose) {
+            return;
+        }
+
+        $hasUniqueErrors = !$record->unique_errors->isEmpty();
+        $hasRecurringErrors = !$record->recurring_errors->isEmpty();
+
+        if (!$hasUniqueErrors && !$hasRecurringErrors) {
             return;
         }
 
         $this->newLine();
         $this->info('<fg=red>=== Failed Tasks ===</>');
 
-        foreach ($record->errors as $error) {
-            $this->info(sprintf('  ❌ %s: %s', $error->taskId, $error->error));
+        if ($hasUniqueErrors) {
+            $this->info('  Unique tasks:');
+            foreach ($record->unique_errors as $error) {
+                $this->info(sprintf('    ❌ %s: %s', $error->task_id->value, $error->details));
+            }
+        }
+
+        if ($hasRecurringErrors) {
+            $this->info('  Recurring tasks:');
+            foreach ($record->recurring_errors as $error) {
+                $this->info(sprintf('    ❌ %s: %s', $error->signature->value, $error->details));
+            }
         }
     }
 
     private function getDurationMilliseconds(BatchResultRecord $record): int
     {
-        $start = $record->startedAt->toDateTime()->getTimestamp();
-        $end = (new Iso8601DateTime())->toDateTime()->getTimestamp();
+        $start = $record->started_at->toDateTime()->getTimestamp();
+        $end = (new Iso8601DateTimeVO())->toDateTime()->getTimestamp();
 
         return (int) (($end - $start) * 1000);
     }

@@ -4,40 +4,45 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
+use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
+use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\Task\AbstractTask;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
+use AndyDefer\Task\Contexts\TaskContext;
+use AndyDefer\Task\Enums\ErrorType;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\GracePeriodRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\GracePeriodFilePathVO;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\UnixTimestampVO;
+use Illuminate\Contracts\Foundation\Application;
 
-/**
- * Service for executing tasks.
- *
- * Handles the execution of both unique and recurring tasks, including
- * validation, logging, retry logic, and grace period handling.
- */
 final class TaskRunnerService
 {
     public function __construct(
-        private readonly TaskStorageService $storage,
+        private readonly TaskRepositoryInterface $taskRepository,
+        private readonly RecurringTaskRepositoryInterface $recurringTaskRepository,
         private readonly LoggerInterface $logger,
         private readonly TaskValidatorService $validator,
         private readonly TaskConfig $config,
+        private readonly HydrationService $hydration,
+        private readonly FileSystemInterface $fs,
+        private readonly Application $app,
     ) {}
 
-    /**
-     * Execute a unique task.
-     *
-     * @param TaskRecord $task The task to execute
-     * @return bool True if task succeeded, false otherwise
-     */
     public function runTask(TaskRecord $task): bool
     {
         if (!$this->validator->canRunTask($task)) {
+            $this->markTaskFailed($task, ErrorType::TASK_VALIDATION_FAILED);
             return false;
         }
 
@@ -46,7 +51,7 @@ final class TaskRunnerService
         $className = $task->class;
 
         if (!$this->validator->validateTaskClass($className)) {
-            $this->markTaskFailed($task, "Invalid task class: {$className}");
+            $this->markTaskFailed($task, ErrorType::INVALID_TASK_CLASS, $className);
             return false;
         }
 
@@ -57,23 +62,17 @@ final class TaskRunnerService
             $this->markTaskSuccess($task);
             return true;
         } catch (\Throwable $e) {
-            $this->markTaskFailed($task, $e->getMessage());
+            $this->markTaskFailed($task, ErrorType::TASK_EXECUTION_FAILED, $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * Execute a recurring task.
-     *
-     * @param RecurringTaskRecord $task The recurring task to execute
-     * @return bool True if task succeeded, false otherwise
-     */
     public function runRecurringTask(RecurringTaskRecord $task): bool
     {
         $className = $task->class;
 
         if (!$this->validator->validateTaskClass($className)) {
-            $this->markRecurringFailed($task, "Invalid task class: {$className}");
+            $this->markRecurringFailed($task, ErrorType::INVALID_TASK_CLASS, $className);
             return false;
         }
 
@@ -84,171 +83,129 @@ final class TaskRunnerService
             $this->markRecurringSuccess($task);
             return true;
         } catch (\Throwable $e) {
-            $this->markRecurringFailed($task, $e->getMessage());
+            $this->markRecurringFailed($task, ErrorType::TASK_EXECUTION_FAILED, $e->getMessage());
             return false;
         }
     }
 
-    /**
-     * Log when a task is executed during its grace period.
-     *
-     * @param TaskRecord $task The task being executed
-     */
     private function logGracePeriodIfNeeded(TaskRecord $task): void
     {
         if (!$this->validator->isUniqueTaskWithGracePeriod($task)) {
             return;
         }
 
-        $endAtTimestamp = $task->endAt ? strtotime($task->endAt) : time();
-        $now = time();
+        $end_at_timestamp = $task->end_at !== null
+            ? new UnixTimestampVO(strtotime($task->end_at->value))
+            : new UnixTimestampVO();
 
-        if ($now > $endAtTimestamp) {
-            $delay = $now - $endAtTimestamp;
+        $now = new UnixTimestampVO();
+
+        if ($now->isAfter($end_at_timestamp)) {
+            $delay = $now->diff($end_at_timestamp);
+
+            $payload = $this->hydration->hydrate(StrictDataObject::class, [
+                'event' => 'task_executed_during_grace_period',
+                'task_id' => $task->id->value,
+                'task_signature' => $task->signature->value,
+                'delay_seconds' => $delay,
+            ]);
 
             $this->logger->warning(new LogDataRecord(
                 type: 'task',
-                payload: StrictDataObject::from([
-                    'event' => 'task_executed_during_grace_period',
-                    'task_id' => $task->id,
-                    'task_signature' => $task->signature,
-                    'delay_seconds' => $delay,
-                ])
+                payload: $payload,
             ));
 
             $this->storeGracePeriodRecord(new GracePeriodRecord(
-                taskId: $task->id,
+                task_id: $task->id,
                 signature: $task->signature,
-                originalEndAt: $endAtTimestamp,
-                executedAt: $now,
-                delaySeconds: $delay,
+                original_end_at: $end_at_timestamp,
+                executed_at: $now,
+                delay_seconds: new CounterVO($delay),
             ));
         }
     }
 
-    /**
-     * Store a grace period record to disk.
-     *
-     * @param GracePeriodRecord $record The grace period record to store
-     */
     private function storeGracePeriodRecord(GracePeriodRecord $record): void
     {
-        $gracePath = $this->config->storageGracePeriodPath();
+        $grace_path = $this->config->storageGracePeriodPath();
 
-        if (!is_dir($gracePath)) {
-            mkdir($gracePath, 0755, true);
+        $filePath = new GracePeriodFilePathVO($grace_path, $record->task_id);
+
+        if (!$this->fs->isDirectory($filePath->getDirectory())) {
+            $this->fs->makeDirectory($filePath->getDirectory());
         }
 
-        $fileName = $gracePath . '/' . $record->taskId . '.json';
-        file_put_contents($fileName, json_encode($record->toArray(), JSON_PRETTY_PRINT));
+        $this->fs->put($filePath->getValue(), json_encode($record->toArray(), JSON_PRETTY_PRINT));
     }
 
-    /**
-     * Instantiate a unique task.
-     *
-     * @param string $className The task class name
-     * @param TaskRecord $task The task record containing metadata
-     * @return AbstractTask The instantiated task
-     */
     private function instantiateTask(string $className, TaskRecord $task): AbstractTask
     {
-        $instance = new $className();
-        $instance
-            ->setLogger($this->logger)
-            ->setTaskId($task->id)
-            ->setSignature($task->signature);
+        $context = new TaskContext();
+        $context->setTaskId($task->id);
+        $context->setSignature($task->signature);
+        $context->setLaravelApp($this->app);
 
-        return $instance;
+        return new $className($context, $this->logger, $this->hydration);
     }
 
-    /**
-     * Instantiate a recurring task.
-     *
-     * @param string $className The task class name
-     * @param RecurringTaskRecord $task The recurring task record containing metadata
-     * @return AbstractTask The instantiated task
-     */
     private function instantiateRecurringTask(string $className, RecurringTaskRecord $task): AbstractTask
     {
-        $instance = new $className();
-        $instance->setLogger($this->logger);
-        $instance->setTaskId('recurring_' . $task->signature);
-        $instance->setSignature($task->signature);
+        $context = new TaskContext();
+        $context->setSignature($task->signature);
+        $context->setLaravelApp($this->app);
 
-        return $instance;
+        return new $className($context, $this->logger, $this->hydration);
     }
 
-    /**
-     * Mark a unique task as successful and archive it.
-     *
-     * @param TaskRecord $task The task to mark as successful
-     */
     private function markTaskSuccess(TaskRecord $task): void
     {
-        $this->storage->moveToCompleted($task, true);
+        $this->taskRepository->moveToCompleted($task, true);
     }
 
-    /**
-     * Mark a unique task as failed and handle retry logic.
-     *
-     * @param TaskRecord $task The task that failed
-     * @param string $error The error message
-     */
-    private function markTaskFailed(TaskRecord $task, string $error): void
+    private function markTaskFailed(TaskRecord $task, ErrorType $error_type, ?string $details = null): void
     {
-        $isInvalidClass = str_contains($error, 'Invalid task class');
-
-        if ($isInvalidClass) {
-            $this->storage->moveToCompleted($task, false);
+        if ($error_type->isTerminal()) {
+            $this->taskRepository->moveToCompleted($task, false);
             return;
         }
 
-        $newAttempts = $task->attempts + 1;
-        $isExpired = $this->validator->isTaskExpired($task);
+        $new_attempts = $task->attempts->increment();
+        $is_expired = $this->validator->isTaskExpired($task);
 
-        if ($newAttempts >= $task->maxAttempts || $isExpired) {
-            $this->storage->moveToCompleted($task, false);
+        if ($new_attempts->value >= $task->max_attempts->value || $is_expired) {
+            $this->taskRepository->moveToCompleted($task, false);
             return;
         }
 
-        $this->storage->deletePending($task->id);
+        $this->taskRepository->delete($task->id);
 
-        $updatedTask = new TaskRecord(
+        $updated_task = new TaskRecord(
             id: $task->id,
             signature: $task->signature,
             class: $task->class,
             payload: $task->payload,
             status: TaskStatus::PENDING,
-            createdAt: $task->createdAt,
-            startAt: $task->startAt,
-            endAt: $task->endAt,
-            delaySeconds: $task->delaySeconds,
-            attempts: $newAttempts,
-            maxAttempts: $task->maxAttempts,
-            lastError: $error,
+            created_at: $task->created_at,
+            start_at: $task->start_at,
+            end_at: $task->end_at,
+            delay_seconds: $task->delay_seconds,
+            attempts: $new_attempts,
+            max_attempts: $task->max_attempts,
+            last_error: $details ?? $error_type->getMessage(),
+            enforce_exact_schedule: $task->enforce_exact_schedule,
         );
 
-        $this->storage->savePending($updatedTask);
+        $this->taskRepository->save($updated_task);
     }
 
-    /**
-     * Mark a recurring task as successful.
-     *
-     * @param RecurringTaskRecord $task The recurring task to mark as successful
-     */
     private function markRecurringSuccess(RecurringTaskRecord $task): void
     {
-        $this->storage->updateRecurringAfterRun($task, true, null);
+        $this->recurringTaskRepository->updateAfterRun($task, true, null);
     }
 
-    /**
-     * Mark a recurring task as failed.
-     *
-     * @param RecurringTaskRecord $task The recurring task that failed
-     * @param string $error The error message
-     */
-    private function markRecurringFailed(RecurringTaskRecord $task, string $error): void
+    private function markRecurringFailed(RecurringTaskRecord $task, ErrorType $error_type, ?string $details = null): void
     {
-        $this->storage->updateRecurringAfterRun($task, false, $error);
+        $error_message = $details ?? $error_type->getMessage();
+        $this->recurringTaskRepository->updateAfterRun($task, false, $error_message);
     }
 }

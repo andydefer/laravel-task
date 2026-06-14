@@ -86,7 +86,7 @@ interface TaskConfigInterface
     /**
      * Get the effective processing limit.
      *
-     * @param int|null $customLimit Custom limit (0 = none, null = use config)
+     * @param  int|null  $customLimit  Custom limit (0 = none, null = use config)
      * @return int|null Effective limit to use
      */
     public function getEffectiveLimit(?int $customLimit = null): ?int;
