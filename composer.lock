@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0d0975dd911ebf4423f8761b25b1bdfa",
+    "content-hash": "448c8cd66cf43069dec7aaa06309d136",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -122,16 +122,16 @@
         },
         {
             "name": "andydefer/laravel-jsonl",
-            "version": "0.4.0",
+            "version": "v0.4.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-jsonl.git",
-                "reference": "65736dcdc6d8aef8d59084c15e004d7b8f953362"
+                "reference": "843b83fea0527813de6d480af208f77a5619c4f4"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-jsonl/zipball/65736dcdc6d8aef8d59084c15e004d7b8f953362",
-                "reference": "65736dcdc6d8aef8d59084c15e004d7b8f953362",
+                "url": "https://api.github.com/repos/andydefer/laravel-jsonl/zipball/843b83fea0527813de6d480af208f77a5619c4f4",
+                "reference": "843b83fea0527813de6d480af208f77a5619c4f4",
                 "shasum": ""
             },
             "require": {
@@ -171,26 +171,26 @@
             "description": "JSONL storage service for Laravel - write, read, query, and clean JSON Lines files with custom path strategies",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-jsonl/issues",
-                "source": "https://github.com/andydefer/laravel-jsonl/tree/0.4.0"
+                "source": "https://github.com/andydefer/laravel-jsonl/tree/v0.4.1"
             },
-            "time": "2026-06-14T10:01:12+00:00"
+            "time": "2026-06-14T17:02:38+00:00"
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "v3.6.0",
+            "version": "v3.6.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "d837f56bc1d9d1c8ddaf63b68fb284c633de8a1b"
+                "reference": "34b6369cba79a9c088890fd1029c2e6f36e88bfa"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/d837f56bc1d9d1c8ddaf63b68fb284c633de8a1b",
-                "reference": "d837f56bc1d9d1c8ddaf63b68fb284c633de8a1b",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/34b6369cba79a9c088890fd1029c2e6f36e88bfa",
+                "reference": "34b6369cba79a9c088890fd1029c2e6f36e88bfa",
                 "shasum": ""
             },
             "require": {
-                "andydefer/laravel-directive": "^3.25",
+                "andydefer/laravel-directive": "^3.25.0",
                 "andydefer/laravel-jsonl": "^0.4.0",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "php": ">=8.1"
@@ -232,9 +232,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/v3.6.0"
+                "source": "https://github.com/andydefer/laravel-logger/tree/v3.6.1"
             },
-            "time": "2026-06-14T10:24:01+00:00"
+            "time": "2026-06-14T17:02:06+00:00"
         },
         {
             "name": "andydefer/php-services",
