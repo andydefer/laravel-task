@@ -2,7 +2,7 @@
 
 ## Description
 
-Service de validation des tâches qui détermine si une tâche peut être exécutée, si elle a expiré, et si elle bénéficie de la période de grâce.
+Service de validation des tâches qui détermine si une tâche peut être exécutée, si elle a expiré, et si elle bénéficie de la période de grâce. Utilise les Value Objects (`UnixTimestampVO`, `CounterVO`) pour les manipulations temporelles.
 
 ## Hiérarchie
 
@@ -14,21 +14,24 @@ La classe n'étend aucune classe parente et n'implémente aucune interface.
 
 ## Rôle principal
 
-Fournir des méthodes de validation pour les tâches uniques et récurrentes, incluant la vérification des fenêtres temporelles, la gestion des tentatives, et le calcul de la période de grâce pour les tâches expirées.
+Fournir des méthodes de validation pour les tâches uniques et récurrentes, incluant la vérification des fenêtres temporelles avec `UnixTimestampVO`, la gestion des tentatives via `CounterVO`, et le calcul de la période de grâce pour les tâches expirées.
 
 ## API / Méthodes publiques
 
-### `__construct(TaskConfig $config): void`
+### `__construct(TaskConfig $config, HydrationService $hydration, LoggerInterface $logger, Application $app): void`
 
-Injecte la configuration du système.
+Injecte les dépendances nécessaires à la validation.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$config` | `TaskConfig` | Configuration contenant les paramètres de période de grâce |
+| `$hydration` | `HydrationService` | Service d'hydratation pour l'instanciation |
+| `$logger` | `LoggerInterface` | Service de journalisation |
+| `$app` | `Application` | Container Laravel pour l'instanciation |
 
 ### `validateTaskClass(string $className): bool`
 
-Valide qu'une classe existe et étend `AbstractTask`.
+Valide qu'une classe existe, peut être instanciée avec `TaskContext`, et étend `AbstractTask`.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -45,11 +48,16 @@ if (!$validator->validateTaskClass(SendEmailTask::class)) {
 
 ### `canRunTask(TaskRecord $task): bool`
 
-Vérifie si une tâche unique peut être exécutée.
+Vérifie si une tâche unique peut être exécutée. Prend en compte :
+- Statut `PENDING`
+- Nombre de tentatives < `max_attempts`
+- `start_at` ≤ maintenant
+- `end_at` avec ou sans période de grâce
+- `enforce_exact_schedule`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `TaskRecord` | Tâche à vérifier |
+| `$task` | `TaskRecord` | Tâche à vérifier (avec Value Objects) |
 
 **Retourne :** `bool` - `true` si la tâche peut être exécutée, `false` sinon
 
@@ -62,7 +70,7 @@ if ($validator->canRunTask($task)) {
 
 ### `isTaskExpired(TaskRecord $task): bool`
 
-Vérifie si une tâche unique a expiré.
+Vérifie si une tâche unique a définitivement expiré (période de grâce incluse).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -73,6 +81,9 @@ Vérifie si une tâche unique a expiré.
 ### `shouldRunRecurringNow(RecurringTaskRecord $task): bool`
 
 Vérifie si une tâche récurrente doit être exécutée maintenant.
+- `start_at` ≤ maintenant
+- `end_at` ≥ maintenant (si défini)
+- `next_run_at` ≤ maintenant
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -82,7 +93,7 @@ Vérifie si une tâche récurrente doit être exécutée maintenant.
 
 ### `shouldRunTaskNow(TaskRecord $task): bool`
 
-Vérifie si une tâche unique doit être exécutée (sans période de grâce).
+Vérifie si une tâche unique doit être exécutée (sans période de grâce). Version stricte pour les besoins internes.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -92,13 +103,13 @@ Vérifie si une tâche unique doit être exécutée (sans période de grâce).
 
 ### `getDelaySecondsForTask(TaskRecord $task): int`
 
-Retourne le délai d'une tâche.
+Retourne le délai d'une tâche (extrait du `CounterVO`).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$task` | `TaskRecord` | Tâche source |
 
-**Retourne :** `int` - Délai en secondes
+**Retourne :** `int` - Délai en secondes (valeur du `CounterVO`)
 
 ### `getGracePeriodDelay(TaskRecord $task): int`
 
@@ -113,6 +124,10 @@ Calcule le retard d'une tâche expirée par rapport à sa période de grâce.
 ### `isUniqueTaskWithGracePeriod(TaskRecord $task): bool`
 
 Vérifie si une tâche unique est éligible à la période de grâce.
+Conditions :
+- `delay_seconds->value === 0`
+- `gracePeriodEnabled()` dans la configuration
+- `enforce_exact_schedule === false`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -129,13 +144,27 @@ Vérifie si une tâche unique est éligible à la période de grâce.
 
 declare(strict_types=1);
 
-$validator = new TaskValidatorService($config);
+use AndyDefer\Task\Services\TaskValidatorService;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\Enums\TaskStatus;
+
+$validator = new TaskValidatorService($config, $hydration, $logger, $app);
 
 // Tâche dans sa fenêtre d'exécution
 $task = new TaskRecord(
-    // ... propriétés ...
-    startAt: date('c', strtotime('-1 hour')),
-    endAt: date('c', strtotime('+1 hour')),
+    id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
+    signature: new TaskSignatureVO('my-task'),
+    class: MyTask::class,
+    payload: $payload,
+    status: TaskStatus::PENDING,
+    start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 hour'))),
+    end_at: new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
+    delay_seconds: new CounterVO(0),
+    attempts: new CounterVO(0),
+    max_attempts: new CounterVO(3),
 );
 
 if ($validator->canRunTask($task)) {
@@ -150,13 +179,13 @@ if ($validator->canRunTask($task)) {
 
 declare(strict_types=1);
 
-$validator = new TaskValidatorService($config);
-
-// Tâche expirée mais dans la période de grâce (24h après endAt)
+// Tâche expirée mais dans la période de grâce (24h après end_at)
 $task = new TaskRecord(
-    startAt: date('c', strtotime('-2 days')),
-    endAt: date('c', strtotime('-1 day')),
-    delaySeconds: 0,
+    // ...
+    start_at: new Iso8601DateTimeVO(date('c', strtotime('-2 days'))),
+    end_at: new Iso8601DateTimeVO(date('c', strtotime('-1 day'))),
+    delay_seconds: new CounterVO(0),  // Tâche unique
+    enforce_exact_schedule: false,
 );
 
 if ($validator->canRunTask($task)) {
@@ -175,36 +204,59 @@ if ($validator->canRunTask($task)) {
 
 declare(strict_types=1);
 
-$validator = new TaskValidatorService($config);
+use AndyDefer\Task\Records\RecurringTaskRecord;
 
 $task = new RecurringTaskRecord(
-    signature: 'cleanup',
-    startAt: date('c', strtotime('-1 hour')),
-    nextRunAt: date('c', strtotime('-5 minutes')),
-    delaySeconds: 3600,
-    // ...
+    signature: new TaskSignatureVO('cleanup'),
+    class: CleanupTask::class,
+    payload: $payload,
+    start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 hour'))),
+    next_run_at: new Iso8601DateTimeVO(date('c', strtotime('-5 minutes'))),
+    delay_seconds: new CounterVO(3600),
 );
 
 if ($validator->shouldRunRecurringNow($task)) {
     $runner->runRecurringTask($task);
-    // nextRunAt est automatiquement mis à jour
+    // next_run_at est automatiquement mis à jour
 }
 ```
 
 ## Flux d'exécution
 
-<img src="../graphics/task-validator-service.png" width="800" alt="Task Validator Service" />
+```
+canRunTask(TaskRecord $task)
+    │
+    ├── Vérifier status->isPending()
+    │   └── false → return false
+    │
+    ├── Vérifier attempts->value >= max_attempts->value
+    │   └── true → return false
+    │
+    ├── Comparer now avec start_at (UnixTimestampVO)
+    │   └── now->isBefore(start_at) → return false
+    │
+    ├── Si enforce_exact_schedule === true
+    │   └── return (end_at === null OR now <= end_at)
+    │
+    ├── Si delay_seconds->value === 0 ET gracePeriodEnabled()
+    │   ├── grace_end = end_at + gracePeriodSeconds()
+    │   └── return now <= grace_end
+    │
+    └── Sinon (comportement normal)
+        └── return (end_at === null OR now <= end_at)
+```
 
-## Gestion des erreurs
+## Gestion des erreurs (validations)
 
 | Situation | Comportement | Valeur retournée |
 |-----------|--------------|------------------|
 | Tâche non pendante | Refus d'exécution | `false` |
 | Tentatives max atteintes | Refus d'exécution | `false` |
-| `startAt` dans le futur | Refus d'exécution | `false` |
-| `endAt` dépassé sans grace period | Refus d'exécution | `false` |
-| `endAt` dépassé avec grace period | Acceptation | `true` |
-| `enforceExactSchedule = true` | Pas de grace period | `now <= endAt` |
+| `start_at` dans le futur | Refus d'exécution | `false` |
+| `end_at` dépassé sans grace period | Refus d'exécution | `false` |
+| `end_at` dépassé avec grace period | Acceptation | `true` |
+| `enforce_exact_schedule = true` | Pas de grace period | `now <= end_at` |
+| Classe de tâche invalide | `validateTaskClass()` | `false` |
 
 ## Intégration
 
@@ -212,22 +264,33 @@ if ($validator->shouldRunRecurringNow($task)) {
 
 ```
 TaskValidatorService
-    ├── TaskConfig (configuration)
-    └── Carbon (timestamp avec test mock)
+    ├── TaskConfig (configuration grace period)
+    ├── HydrationService (hydratation pour l'instanciation)
+    ├── LoggerInterface (journalisation)
+    ├── Application (container Laravel)
+    └── Carbon (timestamp avec test mock via getCurrentTimestamp())
 ```
 
-### Avec TaskBatchService
+### Avec TaskRunnerService
 
 ```php
-class TaskBatchService
+class TaskRunnerService
 {
-    private function executeUniqueTask(BatchResultRecord $result, TaskRecord $task): BatchResultRecord
+    public function runTask(TaskRecord $task): bool
     {
         if (!$this->validator->canRunTask($task)) {
-            $result = $this->batchResultService->withUniqueTask($result, $task->id, false, 'Task cannot run');
-            return $result;
+            $this->markTaskFailed($task, ErrorType::TASK_VALIDATION_FAILED);
+            return false;
         }
         // ... exécution
+    }
+    
+    public function runRecurringTask(RecurringTaskRecord $task): bool
+    {
+        // Le runner utilise le validator avant exécution
+        if (!$this->validator->shouldRunRecurringNow($task)) {
+            // ... gestion
+        }
     }
 }
 ```
@@ -236,10 +299,11 @@ class TaskBatchService
 
 | Opération | Complexité | Notes |
 |-----------|------------|-------|
-| `validateTaskClass()` | O(1) | `class_exists()` + instanciation |
-| `canRunTask()` | O(1) | Comparaisons de timestamps |
-| `shouldRunRecurringNow()` | O(1) | Comparaisons de timestamps |
-| `getGracePeriodDelay()` | O(1) | Simple soustraction |
+| `validateTaskClass()` | O(1) | `class_exists()` + instanciation avec contexte |
+| `canRunTask()` | O(1) | Comparaisons `UnixTimestampVO` |
+| `shouldRunRecurringNow()` | O(1) | Comparaisons `UnixTimestampVO` |
+| `getGracePeriodDelay()` | O(1) | Simple soustraction via `UnixTimestampVO` |
+| `getCurrentTimestamp()` | O(1) | `Carbon::getTestNow()` ou `time()` |
 
 ## Compatibilité
 
@@ -256,31 +320,49 @@ class TaskBatchService
 
 declare(strict_types=1);
 
+use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\Task\Services\TaskValidatorService;
 use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskRecord;
+use AndyDefer\Task\Records\TaskPayloadRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
 // 1. Configuration avec période de grâce activée (24h)
-$config = new TaskConfig();
-$validator = new TaskValidatorService($config);
+$config = new TaskConfig(app('config'));
+$hydration = new HydrationService();
+$logger = app(LoggerInterface::class);
+$app = app();
 
-// 2. Création d'une tâche expirée
+$validator = new TaskValidatorService($config, $hydration, $logger, $app);
+
+// 2. Création du payload
+$payload = new TaskPayloadRecord(
+    type: 'backup',
+    data: new StrictDataObject(['database' => 'mysql']),
+);
+
+// 3. Création d'une tâche expirée
 $task = new TaskRecord(
-    id: '550e8400-e29b-41d4-a716-446655440000',
-    signature: 'backup',
+    id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
+    signature: new TaskSignatureVO('backup'),
     class: BackupTask::class,
     payload: $payload,
     status: TaskStatus::PENDING,
-    createdAt: date('c'),
-    startAt: date('c', strtotime('-2 days')),
-    endAt: date('c', strtotime('-1 day')),
-    delaySeconds: 0,
-    attempts: 0,
-    maxAttempts: 3,
+    created_at: new Iso8601DateTimeVO(),
+    start_at: new Iso8601DateTimeVO(date('c', strtotime('-2 days'))),
+    end_at: new Iso8601DateTimeVO(date('c', strtotime('-1 day'))),
+    delay_seconds: new CounterVO(0),  // Tâche unique
+    attempts: new CounterVO(0),
+    max_attempts: new CounterVO(3),
+    enforce_exact_schedule: false,
 );
 
-// 3. Vérification
+// 4. Vérification
 if ($validator->canRunTask($task)) {
     echo "Tâche exécutable (dans la période de grâce)\n";
     
@@ -290,17 +372,38 @@ if ($validator->canRunTask($task)) {
     echo "Tâche non exécutable\n";
 }
 
-// 4. Vérification de la classe
+// 5. Vérification de l'expiration
+if ($validator->isTaskExpired($task)) {
+    echo "La tâche a définitivement expiré\n";
+}
+
+// 6. Vérification de la classe
 if (!$validator->validateTaskClass(BackupTask::class)) {
     throw new \InvalidArgumentException('Invalid task class');
 }
+
+// 7. Vérification période de grâce éligible
+if ($validator->isUniqueTaskWithGracePeriod($task)) {
+    echo "La tâche bénéficie de la période de grâce\n";
+}
 ```
+
+## Méthodes utilitaires privées
+
+### `getCurrentTimestamp(): UnixTimestampVO`
+
+Retourne le timestamp courant en respectant les mocks Carbon pour les tests.
+
+- Si `Carbon::getTestNow()` est défini (tests), utilise cette valeur
+- Sinon, utilise `time()`
 
 ## Voir aussi
 
 - `TaskConfig` - Configuration de la période de grâce
-- `TaskRecord` - Record pour les tâches uniques
+- `TaskRecord` - Record pour les tâches uniques (avec Value Objects)
 - `RecurringTaskRecord` - Record pour les tâches récurrentes
 - `TaskRunnerService` - Service d'exécution qui utilise ce validateur
-
+- `UnixTimestampVO` - Value Object pour les timestamps
+- `CounterVO` - Value Object pour les compteurs
+- `ErrorType` - Enum des types d'erreur (utilise les résultats de validation)
 ---

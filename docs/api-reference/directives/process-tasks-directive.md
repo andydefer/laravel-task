@@ -2,7 +2,7 @@
 
 ## Description
 
-Commande console qui exécute un lot de tâches planifiées en une seule opération, sans polling ni attente.
+Directive console qui exécute un lot de tâches planifiées en une seule opération, sans polling ni attente. Sert d'interface utilisateur entre la ligne de commande et le service `TaskBatchService`.
 
 ## Hiérarchie
 
@@ -13,23 +13,18 @@ AbstractDirective
 
 ## Rôle principal
 
-Orchestrer l'exécution d'un lot de tâches avec des options de filtrage (uniques/récurrentes) et de limitation. La directive sert d'interface utilisateur entre la ligne de commande et le service `TaskBatchService`.
+Orchestrer l'exécution d'un lot de tâches avec des options de filtrage (uniques/récurrentes) et de limitation. La directive récupère le `TaskBatchService` via le container Laravel (`shouldBootLaravel() = true`), affiche les résultats formatés et retourne un code de sortie approprié.
 
 ## API / Méthodes publiques
 
-### `__construct(DirectiveInteractionService $interaction, TaskBatchService $batch): void`
+### `__construct(DirectiveContext $context, DirectiveInteractionService $interaction): void`
+
+Injecte les dépendances nécessaires à l'exécution de la directive.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
+| `$context` | `DirectiveContext` | Contexte de la directive (accès au container Laravel) |
 | `$interaction` | `DirectiveInteractionService` | Service d'interaction console (entrée/sortie) |
-| `$batch` | `TaskBatchService` | Service de traitement par lots de tâches |
-
-**Retourne :** `void`
-
-**Exemple :**
-```php
-$directive = new ProcessTasksDirective($interaction, $taskBatch);
-```
 
 ### `getSignature(): string`
 
@@ -44,11 +39,11 @@ Retourne la signature de la commande avec toutes ses options.
 
 **Retourne :** `string` - Signature formatée pour le routeur console
 
-**Exemple :**
-```php
-$signature = $directive->getSignature();
-// 'process-tasks {--unique-only : ...} {--recurring-only : ...} ...'
-```
+### `shouldBootLaravel(): bool`
+
+Indique si Laravel doit être démarré avant l'exécution.
+
+**Retourne :** `bool` - `true` (nécessaire pour `TaskBatchService`)
 
 ### `getDescription(): string`
 
@@ -56,29 +51,20 @@ Retourne la description de la commande affichée dans l'aide.
 
 **Retourne :** `string` - Description lisible
 
-**Exemple :**
-```php
-$description = $directive->getDescription();
-// 'Process all pending tasks in a single batch (no polling, no waiting)'
-```
-
 ### `getAliases(): StringTypedCollection`
 
 Retourne les noms alternatifs pour cette commande.
 
-**Retourne :** `StringTypedCollection` - Collection typée de chaînes
-
-**Exemple :**
-```php
-$aliases = $directive->getAliases();
-// Collection contenant 'task:process' et 'tasks:process'
-```
+**Retourne :** `StringTypedCollection` - Collection contenant `'task:process'` et `'tasks:process'`
 
 ### `execute(): ExitCode`
 
 Point d'entrée principal qui exécute la logique de traitement.
 
-**Retourne :** `ExitCode` - Code de sortie (SUCCESS, FAILURE, INVALID_ARGUMENT)
+**Retourne :** `ExitCode` - Code de sortie :
+- `ExitCode::SUCCESS` : aucune tâche échouée
+- `ExitCode::FAILURE` : au moins une tâche a échoué
+- `ExitCode::INVALID_ARGUMENT` : options invalides
 
 ## Flux d'exécution
 
@@ -86,68 +72,118 @@ Point d'entrée principal qui exécute la logique de traitement.
 execute()
     │
     ├─→ validateOptions()
-    │   ├─→ Vérifie flags mutuellement exclusifs
-    │   └─→ Valide limit > 0
+    │   ├─→ Vérifie --unique-only et --recurring-only mutuellement exclusifs
+    │   └─→ Valide --limit > 0
     │
     ├─→ getValidatedLimit()
-    │   └─→ Convertit limit en entier
+    │   └─→ Convertit --limit en entier (ou null)
     │
     ├─→ displayProcessingStart()
-    │   └─→ Affiche "Processing tasks..." + limite si définie
+    │   ├─→ Affiche "Processing tasks..."
+    │   └─→ Si limit défini → "Limit: X tasks"
+    │
+    ├─→ getBatchService()
+    │   ├─→ getLaravel() (via DirectiveContext)
+    │   └─→ $laravel->make(TaskBatchService::class)
     │
     ├─→ executeBatchProcessing()
-    │   ├─→ Si unique-only → batch->processUniqueOnly($limit)
-    │   ├─→ Si recurring-only → batch->processRecurringOnly($limit)
+    │   ├─→ Si --unique-only → batch->processUniqueOnly($limit)
+    │   ├─→ Si --recurring-only → batch->processRecurringOnly($limit)
     │   └─→ Sinon → batch->process($limit)
     │
     ├─→ displayResultsSummary()
-    │   ├─→ Affiche succès/échecs uniques
-    │   ├─→ Affiche succès/échecs récurrents
-    │   └─→ Affiche total et durée
+    │   ├─→ Affiche "=== Batch Results ==="
+    │   ├─→ Affiche résumé des tâches uniques (succès/échecs)
+    │   ├─→ Affiche résumé des tâches récurrentes (succès/échecs)
+    │   └─→ Affiche total et durée en ms
     │
     ├─→ displayErrorsIfVerbose()
-    │   └─→ Si verbose → affiche chaque erreur via each()
+    │   └─→ Si --verbose et des erreurs
+    │       ├─→ Affiche "=== Failed Tasks ==="
+    │       ├─→ Pour chaque erreur unique : task_id + details
+    │       └─→ Pour chaque erreur récurrente : signature + details
     │
-    └─→ Retourne FAILURE si des tâches ont échoué, SUCCESS sinon
+    └─→ Retourne FAILURE si unique_failed > 0 OU recurring_failed > 0
 ```
-
-<img src="../graphics/process-task-directive.png" width="800" alt="Process Task Directive" />
-
 
 ## Cas d'utilisation
 
 ### Cas 1 : Traitement standard de toutes les tâches
 
-```php
-// Ligne de commande
-// ./vendor/bin/directive process-tasks
+```bash
+./vendor/bin/directive process-tasks
+```
 
-// En code
-$directive = new ProcessTasksDirective($interaction, $taskBatch);
-$exitCode = $directive->execute(); // ExitCode::SUCCESS
+Sortie typique :
+```
+Processing tasks...
+
+=== Batch Results ===
+  Unique tasks:    5 processed (✅ 3, ❌ 2)
+  Recurring tasks: 3 processed (✅ 3, ❌ 0)
+  Total:           8 tasks in 234 ms
 ```
 
 ### Cas 2 : Traitement avec limite
 
-```php
-// Ligne de commande
-// ./vendor/bin/directive process-tasks --limit=50
-
-// La directive limite le traitement à 50 tâches maximum
+```bash
+./vendor/bin/directive process-tasks --limit=50
 ```
 
-### Cas 3 : Filtrage par type de tâche
+Sortie :
+```
+Processing tasks...
+Limit: 50 tasks
 
-```php
-// Uniquement les tâches uniques
-// ./vendor/bin/directive process-tasks --unique-only
+=== Batch Results ===
+  Unique tasks:    50 processed (✅ 48, ❌ 2)
+  Recurring tasks: 0 processed (✅ 0, ❌ 0)
+  Total:           50 tasks in 1250 ms
+```
 
-// Uniquement les tâches récurrentes
-// ./vendor/bin/directive process-tasks --recurring-only
+### Cas 3 : Filtrage par type de tâche (verbose)
 
-// Les deux flags sont mutuellement exclusifs
-// ./vendor/bin/directive process-tasks --unique-only --recurring-only
-// Erreur : "Cannot use both --unique-only and --recurring-only"
+```bash
+./vendor/bin/directive process-tasks --unique-only --verbose --limit=10
+```
+
+Sortie :
+```
+Processing tasks...
+Limit: 10 tasks
+
+=== Batch Results ===
+  Unique tasks:    10 processed (✅ 7, ❌ 3)
+  Recurring tasks: 0 processed (✅ 0, ❌ 0)
+  Total:           10 tasks in 567 ms
+
+=== Failed Tasks ===
+  Unique tasks:
+    ❌ 550e8400-e29b-41d4-a716-446655440000: Connection timeout
+    ❌ 660e8400-e29b-41d4-a716-446655440001: Invalid payload data
+    ❌ 770e8400-e29b-41d4-a716-446655440002: Task validation failed
+```
+
+### Cas 4 : Options mutuellement exclusives (erreur)
+
+```bash
+./vendor/bin/directive process-tasks --unique-only --recurring-only
+```
+
+Sortie :
+```
+Cannot use both --unique-only and --recurring-only
+```
+
+### Cas 5 : Limite invalide (erreur)
+
+```bash
+./vendor/bin/directive process-tasks --limit=0
+```
+
+Sortie :
+```
+Limit must be a positive integer
 ```
 
 ## Gestion des erreurs
@@ -155,9 +191,11 @@ $exitCode = $directive->execute(); // ExitCode::SUCCESS
 | Situation | Code de sortie | Message |
 |-----------|----------------|---------|
 | Flags `--unique-only` et `--recurring-only` ensemble | `INVALID_ARGUMENT` | `Cannot use both --unique-only and --recurring-only` |
-| Limit = 0 ou négative | `INVALID_ARGUMENT` | `Limit must be a positive integer` |
+| Limit = 0 | `INVALID_ARGUMENT` | `Limit must be a positive integer` |
+| Limit négative (ex: `--limit=-5`) | `INVALID_ARGUMENT` | `Limit must be a positive integer` |
 | Limit non numérique (ex: `--limit=abc`) | `INVALID_ARGUMENT` | `Limit must be a positive integer` |
-| Échec d'au moins une tâche | `FAILURE` | (dépend des erreurs individuelles) |
+| Container Laravel non disponible | `RuntimeException` | `Laravel container is not available. Task processing requires Laravel.` |
+| Au moins une tâche échouée (`unique_failed > 0` ou `recurring_failed > 0`) | `FAILURE` | (dépend des erreurs individuelles) |
 | Toutes les tâches réussies | `SUCCESS` | (message de succès via l'affichage) |
 
 ## Intégration
@@ -165,11 +203,13 @@ $exitCode = $directive->execute(); // ExitCode::SUCCESS
 ### Dépendances
 
 ```
-DirectiveInteractionService ← hérité de AbstractDirective
-TaskBatchService → injecté dans le constructeur
-BatchResultRecord → retourné par TaskBatchService, utilisé pour l'affichage
-TaskErrorRecord → utilisé pour itérer sur les erreurs
-Iso8601DateTime → Value Object pour les dates
+ProcessTasksDirective
+    ├── DirectiveContext (accès au container Laravel)
+    ├── DirectiveInteractionService (entrées/sorties console)
+    └── TaskBatchService (via container Laravel)
+
+TaskBatchService
+    └── retourne BatchResultRecord avec CounterVO
 ```
 
 ### Avec Laravel Directive
@@ -180,14 +220,28 @@ La directive s'utilise via le binaire `directive` :
 ./vendor/bin/directive process-tasks --limit=10 --verbose
 ```
 
+### Alias disponibles
+
+| Alias | Commande équivalente |
+|-------|---------------------|
+| `task:process` | `process-tasks` |
+| `tasks:process` | `process-tasks` |
+
+```bash
+./vendor/bin/directive task:process --limit=5
+./vendor/bin/directive tasks:process --recurring-only
+```
+
 ## Performance
 
 | Opération | Complexité | Notes |
 |-----------|------------|-------|
-| Validation des options | O(1) | Constante, pas d'allocation |
-| Exécution du batch | O(n) | Linéaire par rapport au nombre de tâches |
-| Affichage des résultats | O(k) | k = nombre de types de tâches (2) |
-| Affichage verbose | O(e) | e = nombre d'erreurs |
+| `validateOptions()` | O(1) | Constante |
+| `getValidatedLimit()` | O(1) | Cast simple |
+| `getBatchService()` | O(1) | Résolution via container Laravel |
+| `executeBatchProcessing()` | O(n) | Délégation à `TaskBatchService` |
+| `displayResultsSummary()` | O(1) | Affichage constant |
+| `displayErrorsIfVerbose()` | O(e) | e = nombre d'erreurs (affichage uniquement) |
 
 ## Compatibilité
 
@@ -205,40 +259,37 @@ La directive s'utilise via le binaire `directive` :
 
 declare(strict_types=1);
 
+use AndyDefer\Directive\Contexts\DirectiveContext;
+use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
-use AndyDefer\Task\Services\TaskBatchService;
 
-// Configuration
+// 1. Création des dépendances
+$context = new DirectiveContext();
 $interaction = new DirectiveInteractionService();
-$taskBatch = app(TaskBatchService::class);
 
-// Création de la directive
-$directive = new ProcessTasksDirective($interaction, $taskBatch);
+// 2. Création de la directive
+$directive = new ProcessTasksDirective($context, $interaction);
 
-// Exécution avec options
+// 3. Exécution avec différentes options
+
+// Cas standard
 $exitCode = $directive->execute();
+// $exitCode === ExitCode::SUCCESS (0) ou ExitCode::FAILURE (1)
 
-// Sortie console typique :
-// Processing tasks...
-// Limit: 10 tasks
-//
-// === Batch Results ===
-//   Unique tasks:   5 processed (✅ 3, ❌ 2)
-//   Recurring tasks: 5 processed (✅ 5, ❌ 0)
-//   Total:          10 tasks in 234 ms
-//
-// === Failed Tasks ===
-//   ❌ task-123: Connection timeout
-//   ❌ task-456: Invalid payload data
+// Simulation d'appel via la ligne de commande
+// ./vendor/bin/directive process-tasks --unique-only --limit=25 --verbose
 ```
 
 ## Voir aussi
 
 - `AbstractDirective` - Classe parente pour toutes les directives
 - `TaskBatchService` - Service de traitement par lots
-- `BatchResultRecord` - Record contenant les résultats
-- `TaskErrorRecord` - Record d'erreur pour une tâche échouée
-- `Iso8601DateTime` - Value Object pour les dates ISO 8601
-
+- `BatchResultRecord` - Record contenant les résultats (avec CounterVO)
+- `TaskErrorRecord` - Record d'erreur pour une tâche unique échouée
+- `RecurringTaskErrorRecord` - Record d'erreur pour une tâche récurrente échouée
+- `CounterVO` - Value Object pour les compteurs (utilisé dans le résultat)
+- `Iso8601DateTimeVO` - Value Object pour le calcul de la durée
+- `DirectiveContext` - Contexte donnant accès au container Laravel
+- `DirectiveTestingService` - Service de test pour les directives
 ---

@@ -1,3 +1,6 @@
+Voici la version finale, complète et exhaustive du README.md :
+
+```markdown
 # Laravel Task
 
 **Un système de tâches asynchrones et récurrentes pour Laravel, basé sur des fichiers JSONL.**
@@ -23,7 +26,8 @@
 11. [Logging structuré](#logging-structuré)
 12. [Tests](#tests)
 13. [Architecture technique](#architecture-technique)
-14. [Licence](#licence)
+14. [Référence technique détaillée](#référence-technique-détaillée)
+15. [Licence](#licence)
 
 ---
 
@@ -823,6 +827,63 @@ TaskBatchService
 
 ---
 
+## Référence technique détaillée
+
+### Services
+
+| Service | Description | Documentation |
+|---------|-------------|---------------|
+| `TaskBatchService` | Orchestration du traitement par lots | [Voir référence](./docs/api-reference/services/task-batch-service.md) |
+| `TaskRunnerService` | Exécution des tâches et gestion des retry | [Voir référence](./docs/api-reference/services/task-runner-service.md) |
+| `TaskValidatorService` | Validation des tâches et période de grâce | [Voir référence](./docs/api-reference/services/task-validator-service.md) |
+| `TaskRegistryService` | Enregistrement des nouvelles tâches | [Voir référence](./docs/api-reference/services/task-registry-service.md) |
+| `BatchResultService` | Construction immuable des résultats | [Voir référence](./docs/api-reference/services/batch-result-service.md) |
+
+### Repositories
+
+| Repository | Description | Documentation |
+|------------|-------------|---------------|
+| `TaskRepository` | Persistance des tâches uniques | [Voir référence](./docs/api-reference/repositories/task-repository.md) |
+| `RecurringTaskRepository` | Persistance des tâches récurrentes | [Voir référence](./docs/api-reference/repositories/recurring-task-repository.md) |
+
+### Directives CLI
+
+| Directive | Description | Documentation |
+|-----------|-------------|---------------|
+| `ProcessTasksDirective` | Traitement par lots depuis le CLI | [Voir référence](./docs/api-reference/directives/process-tasks-directive.md) |
+
+### Classes de base
+
+| Classe | Description | Documentation |
+|--------|-------------|---------------|
+| `AbstractTask` | Classe de base pour toutes les tâches | [Voir référence](./docs/api-reference/abstract-task.md) |
+
+### Value Objects
+
+| Value Object | Description | Validation |
+|--------------|-------------|------------|
+| `TaskIdVO` | Identifiant UUID | Format UUID v4 |
+| `TaskSignatureVO` | Signature lisible | Minuscules + traits d'union |
+| `CounterVO` | Compteur incrémentable | Non négatif |
+| `UnixTimestampVO` | Timestamp Unix | Comparaisons temporelles |
+| `Iso8601DateTimeVO` | Date ISO 8601 | Format standard |
+| `TaskDirectoryVO` | Chemin de dossier | Construction sécurisée |
+| `TaskDateVO` | Date d'archivage | Format YYYY-MM-DD |
+| `GracePeriodFilePathVO` | Chemin fichier grace period | Construction sécurisée |
+
+### Enums
+
+| Enum | Description | Valeurs |
+|------|-------------|---------|
+| `TaskStatus` | État de la tâche | PENDING, RUNNING, SUCCESS, FAILED |
+| `TaskType` | Type de tâche | PENDING, RECURRING, COMPLETED, UNIQUE |
+| `TaskOrder` | Ordre de traitement | OLDEST, NEWEST |
+| `BatchMode` | Mode de batch | FULL, UNIQUE_ONLY, RECURRING_ONLY |
+| `ErrorType` | Type d'erreur | 8 types (voir tableau plus haut) |
+
+---
+
 ## Licence
 
 MIT © [Andy Defer](https://github.com/andydefer)
+```
