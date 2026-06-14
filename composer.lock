@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "448c8cd66cf43069dec7aaa06309d136",
+    "content-hash": "06750729612b4d6f45fce51578022986",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -177,21 +177,21 @@
         },
         {
             "name": "andydefer/laravel-logger",
-            "version": "v3.6.1",
+            "version": "v3.6.2",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-logger.git",
-                "reference": "34b6369cba79a9c088890fd1029c2e6f36e88bfa"
+                "reference": "7bca62e4acf5fc8b1da20f88bea39a4df67836f1"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/34b6369cba79a9c088890fd1029c2e6f36e88bfa",
-                "reference": "34b6369cba79a9c088890fd1029c2e6f36e88bfa",
+                "url": "https://api.github.com/repos/andydefer/laravel-logger/zipball/7bca62e4acf5fc8b1da20f88bea39a4df67836f1",
+                "reference": "7bca62e4acf5fc8b1da20f88bea39a4df67836f1",
                 "shasum": ""
             },
             "require": {
                 "andydefer/laravel-directive": "^3.25.0",
-                "andydefer/laravel-jsonl": "^0.4.0",
+                "andydefer/laravel-jsonl": "^0.4.1",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "php": ">=8.1"
             },
@@ -232,9 +232,9 @@
             "description": "A structured logging package for Laravel that writes logs in JSONL format (JSON Lines).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-logger/issues",
-                "source": "https://github.com/andydefer/laravel-logger/tree/v3.6.1"
+                "source": "https://github.com/andydefer/laravel-logger/tree/v3.6.2"
             },
-            "time": "2026-06-14T17:02:06+00:00"
+            "time": "2026-06-14T18:58:58+00:00"
         },
         {
             "name": "andydefer/php-services",
