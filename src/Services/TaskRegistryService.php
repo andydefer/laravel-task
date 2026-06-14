@@ -46,9 +46,46 @@ final class TaskRegistryService
             : $this->registerUniqueTask($taskClass, $payload, $config);
     }
 
+    /**
+     * Supprime une tâche unique par son ID.
+     *
+     * @throws \RuntimeException Si la tâche n'existe pas
+     */
+    public function unregisterTask(TaskIdVO $taskId): void
+    {
+        $task = $this->taskRepository->find($taskId);
+
+        if ($task === null) {
+            throw new \RuntimeException("Unique task not found: {$taskId->value}");
+        }
+
+        $this->taskRepository->delete($taskId);
+    }
+
+    /**
+     * Supprime une tâche récurrente par sa signature.
+     */
     public function unregisterRecurring(TaskSignatureVO $signature): void
     {
         $this->recurringTaskRepository->delete($signature);
+    }
+
+    /**
+     * Supprime une tâche (unique ou récurrente) automatiquement.
+     * Détecte le type en fonction du format de l'identifiant.
+     * 
+     * - UUID (36 caractères avec tirets) → tâche unique
+     * - Sinon → tâche récurrente
+     *
+     * @throws \RuntimeException Si la tâche n'existe pas ou format invalide
+     */
+    public function unregister(string $identifier): void
+    {
+        if (preg_match('/^[a-f0-9-]{36}$/', $identifier)) {
+            $this->unregisterTask(new TaskIdVO($identifier));
+        } else {
+            $this->unregisterRecurring(new TaskSignatureVO($identifier));
+        }
     }
 
     private function validateTaskClass(string $taskClass): void

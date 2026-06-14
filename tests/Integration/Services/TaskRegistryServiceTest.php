@@ -6,12 +6,15 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 
 use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Records\TaskConfigRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Services\TaskRegistryService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use InvalidArgumentException;
 
@@ -27,7 +30,7 @@ final class TaskRegistryServiceTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection;
+        $payloadCollection = new StrictDataObjectCollection();
         $payloadCollection->add(new StrictDataObject([
             'test_data' => 'registry_test',
         ]));
@@ -189,5 +192,144 @@ final class TaskRegistryServiceTest extends IntegrationTestCase
         $this->assertNotSame($id1, $id2);
         $this->assertMatchesRegularExpression('/^[a-f0-9-]{36}$/', $id1);
         $this->assertMatchesRegularExpression('/^[a-f0-9-]{36}$/', $id2);
+    }
+
+    // ==================== Unregister Task Tests ====================
+
+    public function test_unregister_task_removes_unique_task(): void
+    {
+        $payload = $this->createTaskPayload();
+
+        $taskId = $this->registry->register(
+            taskClass: TestTask::class,
+            payload: $payload,
+        );
+
+        // Vérifier que la tâche existe
+        $taskIdVO = new TaskIdVO($taskId);
+        $task = $this->app->make(TaskRepositoryInterface::class)->find($taskIdVO);
+        $this->assertNotNull($task);
+
+        // Supprimer la tâche
+        $this->registry->unregisterTask($taskIdVO);
+
+        // Vérifier que la tâche a été supprimée
+        $deletedTask = $this->app->make(TaskRepositoryInterface::class)->find($taskIdVO);
+        $this->assertNull($deletedTask);
+    }
+
+    public function test_unregister_task_throws_exception_when_unique_task_not_found(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage("Unique task not found: 00000000-0000-0000-0000-000000000000");
+
+        $taskIdVO = new TaskIdVO('00000000-0000-0000-0000-000000000000');
+        $this->registry->unregisterTask($taskIdVO);
+    }
+
+    public function test_unregister_recurring_removes_recurring_task(): void
+    {
+        $payload = $this->createTaskPayload();
+        $signature = new TaskSignatureVO('recurring-to-delete-v2');
+
+        $config = new TaskConfigRecord(
+            signature: $signature,
+            description: 'Recurring to delete v2',
+            delay_seconds: new CounterVO(300),
+            max_attempts: new CounterVO(3),
+            start_at: null,
+            end_at: null,
+        );
+
+        // Enregistrer la tâche récurrente
+        $this->registry->register(
+            taskClass: TestTask::class,
+            payload: $payload,
+            override_config: $config,
+        );
+
+        // Vérifier qu'elle existe
+        $found = $this->app->make(RecurringTaskRepositoryInterface::class)->find($signature);
+        $this->assertNotNull($found);
+
+        // Supprimer la tâche récurrente
+        $this->registry->unregisterRecurring($signature);
+
+        // Vérifier qu'elle a été supprimée
+        $deleted = $this->app->make(RecurringTaskRepositoryInterface::class)->find($signature);
+        $this->assertNull($deleted);
+    }
+
+    public function test_unregister_with_auto_detection_for_unique_task(): void
+    {
+        $payload = $this->createTaskPayload();
+
+        $taskId = $this->registry->register(
+            taskClass: TestTask::class,
+            payload: $payload,
+        );
+
+        // Vérifier que la tâche existe
+        $taskIdVO = new TaskIdVO($taskId);
+        $task = $this->app->make(TaskRepositoryInterface::class)->find($taskIdVO);
+        $this->assertNotNull($task);
+
+        // Suppression auto-détectée (UUID → tâche unique)
+        $this->registry->unregister($taskId);
+
+        // Vérifier que la tâche a été supprimée
+        $deletedTask = $this->app->make(TaskRepositoryInterface::class)->find($taskIdVO);
+        $this->assertNull($deletedTask);
+    }
+
+    public function test_unregister_with_auto_detection_for_recurring_task(): void
+    {
+        $payload = $this->createTaskPayload();
+        $signature = 'auto-detection-recurring';
+
+        $config = new TaskConfigRecord(
+            signature: new TaskSignatureVO($signature),
+            description: 'Auto detection recurring',
+            delay_seconds: new CounterVO(300),
+            max_attempts: new CounterVO(3),
+            start_at: null,
+            end_at: null,
+        );
+
+        // Enregistrer la tâche récurrente
+        $this->registry->register(
+            taskClass: TestTask::class,
+            payload: $payload,
+            override_config: $config,
+        );
+
+        // Vérifier qu'elle existe
+        $signatureVO = new TaskSignatureVO($signature);
+        $found = $this->app->make(RecurringTaskRepositoryInterface::class)->find($signatureVO);
+        $this->assertNotNull($found);
+
+        // Suppression auto-détectée (non-UUID → tâche récurrente)
+        $this->registry->unregister($signature);
+
+        // Vérifier qu'elle a été supprimée
+        $deleted = $this->app->make(RecurringTaskRepositoryInterface::class)->find($signatureVO);
+        $this->assertNull($deleted);
+    }
+
+    public function test_unregister_with_invalid_identifier_format_throws_exception(): void
+    {
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Invalid task signature: INVALID_UUID");
+
+        $this->registry->unregister('INVALID_UUID');
+    }
+
+    public function test_unregister_with_nonexistent_unique_task_throws_exception(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage("Unique task not found: 550e8400-e29b-41d4-a716-446655449999");
+
+        $this->registry->unregister('550e8400-e29b-41d4-a716-446655449999');
     }
 }

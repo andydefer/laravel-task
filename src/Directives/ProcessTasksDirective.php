@@ -31,7 +31,7 @@ final class ProcessTasksDirective extends AbstractDirective
 
     public function getSignature(): string
     {
-        return 'process-tasks {--unique-only : Process only unique tasks} {--recurring-only : Process only recurring tasks} {--verbose : Show detailed task results} {--limit= : Maximum number of tasks to process}';
+        return 'process-tasks {--unique-only} {--recurring-only} {--verbose} {--limit=}';
     }
 
     public function shouldBootLaravel(): bool
