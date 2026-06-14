@@ -1,6 +1,4 @@
-Voici la version finale, complète et exhaustive du README.md :
 
-```markdown
 # Laravel Task
 
 **Un système de tâches asynchrones et récurrentes pour Laravel, basé sur des fichiers JSONL.**
