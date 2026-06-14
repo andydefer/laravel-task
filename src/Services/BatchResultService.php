@@ -9,6 +9,7 @@ use AndyDefer\Task\Collections\RecurringResultCollection;
 use AndyDefer\Task\Collections\RecurringTaskErrorCollection;
 use AndyDefer\Task\Collections\TaskErrorCollection;
 use AndyDefer\Task\Collections\UniqueResultCollection;
+use AndyDefer\Task\Contracts\Services\BatchResultServiceInterface;
 use AndyDefer\Task\Enums\ErrorType;
 use AndyDefer\Task\Records\BatchResultRecord;
 use AndyDefer\Task\Records\RecurringResultRecord;
@@ -19,7 +20,7 @@ use AndyDefer\Task\Records\UniqueResultRecord;
 use AndyDefer\Task\Records\UniqueTaskResultRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 
-class BatchResultService
+class BatchResultService implements BatchResultServiceInterface
 {
     public function __construct(
         private readonly HydrationService $hydration,

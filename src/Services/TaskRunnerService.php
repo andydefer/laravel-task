@@ -14,6 +14,9 @@ use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Contexts\TaskContext;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use AndyDefer\Task\Contracts\Services\TaskRunnerServiceInterface;
+use AndyDefer\Task\Contracts\Services\TaskValidatorServiceInterface;
 use AndyDefer\Task\Enums\ErrorType;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\GracePeriodRecord;
@@ -26,14 +29,14 @@ use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use AndyDefer\Task\ValueObjects\UnixTimestampVO;
 use Illuminate\Contracts\Foundation\Application;
 
-final class TaskRunnerService
+final class TaskRunnerService implements TaskRunnerServiceInterface
 {
     public function __construct(
         private readonly TaskRepositoryInterface $taskRepository,
         private readonly RecurringTaskRepositoryInterface $recurringTaskRepository,
         private readonly LoggerInterface $logger,
-        private readonly TaskValidatorService $validator,
-        private readonly TaskConfig $config,
+        private readonly TaskValidatorServiceInterface $validator,
+        private readonly TaskConfigInterface $config,
         private readonly HydrationService $hydration,
         private readonly FileSystemInterface $fs,
         private readonly Application $app,

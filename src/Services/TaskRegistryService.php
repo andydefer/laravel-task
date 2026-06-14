@@ -7,6 +7,8 @@ namespace AndyDefer\Task\Services;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Services\TaskRegistryServiceInterface;
+use AndyDefer\Task\Contracts\Services\TaskValidatorServiceInterface;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskConfigRecord;
@@ -17,12 +19,12 @@ use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Foundation\Application;
 use Ramsey\Uuid\UuidFactoryInterface;
 
-final class TaskRegistryService
+final class TaskRegistryService implements TaskRegistryServiceInterface
 {
     public function __construct(
         private readonly TaskRepositoryInterface $taskRepository,
         private readonly RecurringTaskRepositoryInterface $recurringTaskRepository,
-        private readonly TaskValidatorService $validator,
+        private readonly TaskValidatorServiceInterface $validator,
         private readonly HydrationService $hydration,
         private readonly UuidFactoryInterface $uuidFactory,
         private readonly Application $laravelApp,

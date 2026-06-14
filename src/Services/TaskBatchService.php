@@ -12,8 +12,13 @@ use AndyDefer\Task\Collections\RecurringResultCollection;
 use AndyDefer\Task\Collections\TaskErrorCollection;
 use AndyDefer\Task\Collections\UniqueResultCollection;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Services\BatchResultServiceInterface;
+use AndyDefer\Task\Contracts\Services\TaskBatchServiceInterface;
+use AndyDefer\Task\Contracts\Services\TaskRunnerServiceInterface;
+use AndyDefer\Task\Contracts\Services\TaskValidatorServiceInterface;
 use AndyDefer\Task\Contracts\TaskProcessorInterface;
 use AndyDefer\Task\Enums\BatchMode;
 use AndyDefer\Task\Enums\TaskOrder;
@@ -28,16 +33,16 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 /**
  * Service for processing pending tasks in batches.
  */
-class TaskBatchService implements TaskProcessorInterface
+class TaskBatchService implements TaskProcessorInterface, TaskBatchServiceInterface
 {
     public function __construct(
         private readonly TaskRepositoryInterface $taskRepository,
         private readonly RecurringTaskRepositoryInterface $recurringTaskRepository,
-        private readonly TaskRunnerService $runner,
-        private readonly TaskValidatorService $validator,
+        private readonly TaskRunnerServiceInterface $runner,
+        private readonly TaskValidatorServiceInterface $validator,
         private readonly LoggerInterface $logger,
-        private readonly BatchResultService $batchResultService,
-        private readonly TaskConfig $config,
+        private readonly BatchResultServiceInterface $batchResultService,
+        private readonly TaskConfigInterface $config,
         private readonly HydrationService $hydration,
     ) {}
 

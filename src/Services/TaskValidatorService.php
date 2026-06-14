@@ -9,6 +9,8 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\AbstractTask;
 use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Contexts\TaskContext;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use AndyDefer\Task\Contracts\Services\TaskValidatorServiceInterface;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use AndyDefer\Task\ValueObjects\UnixTimestampVO;
@@ -18,10 +20,10 @@ use Illuminate\Contracts\Foundation\Application;
 /**
  * Service for validating tasks and determining their executability.
  */
-class TaskValidatorService
+class TaskValidatorService implements TaskValidatorServiceInterface
 {
     public function __construct(
-        private readonly TaskConfig $config,
+        private readonly TaskConfigInterface $config,
         private readonly HydrationService $hydration,
         private readonly LoggerInterface $logger,
         private readonly Application $app,
