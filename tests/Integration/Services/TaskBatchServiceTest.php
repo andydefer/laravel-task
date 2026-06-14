@@ -166,10 +166,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
-        $payloadCollection->add(StrictDataObject::from(['test_data' => 'batch_test']));
-
-        return new TaskPayloadRecord(type: 'test', data: $payloadCollection);
+        return new TaskPayloadRecord(type: 'test', data: new StrictDataObject(['test_data' => 'batch_test']));
     }
 
     private function createUniqueTask(int $number, string $signature = 'test-task'): TaskRecord

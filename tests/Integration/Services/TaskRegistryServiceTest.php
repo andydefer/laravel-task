@@ -34,7 +34,9 @@ final class TaskRegistryServiceTest extends IntegrationTestCase
 
         return new TaskPayloadRecord(
             type: 'test',
-            data: $payloadCollection,
+            data: new StrictDataObject([
+                'test_data' => 'registry_test',
+            ]),
         );
     }
 

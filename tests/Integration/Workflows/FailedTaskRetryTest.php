@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Workflows;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
@@ -132,21 +131,22 @@ final class FailedTaskRetryTest extends IntegrationTestCase
         rmdir($path);
     }
 
+    /**
+     * Crée un payload avec un seul objet StrictDataObject.
+     */
     private function createTaskPayload(?array $customData = null): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
-
         if ($customData !== null) {
-            $payloadCollection->add(StrictDataObject::from($customData));
+            $data = new StrictDataObject($customData);
         } else {
-            $payloadCollection->add(StrictDataObject::from([
+            $data = new StrictDataObject([
                 'test_data' => 'retry_test',
-            ]));
+            ]);
         }
 
         return new TaskPayloadRecord(
             type: 'test',
-            data: $payloadCollection,
+            data: $data,
         );
     }
 
@@ -289,7 +289,11 @@ final class FailedTaskRetryTest extends IntegrationTestCase
         $updatedTask = $pending->first();
 
         $this->assertSame($task->payload->type, $updatedTask->payload->type);
-        $this->assertSame($task->payload->data->count(), $updatedTask->payload->data->count());
+
+        // Vérification pour StrictDataObject (plus de count())
+        $this->assertInstanceOf(StrictDataObject::class, $updatedTask->payload->data);
+        $this->assertSame(123, $updatedTask->payload->data->custom_data);
+        $this->assertSame('test_value', $updatedTask->payload->data->test_value);
     }
 
     public function test_expired_task_does_not_retry(): void

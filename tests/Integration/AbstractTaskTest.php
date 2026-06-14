@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
@@ -60,7 +59,7 @@ final class AbstractTaskTest extends IntegrationTestCase
         $nextHour = ($currentHourNum + 1) % 24;
         $this->expectedHour = sprintf('%02d-%02d', $currentHourNum, $nextHour);
 
-        $this->tempLogDir = sys_get_temp_dir().'/logger_test_'.uniqid();
+        $this->tempLogDir = sys_get_temp_dir() . '/logger_test_' . uniqid();
         $this->setupLogDirectory();
 
         // Configuration du logger
@@ -112,7 +111,7 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     private function setupLogDirectory(): void
     {
-        $dateDir = $this->tempLogDir.'/'.$this->expectedDate;
+        $dateDir = $this->tempLogDir . '/' . $this->expectedDate;
         if (! is_dir($dateDir)) {
             mkdir($dateDir, 0755, true);
         }
@@ -127,22 +126,24 @@ final class AbstractTaskTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    /**
+     * Crée un payload avec un seul objet StrictDataObject.
+     */
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection;
-        $payloadCollection->add(StrictDataObject::from([
+        $data = new StrictDataObject([
             'test_data' => 'abstract_task_test',
-        ]));
+        ]);
 
         return new TaskPayloadRecord(
             type: 'test',
-            data: $payloadCollection,
+            data: $data,
         );
     }
 
     private function getLogFileContent(): string
     {
-        $logFile = $this->tempLogDir.'/'.$this->expectedDate.'/'.$this->expectedHour.'.jsonl';
+        $logFile = $this->tempLogDir . '/' . $this->expectedDate . '/' . $this->expectedHour . '.jsonl';
 
         $maxRetries = 20;
         $retryDelay = 50000;
@@ -157,9 +158,9 @@ final class AbstractTaskTest extends IntegrationTestCase
             usleep($retryDelay);
         }
 
-        $dateDir = $this->tempLogDir.'/'.$this->expectedDate;
+        $dateDir = $this->tempLogDir . '/' . $this->expectedDate;
         if (is_dir($dateDir)) {
-            $files = glob($dateDir.'/*.jsonl');
+            $files = glob($dateDir . '/*.jsonl');
             if (! empty($files)) {
                 $content = file_get_contents($files[0]);
                 if ($content !== false && $content !== '') {
@@ -181,7 +182,7 @@ final class AbstractTaskTest extends IntegrationTestCase
 
         $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {
-            $path = $dir.'/'.$file;
+            $path = $dir . '/' . $file;
             is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
         }
         rmdir($dir);

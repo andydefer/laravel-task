@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Services;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
@@ -78,16 +77,18 @@ final class TaskValidatorServiceTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    /**
+     * Crée un payload avec un seul objet StrictDataObject.
+     */
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection;
-        $payloadCollection->add(StrictDataObject::from([
+        $data = new StrictDataObject([
             'test_data' => 'validator_test',
-        ]));
+        ]);
 
         return new TaskPayloadRecord(
             type: 'test',
-            data: $payloadCollection,
+            data: $data,
         );
     }
 

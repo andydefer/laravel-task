@@ -94,14 +94,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
-        $payloadCollection->add(StrictDataObject::from([
-            'test_data' => 'recurring_repo_test',
-        ]));
 
         return new TaskPayloadRecord(
             type: 'test',
-            data: $payloadCollection,
+            data: new StrictDataObject([
+                'test_data' => 'recurring_repo_test',
+            ]),
         );
     }
 

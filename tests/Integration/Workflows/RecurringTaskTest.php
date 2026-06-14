@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Workflows;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
@@ -130,21 +129,22 @@ final class RecurringTaskTest extends IntegrationTestCase
         rmdir($path);
     }
 
+    /**
+     * Crée un payload avec un seul objet StrictDataObject.
+     */
     private function createTaskPayload(?array $customData = null): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
-
         if ($customData !== null) {
-            $payloadCollection->add(StrictDataObject::from($customData));
+            $data = new StrictDataObject($customData);
         } else {
-            $payloadCollection->add(StrictDataObject::from([
+            $data = new StrictDataObject([
                 'test_data' => 'recurring_test',
-            ]));
+            ]);
         }
 
         return new TaskPayloadRecord(
             type: 'test',
-            data: $payloadCollection,
+            data: $data,
         );
     }
 
@@ -321,7 +321,11 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $this->assertNotNull($updated);
         $this->assertSame($task->payload->type, $updated->payload->type);
-        $this->assertSame($task->payload->data->count(), $updated->payload->data->count());
+
+        // Vérification pour StrictDataObject (plus de count())
+        $this->assertInstanceOf(StrictDataObject::class, $updated->payload->data);
+        $this->assertSame('test_value', $updated->payload->data->config_key);
+        $this->assertSame(42, $updated->payload->data->numeric_value);
     }
 
     public function test_multiple_recurring_tasks_can_coexist(): void

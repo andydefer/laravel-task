@@ -154,14 +154,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
-        $payloadCollection->add(StrictDataObject::from([
-            'test_data' => 'sample',
-        ]));
-
         return new TaskPayloadRecord(
             type: 'test',
-            data: $payloadCollection,
+            data: new StrictDataObject([
+                'test_data' => 'sample',
+            ]),
         );
     }
 
