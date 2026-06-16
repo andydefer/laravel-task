@@ -10,7 +10,6 @@ use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
 use AndyDefer\LaravelJsonl\JsonlService;
 use AndyDefer\LaravelJsonl\Strategies\TemporalPathStrategy;
 use AndyDefer\Logger\Configs\LoggerConfig;
-use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\LoggerService;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Contexts\TaskContext;
@@ -31,7 +30,7 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     private FailingTask $failingTask;
 
-    private LoggerInterface $logger;
+    private LoggerService $logger;
 
     private HydrationService $hydration;
 
@@ -51,15 +50,11 @@ final class AbstractTaskTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->fixedNow = Carbon::create(2026, 6, 14, 12, 0, 0, 'UTC');
-        Carbon::setTestNow($this->fixedNow);
+        $this->expectedDate = Carbon::now()->format('Y-m-d');  // ← au lieu de $this->fixedNow
+        $this->expectedHour = Carbon::now()->format('H');       // ← au lieu de $this->fixedNow
 
-        $this->expectedDate = $this->fixedNow->format('Y-m-d');
-        $currentHourNum = (int) $this->fixedNow->format('H');
-        $nextHour = ($currentHourNum + 1) % 24;
-        $this->expectedHour = sprintf('%02d-%02d', $currentHourNum, $nextHour);
+        $this->tempLogDir = sys_get_temp_dir().'/logger_test_'.uniqid();
 
-        $this->tempLogDir = sys_get_temp_dir() . '/logger_test_' . uniqid();
         $this->setupLogDirectory();
 
         // Configuration du logger
@@ -89,6 +84,9 @@ final class AbstractTaskTest extends IntegrationTestCase
             hydrationService: $this->hydration
         );
 
+        // Désactiver le buffer pour les tests
+        $this->logger->disableBuffer();
+
         // Utiliser l'Application réelle du test
         $this->app = $this->app;
 
@@ -107,11 +105,12 @@ final class AbstractTaskTest extends IntegrationTestCase
         // Création des tâches avec injection dans le constructeur
         $this->task = new TestTask($this->taskContext, $this->logger, $this->hydration);
         $this->failingTask = new FailingTask($this->failingContext, $this->logger, $this->hydration);
+
     }
 
     private function setupLogDirectory(): void
     {
-        $dateDir = $this->tempLogDir . '/' . $this->expectedDate;
+        $dateDir = $this->tempLogDir.'/'.$this->expectedDate;
         if (! is_dir($dateDir)) {
             mkdir($dateDir, 0755, true);
         }
@@ -143,7 +142,19 @@ final class AbstractTaskTest extends IntegrationTestCase
 
     private function getLogFileContent(): string
     {
-        $logFile = $this->tempLogDir . '/' . $this->expectedDate . '/' . $this->expectedHour . '.jsonl';
+        $logFile = $this->tempLogDir.'/'.$this->expectedDate.'/'.$this->expectedHour.'.jsonl';
+
+        // Lister tous les fichiers existants dans tempLogDir
+        if (is_dir($this->tempLogDir)) {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($this->tempLogDir, \RecursiveDirectoryIterator::SKIP_DOTS)
+            );
+            foreach ($iterator as $file) {
+                if ($file->isFile()) {
+                }
+            }
+        } else {
+        }
 
         $maxRetries = 20;
         $retryDelay = 50000;
@@ -152,19 +163,23 @@ final class AbstractTaskTest extends IntegrationTestCase
             if (file_exists($logFile)) {
                 $content = file_get_contents($logFile);
                 if ($content !== false && $content !== '') {
+
                     return $content;
                 }
             }
             usleep($retryDelay);
         }
 
-        $dateDir = $this->tempLogDir . '/' . $this->expectedDate;
+        $dateDir = $this->tempLogDir.'/'.$this->expectedDate;
         if (is_dir($dateDir)) {
-            $files = glob($dateDir . '/*.jsonl');
+            $files = glob($dateDir.'/*.jsonl');
             if (! empty($files)) {
-                $content = file_get_contents($files[0]);
-                if ($content !== false && $content !== '') {
-                    return $content;
+                foreach ($files as $f) {
+                    $content = file_get_contents($f);
+                    if ($content !== false && $content !== '') {
+
+                        return $content;
+                    }
                 }
             }
         }
@@ -182,7 +197,7 @@ final class AbstractTaskTest extends IntegrationTestCase
 
         $files = array_diff(scandir($dir), ['.', '..']);
         foreach ($files as $file) {
-            $path = $dir . '/' . $file;
+            $path = $dir.'/'.$file;
             is_dir($path) ? $this->deleteDirectory($path) : unlink($path);
         }
         rmdir($dir);
@@ -222,7 +237,10 @@ final class AbstractTaskTest extends IntegrationTestCase
         $payload = $this->createTaskPayload();
         $this->task->execute($payload);
 
+        $this->logger->flush();
+
         $content = $this->getLogFileContent();
+
         $this->assertStringContainsString('task_started', $content);
         $this->assertStringContainsString('550e8400-e29b-41d4-a716-446655440000', $content);
         $this->assertStringContainsString('test-signature', $content);
@@ -232,6 +250,8 @@ final class AbstractTaskTest extends IntegrationTestCase
     {
         $payload = $this->createTaskPayload();
         $this->task->execute($payload);
+
+        $this->logger->flush();
 
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_completed', $content);
@@ -246,8 +266,9 @@ final class AbstractTaskTest extends IntegrationTestCase
         try {
             $this->failingTask->execute($payload);
         } catch (\RuntimeException $e) {
-            // Expected exception
         }
+
+        $this->logger->flush();
 
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_failed', $content);
@@ -261,6 +282,8 @@ final class AbstractTaskTest extends IntegrationTestCase
         $message = 'Test info message';
         $this->task->info($message);
 
+        $this->logger->flush();
+
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_output', $content);
         $this->assertStringContainsString('info', $content);
@@ -271,6 +294,8 @@ final class AbstractTaskTest extends IntegrationTestCase
     {
         $message = 'Test error message';
         $this->task->error($message);
+
+        $this->logger->flush();
 
         $content = $this->getLogFileContent();
         $this->assertStringContainsString('task_output', $content);
@@ -295,6 +320,8 @@ final class AbstractTaskTest extends IntegrationTestCase
             $this->task->info($message);
         }
 
+        $this->logger->flush();
+
         $content = $this->getLogFileContent();
         foreach ($messages as $message) {
             $this->assertStringContainsString($message, $content);
@@ -308,6 +335,8 @@ final class AbstractTaskTest extends IntegrationTestCase
         foreach ($messages as $message) {
             $this->task->error($message);
         }
+
+        $this->logger->flush();
 
         $content = $this->getLogFileContent();
         foreach ($messages as $message) {
