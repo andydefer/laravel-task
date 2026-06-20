@@ -11,7 +11,7 @@ final class TaskIdVO extends AbstractValueObject
 {
     public function __construct(public readonly string $value)
     {
-        if (!preg_match('/^[a-f0-9-]{36}$/', $value)) {
+        if (! preg_match('/^[a-f0-9-]{36}$/', $value)) {
             throw new InvalidArgumentException("Invalid task ID format: {$value}");
         }
     }
@@ -23,6 +23,6 @@ final class TaskIdVO extends AbstractValueObject
 
     public function fileName(): string
     {
-        return $this->value . '.jsonl';
+        return $this->value.'.jsonl';
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Services;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
@@ -41,13 +40,21 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 final class TaskBatchServiceTest extends IntegrationTestCase
 {
     private TaskRepositoryInterface $taskRepository;
+
     private RecurringTaskRepositoryInterface $recurringTaskRepository;
+
     private TaskBatchService $batch;
+
     private string $storagePath;
+
     private LoggerInterface $logger;
+
     private TaskConfigInterface $config;
+
     private ConfigRepository $configRepository;
+
     private HydrationService $hydration;
+
     private FileSystemInterface $fs;
 
     private function generateUuid(int $number): string
@@ -58,10 +65,10 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
         $this->configRepository = $this->app->make(ConfigRepository::class);
-        $this->hydration = new HydrationService();
-        $this->fs = new FileSystemService();
+        $this->hydration = new HydrationService;
+        $this->fs = new FileSystemService;
 
         $this->setConfigDefaults();
     }
@@ -89,7 +96,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
     {
         $context = new TaskStorageContext($this->config);
         $strategy = new TaskPathStrategy($this->config->storagePath());
-        $jsonlContext = new JsonlContext();
+        $jsonlContext = new JsonlContext;
         $jsonlService = new JsonlService(
             pathStrategy: $strategy,
             fileSystem: $this->fs,
@@ -155,10 +162,10 @@ final class TaskBatchServiceTest extends IntegrationTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (!is_dir($path)) {
+        if (! is_dir($path)) {
             return;
         }
-        foreach (glob($path . '/*') as $file) {
+        foreach (glob($path.'/*') as $file) {
             is_dir($file) ? $this->removeDirectory($file) : unlink($file);
         }
         rmdir($path);
@@ -177,7 +184,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
             class: TestTask::class,
             payload: $this->createTaskPayload(),
             status: TaskStatus::PENDING,
-            created_at: new Iso8601DateTimeVO(),
+            created_at: new Iso8601DateTimeVO,
             start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
             end_at: new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
             delay_seconds: new CounterVO(0),
@@ -194,7 +201,7 @@ final class TaskBatchServiceTest extends IntegrationTestCase
             class: FailingTask::class,
             payload: $this->createTaskPayload(),
             status: TaskStatus::PENDING,
-            created_at: new Iso8601DateTimeVO(),
+            created_at: new Iso8601DateTimeVO,
             start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
             end_at: new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
             delay_seconds: new CounterVO(0),

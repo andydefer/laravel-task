@@ -11,7 +11,6 @@ use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use AndyDefer\Task\ValueObjects\TaskDateVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use InvalidArgumentException;
 
 /**

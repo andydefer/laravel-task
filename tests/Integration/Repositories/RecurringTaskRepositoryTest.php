@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Repositories;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
@@ -12,7 +11,6 @@ use AndyDefer\LaravelJsonl\JsonlService;
 use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Contexts\TaskStorageContext;
 use AndyDefer\Task\Enums\TaskOrder;
 use AndyDefer\Task\Records\RecurringTaskRecord;
@@ -28,25 +26,29 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 final class RecurringTaskRepositoryTest extends IntegrationTestCase
 {
     private RecurringTaskRepository $repository;
+
     private string $tempDir;
+
     private ConfigRepository $configRepository;
+
     private HydrationService $hydration;
+
     private FileSystemInterface $fs;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tempDir = sys_get_temp_dir() . '/recurring_repo_test_' . uniqid();
+        $this->tempDir = sys_get_temp_dir().'/recurring_repo_test_'.uniqid();
         $this->configRepository = $this->app->make(ConfigRepository::class);
-        $this->hydration = new HydrationService();
-        $this->fs = new FileSystemService();
+        $this->hydration = new HydrationService;
+        $this->fs = new FileSystemService;
 
         $this->setConfigDefaults();
 
         $config = new TaskConfig($this->configRepository);
         $context = new TaskStorageContext($config);
         $strategy = new TaskPathStrategy($config->storagePath());
-        $jsonlContext = new JsonlContext();
+        $jsonlContext = new JsonlContext;
         $jsonlService = new JsonlService(
             pathStrategy: $strategy,
             fileSystem: $this->fs,
@@ -64,9 +66,9 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
     private function setConfigDefaults(): void
     {
         $this->configRepository->set('task.storage_path', $this->tempDir);
-        $this->configRepository->set('task.storage_pending_path', $this->tempDir . '/pending');
-        $this->configRepository->set('task.storage_recurring_path', $this->tempDir . '/recurring');
-        $this->configRepository->set('task.storage_completed_path', $this->tempDir . '/completed');
+        $this->configRepository->set('task.storage_pending_path', $this->tempDir.'/pending');
+        $this->configRepository->set('task.storage_recurring_path', $this->tempDir.'/recurring');
+        $this->configRepository->set('task.storage_completed_path', $this->tempDir.'/completed');
         $this->configRepository->set('task.grace_period.enabled', false);
         $this->configRepository->set('task.grace_period.seconds', 86400);
         $this->configRepository->set('task.batch.limit', 1000);
@@ -83,10 +85,10 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
     private function deleteDirectory(string $dir): void
     {
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             return;
         }
-        foreach (glob($dir . '/*') as $file) {
+        foreach (glob($dir.'/*') as $file) {
             is_dir($file) ? $this->deleteDirectory($file) : unlink($file);
         }
         rmdir($dir);
@@ -109,11 +111,11 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             signature: new TaskSignatureVO($signature),
             class: 'TestClass',
             payload: $this->createTaskPayload(),
-            start_at: new Iso8601DateTimeVO(),
+            start_at: new Iso8601DateTimeVO,
             end_at: null,
             delay_seconds: new CounterVO(300),
             last_run_at: null,
-            next_run_at: new Iso8601DateTimeVO(),
+            next_run_at: new Iso8601DateTimeVO,
             success_count: new CounterVO(0),
             failure_count: new CounterVO(0),
         );
@@ -130,6 +132,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertNotNull($found);
         $this->assertSame('test-recurring-1', $found->signature->value);
     }
+
     public function test_save_updates_existing_recurring_task(): void
     {
         $task = $this->createRecurringTask('test-recurring-2');
@@ -140,11 +143,11 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             signature: new TaskSignatureVO('test-recurring-2'),
             class: 'TestClass',
             payload: $this->createTaskPayload(),
-            start_at: new Iso8601DateTimeVO(),
+            start_at: new Iso8601DateTimeVO,
             end_at: null,
             delay_seconds: new CounterVO(300),
             last_run_at: null,
-            next_run_at: new Iso8601DateTimeVO(),
+            next_run_at: new Iso8601DateTimeVO,
             success_count: new CounterVO(5),  // ← modifié dans le constructeur
             failure_count: new CounterVO(0),
         );
@@ -201,7 +204,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
     // ==================== FindAll Tests ====================
 
-    public function test_findAll_returns_all_recurring_tasks(): void
+    public function test_find_all_returns_all_recurring_tasks(): void
     {
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createRecurringTask("recurring-{$i}");
@@ -212,7 +215,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(3, $tasks->count());
     }
 
-    public function test_findAll_with_limit(): void
+    public function test_find_all_with_limit(): void
     {
         for ($i = 1; $i <= 5; $i++) {
             $task = $this->createRecurringTask("recurring-limit-{$i}");
@@ -223,7 +226,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(3, $tasks->count());
     }
 
-    public function test_findAll_with_limit_zero_returns_empty(): void
+    public function test_find_all_with_limit_zero_returns_empty(): void
     {
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createRecurringTask("recurring-zero-{$i}");
@@ -234,7 +237,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(0, $tasks->count());
     }
 
-    public function test_findAll_with_order_oldest(): void
+    public function test_find_all_with_order_oldest(): void
     {
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createRecurringTask("recurring-oldest-{$i}");
@@ -245,7 +248,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(3, $tasks->count());
     }
 
-    public function test_findAll_with_order_newest(): void
+    public function test_find_all_with_order_newest(): void
     {
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createRecurringTask("recurring-newest-{$i}");
@@ -256,7 +259,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(3, $tasks->count());
     }
 
-    public function test_findAll_returns_empty_when_no_tasks(): void
+    public function test_find_all_returns_empty_when_no_tasks(): void
     {
         $tasks = $this->repository->findAll();
         $this->assertSame(0, $tasks->count());
@@ -282,7 +285,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
     // ==================== UpdateAfterRun Tests ====================
 
-    public function test_updateAfterRun_increments_success_count(): void
+    public function test_update_after_run_increments_success_count(): void
     {
         $task = $this->createRecurringTask('update-success');
         $this->repository->save($task);
@@ -296,7 +299,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertNotNull($found->last_run_at);
     }
 
-    public function test_updateAfterRun_increments_failure_count(): void
+    public function test_update_after_run_increments_failure_count(): void
     {
         $task = $this->createRecurringTask('update-failure');
         $this->repository->save($task);
@@ -310,7 +313,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertNotNull($found->last_error);
     }
 
-    public function test_updateAfterRun_updates_next_run_at(): void
+    public function test_update_after_run_updates_next_run_at(): void
     {
         $task = $this->createRecurringTask('update-next-run');
         $this->repository->save($task);
@@ -324,7 +327,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertNotSame($oldNextRunAt, $found->next_run_at->value);
     }
 
-    public function test_updateAfterRun_updates_last_run_at(): void
+    public function test_update_after_run_updates_last_run_at(): void
     {
         $task = $this->createRecurringTask('update-last-run');
         $this->repository->save($task);

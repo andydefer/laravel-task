@@ -11,7 +11,6 @@ use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Collections\RecurringResultCollection;
 use AndyDefer\Task\Collections\TaskErrorCollection;
 use AndyDefer\Task\Collections\UniqueResultCollection;
-use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
@@ -33,7 +32,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 /**
  * Service for processing pending tasks in batches.
  */
-class TaskBatchService implements TaskProcessorInterface, TaskBatchServiceInterface
+class TaskBatchService implements TaskBatchServiceInterface, TaskProcessorInterface
 {
     public function __construct(
         private readonly TaskRepositoryInterface $taskRepository,
@@ -84,15 +83,15 @@ class TaskBatchService implements TaskProcessorInterface, TaskBatchServiceInterf
     private function createEmptyRecord(): BatchResultRecord
     {
         return $this->hydration->hydrate(BatchResultRecord::class, [
-            'started_at' => new Iso8601DateTimeVO(),
+            'started_at' => new Iso8601DateTimeVO,
             'unique_success' => 0,
             'unique_failed' => 0,
             'recurring_success' => 0,
             'recurring_failed' => 0,
-            'unique_results' => new UniqueResultCollection(),
-            'recurring_results' => new RecurringResultCollection(),
-            'unique_errors' => new TaskErrorCollection(),
-            'recurring_errors' => new TaskErrorCollection(),
+            'unique_results' => new UniqueResultCollection,
+            'recurring_results' => new RecurringResultCollection,
+            'unique_errors' => new TaskErrorCollection,
+            'recurring_errors' => new TaskErrorCollection,
         ]);
     }
 

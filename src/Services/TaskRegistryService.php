@@ -75,7 +75,7 @@ class TaskRegistryService implements TaskRegistryServiceInterface
     /**
      * Supprime une tâche (unique ou récurrente) automatiquement.
      * Détecte le type en fonction du format de l'identifiant.
-     * 
+     *
      * - UUID (36 caractères avec tirets) → tâche unique
      * - Sinon → tâche récurrente
      *
@@ -92,7 +92,7 @@ class TaskRegistryService implements TaskRegistryServiceInterface
 
     private function validateTaskClass(string $taskClass): void
     {
-        if (!$this->validator->validateTaskClass($taskClass)) {
+        if (! $this->validator->validateTaskClass($taskClass)) {
             throw new \InvalidArgumentException('Task must extend AbstractTask');
         }
     }
@@ -100,6 +100,7 @@ class TaskRegistryService implements TaskRegistryServiceInterface
     private function getTaskConfig(string $taskClass): TaskConfigRecord
     {
         $instance = $this->laravelApp->make($taskClass);
+
         return $this->hydration->hydrate(TaskConfigRecord::class, $instance->getConfig()->toArray());
     }
 
@@ -125,7 +126,7 @@ class TaskRegistryService implements TaskRegistryServiceInterface
 
         if ($existing !== null) {
             throw new \RuntimeException(
-                "Recurring task '{$signature_vo->value}' already exists. " .
+                "Recurring task '{$signature_vo->value}' already exists. ".
                     'Delete it first if you want to re-register.'
             );
         }

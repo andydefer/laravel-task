@@ -46,7 +46,7 @@ final class ProcessTasksDirective extends AbstractDirective
 
     public function getAliases(): StringTypedCollection
     {
-        $aliases = new StringTypedCollection();
+        $aliases = new StringTypedCollection;
         $aliases->add('task:process');
         $aliases->add('tasks:process');
 
@@ -98,6 +98,7 @@ final class ProcessTasksDirective extends AbstractDirective
 
         if ($uniqueOnly && $recurringOnly) {
             $this->error('Cannot use both --unique-only and --recurring-only');
+
             return ExitCode::INVALID_ARGUMENT;
         }
 
@@ -105,6 +106,7 @@ final class ProcessTasksDirective extends AbstractDirective
 
         if ($limit !== null && (int) $limit <= 0) {
             $this->error('Limit must be a positive integer');
+
             return ExitCode::INVALID_ARGUMENT;
         }
 
@@ -114,6 +116,7 @@ final class ProcessTasksDirective extends AbstractDirective
     private function getValidatedLimit(): ?int
     {
         $limit = $this->option('limit');
+
         return $limit !== null ? (int) $limit : null;
     }
 
@@ -172,14 +175,14 @@ final class ProcessTasksDirective extends AbstractDirective
 
     private function displayErrorsIfVerbose(bool $verbose, BatchResultRecord $record): void
     {
-        if (!$verbose) {
+        if (! $verbose) {
             return;
         }
 
-        $hasUniqueErrors = !$record->unique_errors->isEmpty();
-        $hasRecurringErrors = !$record->recurring_errors->isEmpty();
+        $hasUniqueErrors = ! $record->unique_errors->isEmpty();
+        $hasRecurringErrors = ! $record->recurring_errors->isEmpty();
 
-        if (!$hasUniqueErrors && !$hasRecurringErrors) {
+        if (! $hasUniqueErrors && ! $hasRecurringErrors) {
             return;
         }
 
@@ -204,7 +207,7 @@ final class ProcessTasksDirective extends AbstractDirective
     private function getDurationMilliseconds(BatchResultRecord $record): int
     {
         $start = $record->started_at->toDateTime()->getTimestamp();
-        $end = (new Iso8601DateTimeVO())->toDateTime()->getTimestamp();
+        $end = (new Iso8601DateTimeVO)->toDateTime()->getTimestamp();
 
         return (int) (($end - $start) * 1000);
     }

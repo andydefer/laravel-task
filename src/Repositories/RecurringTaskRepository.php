@@ -8,8 +8,8 @@ use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\LaravelJsonl\JsonlService;
 use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
-use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contexts\TaskStorageContext;
+use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Enums\TaskOrder;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
@@ -35,7 +35,7 @@ final class RecurringTaskRepository implements RecurringTaskRepositoryInterface
     {
         $path = $this->context->getRecurringDir()->filePath($signature);
 
-        if (!$this->fs->exists($path)) {
+        if (! $this->fs->exists($path)) {
             return null;
         }
 
@@ -54,24 +54,25 @@ final class RecurringTaskRepository implements RecurringTaskRepositoryInterface
     public function findAll(?int $limit = null, ?TaskOrder $order = TaskOrder::OLDEST): RecurringTaskRecordCollection
     {
         if ($limit === 0) {
-            return new RecurringTaskRecordCollection();
+            return new RecurringTaskRecordCollection;
         }
 
         $recurringDir = $this->context->getRecurringDir();
 
-        if (!$this->fs->isDirectory($recurringDir->getValue())) {
-            return new RecurringTaskRecordCollection();
+        if (! $this->fs->isDirectory($recurringDir->getValue())) {
+            return new RecurringTaskRecordCollection;
         }
 
         $files = $recurringDir->allFiles($this->fs);
 
         if (empty($files)) {
-            return new RecurringTaskRecordCollection();
+            return new RecurringTaskRecordCollection;
         }
 
         usort($files, function ($a, $b) use ($order) {
             $timeA = $this->fs->lastModified($a);
             $timeB = $this->fs->lastModified($b);
+
             return $order->compare($timeA, $timeB);
         });
 
@@ -79,7 +80,7 @@ final class RecurringTaskRepository implements RecurringTaskRepositoryInterface
             $files = array_slice($files, 0, $limit);
         }
 
-        $tasks = new RecurringTaskRecordCollection();
+        $tasks = new RecurringTaskRecordCollection;
 
         foreach ($files as $file) {
             $lines = $this->jsonl->readAll($file);
@@ -102,7 +103,7 @@ final class RecurringTaskRepository implements RecurringTaskRepositoryInterface
 
     public function updateAfterRun(RecurringTaskRecord $task, bool $success, ?string $error = null): void
     {
-        $now = new Iso8601DateTimeVO();
+        $now = new Iso8601DateTimeVO;
         $next_run_at = new Iso8601DateTimeVO(
             date('c', strtotime($now->value) + $task->delay_seconds->value)
         );

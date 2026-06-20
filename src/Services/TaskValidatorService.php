@@ -7,7 +7,6 @@ namespace AndyDefer\Task\Services;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\AbstractTask;
-use AndyDefer\Task\Configs\TaskConfig;
 use AndyDefer\Task\Contexts\TaskContext;
 use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Contracts\Services\TaskValidatorServiceInterface;

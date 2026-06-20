@@ -46,7 +46,7 @@ final class TaskServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__ . '/../config/task.php', 'task');
+        $this->mergeConfigFrom(__DIR__.'/../config/task.php', 'task');
 
         // Register TaskConfigInterface with ConfigRepository injection
         $this->app->singleton(TaskConfigInterface::class, function (Application $app) {
@@ -60,7 +60,7 @@ final class TaskServiceProvider extends ServiceProvider
 
         // Register FileSystemInterface
         $this->app->singleton(FileSystemInterface::class, function () {
-            return new FileSystemService();
+            return new FileSystemService;
         });
 
         // Register HydrationService
@@ -71,12 +71,13 @@ final class TaskServiceProvider extends ServiceProvider
 
         // Register UuidFactoryInterface
         $this->app->singleton(UuidFactoryInterface::class, function () {
-            return new UuidFactory();
+            return new UuidFactory;
         });
 
         // Register TaskPathStrategy with base path from config
         $this->app->singleton(TaskPathStrategy::class, function (Application $app) {
             $config = $app->make(TaskConfigInterface::class);
+
             return new TaskPathStrategy($config->storagePath());
         });
 
@@ -239,7 +240,7 @@ final class TaskServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->publishes([
-            __DIR__ . '/../config/task.php' => config_path('task.php'),
+            __DIR__.'/../config/task.php' => config_path('task.php'),
         ], 'task-config');
     }
 }

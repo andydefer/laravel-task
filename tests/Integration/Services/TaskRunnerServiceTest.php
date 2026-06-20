@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Services;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
@@ -13,10 +12,10 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contexts\TaskStorageContext;
 use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
-use AndyDefer\Task\Contexts\TaskStorageContext;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
@@ -39,21 +38,28 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 final class TaskRunnerServiceTest extends IntegrationTestCase
 {
     private TaskRepositoryInterface $taskRepository;
+
     private RecurringTaskRepositoryInterface $recurringTaskRepository;
+
     private TaskRunnerService $runner;
+
     private string $storagePath;
+
     private TaskConfigInterface $config;
+
     private ConfigRepository $configRepository;
+
     private HydrationService $hydration;
+
     private FileSystemInterface $fs;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
         $this->configRepository = $this->app->make(ConfigRepository::class);
-        $this->hydration = new HydrationService();
-        $this->fs = new FileSystemService();
+        $this->hydration = new HydrationService;
+        $this->fs = new FileSystemService;
 
         $this->setConfigDefaults();
     }
@@ -81,7 +87,7 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
     {
         $context = new TaskStorageContext($this->config);
         $strategy = new TaskPathStrategy($this->config->storagePath());
-        $jsonlContext = new JsonlContext();
+        $jsonlContext = new JsonlContext;
         $jsonlService = new JsonlService(
             pathStrategy: $strategy,
             fileSystem: $this->fs,
@@ -136,11 +142,11 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (!is_dir($path)) {
+        if (! is_dir($path)) {
             return;
         }
 
-        $files = glob($path . '/*');
+        $files = glob($path.'/*');
         foreach ($files as $file) {
             if (is_file($file)) {
                 unlink($file);
@@ -180,7 +186,7 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
             class: $class,
             payload: $payload,
             status: $status,
-            created_at: new Iso8601DateTimeVO(),
+            created_at: new Iso8601DateTimeVO,
             start_at: new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
             end_at: $endAt !== null ? new Iso8601DateTimeVO($endAt) : new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
             delay_seconds: new CounterVO(0),
@@ -200,7 +206,7 @@ final class TaskRunnerServiceTest extends IntegrationTestCase
             class: TestTask::class,
             payload: $payload,
             status: TaskStatus::PENDING,
-            created_at: new Iso8601DateTimeVO(),
+            created_at: new Iso8601DateTimeVO,
             start_at: new Iso8601DateTimeVO('2026-05-24T12:00:00+00:00'),
             end_at: new Iso8601DateTimeVO('2026-05-24T12:10:00+00:00'),
             delay_seconds: new CounterVO(0),

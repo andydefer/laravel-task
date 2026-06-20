@@ -8,8 +8,8 @@ use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\LaravelJsonl\JsonlService;
 use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\Task\Collections\TaskRecordCollection;
-use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Contexts\TaskStorageContext;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Enums\TaskOrder;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskRecord;
@@ -44,7 +44,7 @@ final class TaskRepository implements TaskRepositoryInterface
     {
         $path = $this->context->getPendingDir()->filePath($id);
 
-        if (!$this->fs->exists($path)) {
+        if (! $this->fs->exists($path)) {
             return null;
         }
 
@@ -62,24 +62,25 @@ final class TaskRepository implements TaskRepositoryInterface
     public function findAll(?int $limit = null, TaskOrder $order = TaskOrder::OLDEST): TaskRecordCollection
     {
         if ($limit === 0) {
-            return new TaskRecordCollection();
+            return new TaskRecordCollection;
         }
 
         $pendingDir = $this->context->getPendingDir();
 
-        if (!$this->fs->isDirectory($pendingDir->getValue())) {
-            return new TaskRecordCollection();
+        if (! $this->fs->isDirectory($pendingDir->getValue())) {
+            return new TaskRecordCollection;
         }
 
         $files = $pendingDir->allFiles($this->fs);
 
         if (empty($files)) {
-            return new TaskRecordCollection();
+            return new TaskRecordCollection;
         }
 
         usort($files, function ($a, $b) use ($order) {
             $timeA = $this->fs->lastModified($a);
             $timeB = $this->fs->lastModified($b);
+
             return $order->compare($timeA, $timeB);
         });
 
@@ -87,7 +88,7 @@ final class TaskRepository implements TaskRepositoryInterface
             $files = array_slice($files, 0, $limit);
         }
 
-        $tasks = new TaskRecordCollection();
+        $tasks = new TaskRecordCollection;
 
         foreach ($files as $file) {
             $lines = $this->jsonl->readAll($file);
@@ -115,7 +116,7 @@ final class TaskRepository implements TaskRepositoryInterface
     {
         $source = $this->context->getPendingDir()->filePath($task->id);
 
-        if (!$this->fs->exists($source)) {
+        if (! $this->fs->exists($source)) {
             return;
         }
 
@@ -127,7 +128,7 @@ final class TaskRepository implements TaskRepositoryInterface
 
         $taskData = $lines[0];
         $taskData['status'] = $success ? TaskStatus::SUCCESS->value : TaskStatus::FAILED->value;
-        $taskData['completed_at'] = (new Iso8601DateTimeVO())->value;
+        $taskData['completed_at'] = (new Iso8601DateTimeVO)->value;
 
         $date = new TaskDateVO(date('Y-m-d'));
         $completedDir = $this->context->getCompletedDir();
@@ -135,7 +136,7 @@ final class TaskRepository implements TaskRepositoryInterface
 
         $target = $completedDir->filePathWithDate($task->id, $date);
 
-        $this->fs->put($target, json_encode($taskData) . "\n");
+        $this->fs->put($target, json_encode($taskData)."\n");
         $this->fs->delete($source);
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Repositories;
 
-use AndyDefer\DomainStructures\Collections\Utility\StrictDataObjectCollection;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
@@ -12,7 +11,6 @@ use AndyDefer\LaravelJsonl\JsonlService;
 use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Contexts\TaskStorageContext;
 use AndyDefer\Task\Enums\TaskOrder;
 use AndyDefer\Task\Enums\TaskStatus;
@@ -30,25 +28,29 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 final class TaskRepositoryTest extends IntegrationTestCase
 {
     private TaskRepository $repository;
+
     private string $tempDir;
+
     private ConfigRepository $configRepository;
+
     private HydrationService $hydration;
+
     private FileSystemInterface $fs;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tempDir = sys_get_temp_dir() . '/task_repo_test_' . uniqid();
+        $this->tempDir = sys_get_temp_dir().'/task_repo_test_'.uniqid();
         $this->configRepository = $this->app->make(ConfigRepository::class);
-        $this->hydration = new HydrationService();
-        $this->fs = new FileSystemService();
+        $this->hydration = new HydrationService;
+        $this->fs = new FileSystemService;
 
         $this->setConfigDefaults();
 
         $config = new TaskConfig($this->configRepository);
         $context = new TaskStorageContext($config);
         $strategy = new TaskPathStrategy($config->storagePath());
-        $jsonlContext = new JsonlContext();
+        $jsonlContext = new JsonlContext;
         $jsonlService = new JsonlService(
             pathStrategy: $strategy,
             fileSystem: $this->fs,
@@ -66,9 +68,9 @@ final class TaskRepositoryTest extends IntegrationTestCase
     private function setConfigDefaults(): void
     {
         $this->configRepository->set('task.storage_path', $this->tempDir);
-        $this->configRepository->set('task.storage_pending_path', $this->tempDir . '/pending');
-        $this->configRepository->set('task.storage_recurring_path', $this->tempDir . '/recurring');
-        $this->configRepository->set('task.storage_completed_path', $this->tempDir . '/completed');
+        $this->configRepository->set('task.storage_pending_path', $this->tempDir.'/pending');
+        $this->configRepository->set('task.storage_recurring_path', $this->tempDir.'/recurring');
+        $this->configRepository->set('task.storage_completed_path', $this->tempDir.'/completed');
         $this->configRepository->set('task.grace_period.enabled', false);
         $this->configRepository->set('task.grace_period.seconds', 86400);
         $this->configRepository->set('task.batch.limit', 1000);
@@ -85,10 +87,10 @@ final class TaskRepositoryTest extends IntegrationTestCase
 
     private function deleteDirectory(string $dir): void
     {
-        if (!is_dir($dir)) {
+        if (! is_dir($dir)) {
             return;
         }
-        foreach (glob($dir . '/*') as $file) {
+        foreach (glob($dir.'/*') as $file) {
             is_dir($file) ? $this->deleteDirectory($file) : unlink($file);
         }
         rmdir($dir);
@@ -115,8 +117,8 @@ final class TaskRepositoryTest extends IntegrationTestCase
             class: 'TestClass',
             payload: $this->createTaskPayload(),
             status: $status,
-            created_at: new Iso8601DateTimeVO(),
-            start_at: new Iso8601DateTimeVO(),
+            created_at: new Iso8601DateTimeVO,
+            start_at: new Iso8601DateTimeVO,
             end_at: null,
             delay_seconds: new CounterVO(0),
             attempts: new CounterVO(0),
@@ -155,8 +157,8 @@ final class TaskRepositoryTest extends IntegrationTestCase
             class: 'TestClass',
             payload: $this->createTaskPayload(),
             status: TaskStatus::PENDING,
-            created_at: new Iso8601DateTimeVO(),
-            start_at: new Iso8601DateTimeVO(),
+            created_at: new Iso8601DateTimeVO,
+            start_at: new Iso8601DateTimeVO,
             end_at: null,
             delay_seconds: new CounterVO(0),
             attempts: new CounterVO(0),
@@ -201,7 +203,7 @@ final class TaskRepositoryTest extends IntegrationTestCase
 
     // ==================== FindAll Tests ====================
 
-    public function test_findAll_returns_all_pending_tasks(): void
+    public function test_find_all_returns_all_pending_tasks(): void
     {
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createTask($this->generateUuid(10 + $i));
@@ -212,7 +214,7 @@ final class TaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(3, $tasks->count());
     }
 
-    public function test_findAll_returns_only_pending_tasks(): void
+    public function test_find_all_returns_only_pending_tasks(): void
     {
         $this->repository->save($this->createTask($this->generateUuid(20), TaskStatus::PENDING));
         $this->repository->save($this->createTask($this->generateUuid(21), TaskStatus::RUNNING));
@@ -221,7 +223,7 @@ final class TaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(1, $tasks->count());
     }
 
-    public function test_findAll_with_limit(): void
+    public function test_find_all_with_limit(): void
     {
         for ($i = 1; $i <= 5; $i++) {
             $task = $this->createTask($this->generateUuid(30 + $i));
@@ -232,7 +234,7 @@ final class TaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(3, $tasks->count());
     }
 
-    public function test_findAll_with_limit_zero_returns_empty(): void
+    public function test_find_all_with_limit_zero_returns_empty(): void
     {
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createTask($this->generateUuid(40 + $i));
@@ -243,7 +245,7 @@ final class TaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(0, $tasks->count());
     }
 
-    public function test_findAll_with_order_oldest(): void
+    public function test_find_all_with_order_oldest(): void
     {
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createTask($this->generateUuid(50 + $i));
@@ -254,7 +256,7 @@ final class TaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(3, $tasks->count());
     }
 
-    public function test_findAll_with_order_newest(): void
+    public function test_find_all_with_order_newest(): void
     {
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->createTask($this->generateUuid(60 + $i));
@@ -265,7 +267,7 @@ final class TaskRepositoryTest extends IntegrationTestCase
         $this->assertSame(3, $tasks->count());
     }
 
-    public function test_findAll_returns_empty_when_no_tasks(): void
+    public function test_find_all_returns_empty_when_no_tasks(): void
     {
         $tasks = $this->repository->findAll();
         $this->assertSame(0, $tasks->count());
@@ -292,7 +294,7 @@ final class TaskRepositoryTest extends IntegrationTestCase
 
     // ==================== MoveToCompleted Tests ====================
 
-    public function test_moveToCompleted_moves_task(): void
+    public function test_move_to_completed_moves_task(): void
     {
         $id = $this->generateUuid(80);
         $task = $this->createTask($id);

@@ -12,9 +12,10 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
-use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Contexts\TaskStorageContext;
+use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Enums\TaskStatus;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Records\TaskRecord;
@@ -34,22 +35,29 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 final class TaskLifecycleTest extends IntegrationTestCase
 {
     private TaskRepositoryInterface $taskRepository;
+
     private TaskRunnerService $runner;
+
     private TaskValidatorService $validator;
+
     private string $storagePath;
+
     private TaskConfigInterface $config;
+
     private ConfigRepository $configRepository;
+
     private HydrationService $hydration;
+
     private FileSystemInterface $fs;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
         $this->configRepository = $this->app->make(ConfigRepository::class);
-        $this->hydration = new HydrationService();
-        $this->fs = new FileSystemService();
+        $this->hydration = new HydrationService;
+        $this->fs = new FileSystemService;
 
         $this->setConfigDefaults();
 
@@ -57,7 +65,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
         $context = new TaskStorageContext($this->config);
         $strategy = new TaskPathStrategy($this->config->storagePath());
-        $jsonlContext = new JsonlContext();
+        $jsonlContext = new JsonlContext;
         $jsonlService = new JsonlService(
             pathStrategy: $strategy,
             fileSystem: $this->fs,
@@ -81,7 +89,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
         $this->runner = new TaskRunnerService(
             taskRepository: $this->taskRepository,
-            recurringTaskRepository: $this->app->make(\AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface::class),
+            recurringTaskRepository: $this->app->make(RecurringTaskRepositoryInterface::class),
             logger: $logger,
             validator: $this->validator,
             config: $this->config,
@@ -94,10 +102,10 @@ final class TaskLifecycleTest extends IntegrationTestCase
     private function setConfigDefaults(): void
     {
         $this->configRepository->set('task.storage_path', $this->storagePath);
-        $this->configRepository->set('task.storage_pending_path', $this->storagePath . '/pending');
-        $this->configRepository->set('task.storage_recurring_path', $this->storagePath . '/recurring');
-        $this->configRepository->set('task.storage_completed_path', $this->storagePath . '/completed');
-        $this->configRepository->set('task.storage_grace_period_path', $this->storagePath . '/grace_period');
+        $this->configRepository->set('task.storage_pending_path', $this->storagePath.'/pending');
+        $this->configRepository->set('task.storage_recurring_path', $this->storagePath.'/recurring');
+        $this->configRepository->set('task.storage_completed_path', $this->storagePath.'/completed');
+        $this->configRepository->set('task.storage_grace_period_path', $this->storagePath.'/grace_period');
         $this->configRepository->set('task.grace_period.enabled', false);
         $this->configRepository->set('task.grace_period.seconds', 86400);
         $this->configRepository->set('task.batch.limit', 1000);
@@ -115,11 +123,11 @@ final class TaskLifecycleTest extends IntegrationTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (!is_dir($path)) {
+        if (! is_dir($path)) {
             return;
         }
 
-        $files = glob($path . '/*');
+        $files = glob($path.'/*');
         foreach ($files as $file) {
             if (is_file($file)) {
                 unlink($file);
@@ -164,7 +172,7 @@ final class TaskLifecycleTest extends IntegrationTestCase
             class: $class,
             payload: $payload,
             status: TaskStatus::PENDING,
-            created_at: new Iso8601DateTimeVO(),
+            created_at: new Iso8601DateTimeVO,
             start_at: $startAt !== null ? new Iso8601DateTimeVO($startAt) : new Iso8601DateTimeVO(date('c', strtotime('-1 minute'))),
             end_at: $endAt !== null ? new Iso8601DateTimeVO($endAt) : new Iso8601DateTimeVO(date('c', strtotime('+1 hour'))),
             delay_seconds: new CounterVO(0),

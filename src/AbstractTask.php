@@ -15,7 +15,9 @@ use AndyDefer\Task\Records\TaskPayloadRecord;
 abstract class AbstractTask
 {
     protected TaskContext $context;
+
     protected LoggerInterface $logger;
+
     protected HydrationService $hydration;
 
     final public function __construct(

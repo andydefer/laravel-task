@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Services;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
+use AndyDefer\Task\Collections\TaskRecordCollection;
 use AndyDefer\Task\Contracts\Services\TaskFinderServiceInterface;
 use AndyDefer\Task\Enums\TaskOrder;
 use AndyDefer\Task\Records\TaskConfigRecord;
@@ -19,6 +21,7 @@ use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 final class TaskFinderServiceTest extends IntegrationTestCase
 {
     private TaskFinderServiceInterface $finder;
+
     private TaskRegistryService $registry;
 
     protected function setUp(): void
@@ -54,7 +57,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
     // ==================== findTask() Tests ====================
 
-    public function test_findTask_returns_task_when_exists(): void
+    public function test_find_task_returns_task_when_exists(): void
     {
         $payload = $this->createTaskPayload();
         $taskId = $this->registry->register(TestTask::class, $payload);
@@ -66,13 +69,13 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame(TestTask::class, $found->class);
     }
 
-    public function test_findTask_returns_null_when_not_found(): void
+    public function test_find_task_returns_null_when_not_found(): void
     {
         $taskIdVO = new TaskIdVO('00000000-0000-0000-0000-000000000000');
         $this->assertNull($this->finder->findTask($taskIdVO));
     }
 
-    public function test_findTask_returns_null_for_non_pending_task(): void
+    public function test_find_task_returns_null_for_non_pending_task(): void
     {
         $payload = $this->createTaskPayload();
         $taskId = $this->registry->register(TestTask::class, $payload);
@@ -89,7 +92,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
     // ==================== findRecurringTask() Tests ====================
 
-    public function test_findRecurringTask_returns_task_when_exists(): void
+    public function test_find_recurring_task_returns_task_when_exists(): void
     {
         $payload = $this->createTaskPayload();
         $signature = 'recurring-find-test';
@@ -112,7 +115,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame(TestTask::class, $found->class);
     }
 
-    public function test_findRecurringTask_returns_null_when_not_found(): void
+    public function test_find_recurring_task_returns_null_when_not_found(): void
     {
         $signatureVO = new TaskSignatureVO('nonexistent-signature');
         $this->assertNull($this->finder->findRecurringTask($signatureVO));
@@ -120,7 +123,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
     // ==================== getPendingTasks() Tests ====================
 
-    public function test_getPendingTasks_returns_collection(): void
+    public function test_get_pending_tasks_returns_collection(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -129,11 +132,11 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
         $pendingTasks = $this->finder->getPendingTasks();
 
-        $this->assertInstanceOf(\AndyDefer\Task\Collections\TaskRecordCollection::class, $pendingTasks);
+        $this->assertInstanceOf(TaskRecordCollection::class, $pendingTasks);
         $this->assertGreaterThanOrEqual(2, $pendingTasks->count());
     }
 
-    public function test_getPendingTasks_with_limit(): void
+    public function test_get_pending_tasks_with_limit(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -146,7 +149,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame(3, $pendingTasks->count());
     }
 
-    public function test_getPendingTasks_with_limit_zero_returns_empty(): void
+    public function test_get_pending_tasks_with_limit_zero_returns_empty(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -159,7 +162,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame(0, $pendingTasks->count());
     }
 
-    public function test_getPendingTasks_with_order_oldest(): void
+    public function test_get_pending_tasks_with_order_oldest(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -171,7 +174,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertGreaterThanOrEqual(2, $pendingTasks->count());
     }
 
-    public function test_getPendingTasks_with_order_newest(): void
+    public function test_get_pending_tasks_with_order_newest(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -183,7 +186,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertGreaterThanOrEqual(2, $pendingTasks->count());
     }
 
-    public function test_getPendingTasks_returns_only_pending_tasks(): void
+    public function test_get_pending_tasks_returns_only_pending_tasks(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -204,7 +207,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertFalse($found);
     }
 
-    public function test_getPendingTasks_returns_empty_when_no_tasks(): void
+    public function test_get_pending_tasks_returns_empty_when_no_tasks(): void
     {
         $pendingTasks = $this->finder->getPendingTasks();
         $this->assertSame(0, $pendingTasks->count());
@@ -212,7 +215,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
     // ==================== getRecurringTasks() Tests ====================
 
-    public function test_getRecurringTasks_returns_collection(): void
+    public function test_get_recurring_tasks_returns_collection(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -239,11 +242,11 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
         $recurringTasks = $this->finder->getRecurringTasks();
 
-        $this->assertInstanceOf(\AndyDefer\Task\Collections\RecurringTaskRecordCollection::class, $recurringTasks);
+        $this->assertInstanceOf(RecurringTaskRecordCollection::class, $recurringTasks);
         $this->assertSame(2, $recurringTasks->count());
     }
 
-    public function test_getRecurringTasks_with_limit(): void
+    public function test_get_recurring_tasks_with_limit(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -264,7 +267,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame(3, $recurringTasks->count());
     }
 
-    public function test_getRecurringTasks_with_limit_zero_returns_empty(): void
+    public function test_get_recurring_tasks_with_limit_zero_returns_empty(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -285,7 +288,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame(0, $recurringTasks->count());
     }
 
-    public function test_getRecurringTasks_with_order_oldest(): void
+    public function test_get_recurring_tasks_with_order_oldest(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -315,7 +318,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame(2, $recurringTasks->count());
     }
 
-    public function test_getRecurringTasks_with_order_newest(): void
+    public function test_get_recurring_tasks_with_order_newest(): void
     {
         $payload = $this->createTaskPayload();
 
@@ -345,7 +348,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame(2, $recurringTasks->count());
     }
 
-    public function test_getRecurringTasks_returns_empty_when_no_tasks(): void
+    public function test_get_recurring_tasks_returns_empty_when_no_tasks(): void
     {
         $recurringTasks = $this->finder->getRecurringTasks();
         $this->assertSame(0, $recurringTasks->count());
@@ -353,7 +356,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
     // ==================== taskExists() Tests ====================
 
-    public function test_taskExists_returns_true_for_existing_task(): void
+    public function test_task_exists_returns_true_for_existing_task(): void
     {
         $payload = $this->createTaskPayload();
         $taskId = $this->registry->register(TestTask::class, $payload);
@@ -361,12 +364,12 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertTrue($this->finder->taskExists(new TaskIdVO($taskId)));
     }
 
-    public function test_taskExists_returns_false_for_nonexistent_task(): void
+    public function test_task_exists_returns_false_for_nonexistent_task(): void
     {
         $this->assertFalse($this->finder->taskExists(new TaskIdVO('00000000-0000-0000-0000-000000000000')));
     }
 
-    public function test_taskExists_returns_false_for_deleted_task(): void
+    public function test_task_exists_returns_false_for_deleted_task(): void
     {
         $payload = $this->createTaskPayload();
         $taskId = $this->registry->register(TestTask::class, $payload);
@@ -381,7 +384,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
     // ==================== recurringTaskExists() Tests ====================
 
-    public function test_recurringTaskExists_returns_true_for_existing_task(): void
+    public function test_recurring_task_exists_returns_true_for_existing_task(): void
     {
         $payload = $this->createTaskPayload();
         $signature = 'recurring-exists-test';
@@ -400,12 +403,12 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertTrue($this->finder->recurringTaskExists(new TaskSignatureVO($signature)));
     }
 
-    public function test_recurringTaskExists_returns_false_for_nonexistent_task(): void
+    public function test_recurring_task_exists_returns_false_for_nonexistent_task(): void
     {
         $this->assertFalse($this->finder->recurringTaskExists(new TaskSignatureVO('nonexistent')));
     }
 
-    public function test_recurringTaskExists_returns_false_for_deleted_task(): void
+    public function test_recurring_task_exists_returns_false_for_deleted_task(): void
     {
         $payload = $this->createTaskPayload();
         $signature = new TaskSignatureVO('recurring-delete-test');
@@ -429,13 +432,13 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
     // ==================== countPendingTasks() Tests ====================
 
-    public function test_countPendingTasks_returns_zero_when_no_tasks(): void
+    public function test_count_pending_tasks_returns_zero_when_no_tasks(): void
     {
         $count = $this->finder->countPendingTasks();
         $this->assertIsInt($count);
     }
 
-    public function test_countPendingTasks_increases_after_register(): void
+    public function test_count_pending_tasks_increases_after_register(): void
     {
         $initialCount = $this->finder->countPendingTasks();
         $payload = $this->createTaskPayload();
@@ -446,7 +449,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame($initialCount + 2, $this->finder->countPendingTasks());
     }
 
-    public function test_countPendingTasks_decreases_after_unregister(): void
+    public function test_count_pending_tasks_decreases_after_unregister(): void
     {
         $payload = $this->createTaskPayload();
         $taskId = $this->registry->register(TestTask::class, $payload);
@@ -460,13 +463,13 @@ final class TaskFinderServiceTest extends IntegrationTestCase
 
     // ==================== countRecurringTasks() Tests ====================
 
-    public function test_countRecurringTasks_returns_zero_when_no_tasks(): void
+    public function test_count_recurring_tasks_returns_zero_when_no_tasks(): void
     {
         $count = $this->finder->countRecurringTasks();
         $this->assertIsInt($count);
     }
 
-    public function test_countRecurringTasks_increases_after_register(): void
+    public function test_count_recurring_tasks_increases_after_register(): void
     {
         $initialCount = $this->finder->countRecurringTasks();
         $payload = $this->createTaskPayload();
@@ -485,7 +488,7 @@ final class TaskFinderServiceTest extends IntegrationTestCase
         $this->assertSame($initialCount + 1, $this->finder->countRecurringTasks());
     }
 
-    public function test_countRecurringTasks_decreases_after_unregister(): void
+    public function test_count_recurring_tasks_decreases_after_unregister(): void
     {
         $payload = $this->createTaskPayload();
         $signature = new TaskSignatureVO('recurring-count-delete');

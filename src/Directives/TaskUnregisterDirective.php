@@ -43,7 +43,7 @@ final class TaskUnregisterDirective extends AbstractDirective
 
     public function getAliases(): StringTypedCollection
     {
-        $aliases = new StringTypedCollection();
+        $aliases = new StringTypedCollection;
         $aliases->add('unregister-task');
 
         return $aliases;
@@ -55,16 +55,18 @@ final class TaskUnregisterDirective extends AbstractDirective
 
         if ($identifier === null) {
             $this->error('Task identifier is required');
+
             return ExitCode::INVALID_ARGUMENT;
         }
 
-        if (!$this->hasOption('force')) {
+        if (! $this->hasOption('force')) {
             $confirmed = $this->confirm(
                 sprintf("Are you sure you want to unregister task '%s'? This action cannot be undone.", $identifier)
             );
 
-            if (!$confirmed) {
+            if (! $confirmed) {
                 $this->info('Operation cancelled.');
+
                 return ExitCode::SUCCESS;
             }
         }
@@ -72,9 +74,11 @@ final class TaskUnregisterDirective extends AbstractDirective
         try {
             $this->getRegistryService()->unregister($identifier);
             $this->info(sprintf("Task '%s' has been unregistered successfully.", $identifier));
+
             return ExitCode::SUCCESS;
         } catch (\Throwable $e) {
             $this->error($e->getMessage());
+
             return ExitCode::FAILURE;
         }
     }

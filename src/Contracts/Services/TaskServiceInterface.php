@@ -11,10 +11,4 @@ namespace AndyDefer\Task\Contracts\Services;
  *
  * @author Andy Defer
  */
-interface TaskServiceInterface extends
-    TaskBatchServiceInterface,
-    TaskValidatorServiceInterface,
-    TaskRunnerServiceInterface,
-    TaskRegistryServiceInterface,
-    BatchResultServiceInterface,
-    TaskFinderServiceInterface {}
+interface TaskServiceInterface extends BatchResultServiceInterface, TaskBatchServiceInterface, TaskFinderServiceInterface, TaskRegistryServiceInterface, TaskRunnerServiceInterface, TaskValidatorServiceInterface {}

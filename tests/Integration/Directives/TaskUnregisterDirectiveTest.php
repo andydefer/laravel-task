@@ -6,6 +6,7 @@ namespace AndyDefer\Task\Tests\Integration\Directives;
 
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveTestingService;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Directives\TaskUnregisterDirective;
 use AndyDefer\Task\Records\TaskConfigRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
@@ -14,11 +15,11 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
-use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
 final class TaskUnregisterDirectiveTest extends IntegrationTestCase
 {
     private DirectiveTestingService $service;
+
     private TaskRegistryService $registry;
 
     protected function setUp(): void
@@ -45,6 +46,7 @@ final class TaskUnregisterDirectiveTest extends IntegrationTestCase
     private function createUniqueTask(): string
     {
         $payload = $this->createTaskPayload();
+
         return $this->registry->register(
             taskClass: TestTask::class,
             payload: $payload,

@@ -30,7 +30,7 @@ final class TaskRegistryServiceTest extends IntegrationTestCase
 
     private function createTaskPayload(): TaskPayloadRecord
     {
-        $payloadCollection = new StrictDataObjectCollection();
+        $payloadCollection = new StrictDataObjectCollection;
         $payloadCollection->add(new StrictDataObject([
             'test_data' => 'registry_test',
         ]));
@@ -221,7 +221,7 @@ final class TaskRegistryServiceTest extends IntegrationTestCase
     public function test_unregister_task_throws_exception_when_unique_task_not_found(): void
     {
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage("Unique task not found: 00000000-0000-0000-0000-000000000000");
+        $this->expectExceptionMessage('Unique task not found: 00000000-0000-0000-0000-000000000000');
 
         $taskIdVO = new TaskIdVO('00000000-0000-0000-0000-000000000000');
         $this->registry->unregisterTask($taskIdVO);
@@ -320,7 +320,7 @@ final class TaskRegistryServiceTest extends IntegrationTestCase
     {
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage("Invalid task signature: INVALID_UUID");
+        $this->expectExceptionMessage('Invalid task signature: INVALID_UUID');
 
         $this->registry->unregister('INVALID_UUID');
     }
@@ -328,7 +328,7 @@ final class TaskRegistryServiceTest extends IntegrationTestCase
     public function test_unregister_with_nonexistent_unique_task_throws_exception(): void
     {
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage("Unique task not found: 550e8400-e29b-41d4-a716-446655449999");
+        $this->expectExceptionMessage('Unique task not found: 550e8400-e29b-41d4-a716-446655449999');
 
         $this->registry->unregister('550e8400-e29b-41d4-a716-446655449999');
     }

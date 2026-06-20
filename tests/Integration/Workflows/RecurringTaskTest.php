@@ -12,9 +12,10 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Configs\TaskConfig;
+use AndyDefer\Task\Contexts\TaskStorageContext;
 use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
-use AndyDefer\Task\Contexts\TaskStorageContext;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Repositories\RecurringTaskRepository;
@@ -32,22 +33,29 @@ use Illuminate\Contracts\Config\Repository as ConfigRepository;
 final class RecurringTaskTest extends IntegrationTestCase
 {
     private RecurringTaskRepositoryInterface $recurringTaskRepository;
+
     private TaskRunnerService $runner;
+
     private TaskValidatorService $validator;
+
     private string $storagePath;
+
     private TaskConfigInterface $config;
+
     private ConfigRepository $configRepository;
+
     private HydrationService $hydration;
+
     private FileSystemInterface $fs;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->storagePath = sys_get_temp_dir() . '/task_storage_' . uniqid();
+        $this->storagePath = sys_get_temp_dir().'/task_storage_'.uniqid();
         $this->configRepository = $this->app->make(ConfigRepository::class);
-        $this->hydration = new HydrationService();
-        $this->fs = new FileSystemService();
+        $this->hydration = new HydrationService;
+        $this->fs = new FileSystemService;
 
         $this->setConfigDefaults();
 
@@ -55,7 +63,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $context = new TaskStorageContext($this->config);
         $strategy = new TaskPathStrategy($this->config->storagePath());
-        $jsonlContext = new JsonlContext();
+        $jsonlContext = new JsonlContext;
         $jsonlService = new JsonlService(
             pathStrategy: $strategy,
             fileSystem: $this->fs,
@@ -78,7 +86,7 @@ final class RecurringTaskTest extends IntegrationTestCase
         );
 
         $this->runner = new TaskRunnerService(
-            taskRepository: $this->app->make(\AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface::class),
+            taskRepository: $this->app->make(TaskRepositoryInterface::class),
             recurringTaskRepository: $this->recurringTaskRepository,
             logger: $logger,
             validator: $this->validator,
@@ -92,10 +100,10 @@ final class RecurringTaskTest extends IntegrationTestCase
     private function setConfigDefaults(): void
     {
         $this->configRepository->set('task.storage_path', $this->storagePath);
-        $this->configRepository->set('task.storage_pending_path', $this->storagePath . '/pending');
-        $this->configRepository->set('task.storage_recurring_path', $this->storagePath . '/recurring');
-        $this->configRepository->set('task.storage_completed_path', $this->storagePath . '/completed');
-        $this->configRepository->set('task.storage_grace_period_path', $this->storagePath . '/grace_period');
+        $this->configRepository->set('task.storage_pending_path', $this->storagePath.'/pending');
+        $this->configRepository->set('task.storage_recurring_path', $this->storagePath.'/recurring');
+        $this->configRepository->set('task.storage_completed_path', $this->storagePath.'/completed');
+        $this->configRepository->set('task.storage_grace_period_path', $this->storagePath.'/grace_period');
         $this->configRepository->set('task.grace_period.enabled', false);
         $this->configRepository->set('task.grace_period.seconds', 86400);
         $this->configRepository->set('task.batch.limit', 1000);
@@ -113,11 +121,11 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     private function removeDirectory(string $path): void
     {
-        if (!is_dir($path)) {
+        if (! is_dir($path)) {
             return;
         }
 
-        $files = glob($path . '/*');
+        $files = glob($path.'/*');
         foreach ($files as $file) {
             if (is_file($file)) {
                 unlink($file);

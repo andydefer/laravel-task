@@ -12,8 +12,11 @@ use Illuminate\Contracts\Foundation\Application;
 final class TaskContext
 {
     private TaskPayloadRecord $payload;
+
     private ?TaskIdVO $taskId = null;
+
     private TaskSignatureVO $signature;
+
     private ?Application $app = null;
 
     public function setPayload(TaskPayloadRecord $payload): void

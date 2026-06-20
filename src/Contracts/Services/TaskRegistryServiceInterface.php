@@ -15,6 +15,7 @@ interface TaskRegistryServiceInterface
      * Registers a new task (unique or recurring).
      *
      * @return string Task ID (for unique tasks) or signature (for recurring tasks)
+     *
      * @throws \InvalidArgumentException If task class is invalid
      * @throws \RuntimeException If recurring task already exists
      */

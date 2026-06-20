@@ -13,7 +13,9 @@ use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 final class TaskStorageContext
 {
     private TaskDirectoryVO $pendingDir;
+
     private TaskDirectoryVO $recurringDir;
+
     private TaskDirectoryVO $completedDir;
 
     public function __construct(TaskConfigInterface $config)
@@ -42,11 +44,11 @@ final class TaskStorageContext
 
     public function getRecurringFilePath(TaskSignatureVO $signature): string
     {
-        return $this->recurringDir->getValue() . DIRECTORY_SEPARATOR . $signature->fileName();
+        return $this->recurringDir->getValue().DIRECTORY_SEPARATOR.$signature->fileName();
     }
 
     public function getPendingFilePath(TaskIdVO $taskId): string
     {
-        return $this->pendingDir->getValue() . DIRECTORY_SEPARATOR . $taskId->fileName();
+        return $this->pendingDir->getValue().DIRECTORY_SEPARATOR.$taskId->fileName();
     }
 }

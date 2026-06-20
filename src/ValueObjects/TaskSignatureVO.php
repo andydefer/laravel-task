@@ -11,9 +11,9 @@ final class TaskSignatureVO extends AbstractValueObject
 {
     public function __construct(public readonly string $value)
     {
-        if (!preg_match('/^[a-z][a-z0-9-]*$/', $value)) {
+        if (! preg_match('/^[a-z0-9][a-z0-9-]*$/', $value)) {
             throw new InvalidArgumentException(
-                "Invalid task signature: {$value}. Must be lowercase with hyphens."
+                "Invalid task signature: {$value}. Must be lowercase alphanumeric with hyphens."
             );
         }
     }
@@ -25,6 +25,6 @@ final class TaskSignatureVO extends AbstractValueObject
 
     public function fileName(): string
     {
-        return $this->value . '.jsonl';
+        return $this->value.'.jsonl';
     }
 }

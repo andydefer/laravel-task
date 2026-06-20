@@ -10,11 +10,10 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\PhpServices\Contracts\FileSystemInterface;
 use AndyDefer\Task\AbstractTask;
-use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
-use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Contexts\TaskContext;
 use AndyDefer\Task\Contracts\Configs\TaskConfigInterface;
+use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\TaskRunnerServiceInterface;
 use AndyDefer\Task\Contracts\Services\TaskValidatorServiceInterface;
 use AndyDefer\Task\Enums\ErrorType;
@@ -24,8 +23,6 @@ use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\GracePeriodFilePathVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use AndyDefer\Task\ValueObjects\UnixTimestampVO;
 use Illuminate\Contracts\Foundation\Application;
 
@@ -44,8 +41,9 @@ class TaskRunnerService implements TaskRunnerServiceInterface
 
     public function runTask(TaskRecord $task): bool
     {
-        if (!$this->validator->canRunTask($task)) {
+        if (! $this->validator->canRunTask($task)) {
             $this->markTaskFailed($task, ErrorType::TASK_VALIDATION_FAILED);
+
             return false;
         }
 
@@ -53,8 +51,9 @@ class TaskRunnerService implements TaskRunnerServiceInterface
 
         $className = $task->class;
 
-        if (!$this->validator->validateTaskClass($className)) {
+        if (! $this->validator->validateTaskClass($className)) {
             $this->markTaskFailed($task, ErrorType::INVALID_TASK_CLASS, $className);
+
             return false;
         }
 
@@ -63,9 +62,11 @@ class TaskRunnerService implements TaskRunnerServiceInterface
         try {
             $taskInstance->execute($task->payload);
             $this->markTaskSuccess($task);
+
             return true;
         } catch (\Throwable $e) {
             $this->markTaskFailed($task, ErrorType::TASK_EXECUTION_FAILED, $e->getMessage());
+
             return false;
         }
     }
@@ -74,8 +75,9 @@ class TaskRunnerService implements TaskRunnerServiceInterface
     {
         $className = $task->class;
 
-        if (!$this->validator->validateTaskClass($className)) {
+        if (! $this->validator->validateTaskClass($className)) {
             $this->markRecurringFailed($task, ErrorType::INVALID_TASK_CLASS, $className);
+
             return false;
         }
 
@@ -84,24 +86,26 @@ class TaskRunnerService implements TaskRunnerServiceInterface
         try {
             $taskInstance->execute($task->payload);
             $this->markRecurringSuccess($task);
+
             return true;
         } catch (\Throwable $e) {
             $this->markRecurringFailed($task, ErrorType::TASK_EXECUTION_FAILED, $e->getMessage());
+
             return false;
         }
     }
 
     private function logGracePeriodIfNeeded(TaskRecord $task): void
     {
-        if (!$this->validator->isUniqueTaskWithGracePeriod($task)) {
+        if (! $this->validator->isUniqueTaskWithGracePeriod($task)) {
             return;
         }
 
         $end_at_timestamp = $task->end_at !== null
             ? new UnixTimestampVO(strtotime($task->end_at->value))
-            : new UnixTimestampVO();
+            : new UnixTimestampVO;
 
-        $now = new UnixTimestampVO();
+        $now = new UnixTimestampVO;
 
         if ($now->isAfter($end_at_timestamp)) {
             $delay = $now->diff($end_at_timestamp);
@@ -134,7 +138,7 @@ class TaskRunnerService implements TaskRunnerServiceInterface
 
         $filePath = new GracePeriodFilePathVO($grace_path, $record->task_id);
 
-        if (!$this->fs->isDirectory($filePath->getDirectory())) {
+        if (! $this->fs->isDirectory($filePath->getDirectory())) {
             $this->fs->makeDirectory($filePath->getDirectory());
         }
 
@@ -143,7 +147,7 @@ class TaskRunnerService implements TaskRunnerServiceInterface
 
     private function instantiateTask(string $className, TaskRecord $task): AbstractTask
     {
-        $context = new TaskContext();
+        $context = new TaskContext;
         $context->setTaskId($task->id);
         $context->setSignature($task->signature);
         $context->setLaravelApp($this->app);
@@ -153,7 +157,7 @@ class TaskRunnerService implements TaskRunnerServiceInterface
 
     private function instantiateRecurringTask(string $className, RecurringTaskRecord $task): AbstractTask
     {
-        $context = new TaskContext();
+        $context = new TaskContext;
         $context->setSignature($task->signature);
         $context->setLaravelApp($this->app);
 
@@ -169,6 +173,7 @@ class TaskRunnerService implements TaskRunnerServiceInterface
     {
         if ($error_type->isTerminal()) {
             $this->taskRepository->moveToCompleted($task, false);
+
             return;
         }
 
@@ -177,6 +182,7 @@ class TaskRunnerService implements TaskRunnerServiceInterface
 
         if ($new_attempts->value >= $task->max_attempts->value || $is_expired) {
             $this->taskRepository->moveToCompleted($task, false);
+
             return;
         }
 
