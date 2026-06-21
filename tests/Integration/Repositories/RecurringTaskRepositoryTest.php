@@ -8,334 +8,386 @@ use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
 use AndyDefer\LaravelJsonl\JsonlService;
-use AndyDefer\PhpServices\Contracts\FileSystemInterface;
+use AndyDefer\PhpServices\Enums\PermissionMode;
 use AndyDefer\PhpServices\Services\FileSystemService;
-use AndyDefer\Task\Configs\TaskConfig;
-use AndyDefer\Task\Contexts\TaskStorageContext;
-use AndyDefer\Task\Enums\TaskOrder;
+use AndyDefer\Task\Enums\ExecutionStatus;
+use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
-use AndyDefer\Task\Records\TaskPayloadRecord;
 use AndyDefer\Task\Repositories\RecurringTaskRepository;
-use AndyDefer\Task\Strategies\TaskPathStrategy;
+use AndyDefer\Task\Strategies\RecurringTaskPathStrategy;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
-use Illuminate\Contracts\Config\Repository as ConfigRepository;
 
 final class RecurringTaskRepositoryTest extends IntegrationTestCase
 {
     private RecurringTaskRepository $repository;
 
-    private string $tempDir;
+    private string $baseStoragePath;
 
-    private ConfigRepository $configRepository;
+    private FileSystemService $fs;
 
-    private HydrationService $hydration;
-
-    private FileSystemInterface $fs;
+    private array $createdAliases = [];
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->tempDir = sys_get_temp_dir().'/recurring_repo_test_'.uniqid();
-        $this->configRepository = $this->app->make(ConfigRepository::class);
-        $this->hydration = new HydrationService;
+
         $this->fs = new FileSystemService;
+        $this->baseStoragePath = storage_path('test');
 
-        $this->setConfigDefaults();
+        if ($this->fs->isDirectory($this->baseStoragePath)) {
+            $this->fs->deleteDirectory($this->baseStoragePath);
+        }
+        $this->fs->makeDirectory($this->baseStoragePath, PermissionMode::DIRECTORY, true);
 
-        $config = new TaskConfig($this->configRepository);
-        $context = new TaskStorageContext($config);
-        $strategy = new TaskPathStrategy($config->storagePath());
+        $pathStrategy = new RecurringTaskPathStrategy($this->baseStoragePath);
         $jsonlContext = new JsonlContext;
-        $jsonlService = new JsonlService(
-            pathStrategy: $strategy,
+
+        $jsonl = new JsonlService(
+            pathStrategy: $pathStrategy,
             fileSystem: $this->fs,
             context: $jsonlContext,
+            defaultBufferSize: 100,
         );
+
+        $hydration = new HydrationService;
 
         $this->repository = new RecurringTaskRepository(
-            context: $context,
-            jsonl: $jsonlService,
-            hydration: $this->hydration,
-            fs: $this->fs,
+            $jsonl,
+            $hydration,
+            $this->fs,
+            $this->baseStoragePath,
         );
-    }
 
-    private function setConfigDefaults(): void
-    {
-        $this->configRepository->set('task.storage_path', $this->tempDir);
-        $this->configRepository->set('task.storage_pending_path', $this->tempDir.'/pending');
-        $this->configRepository->set('task.storage_recurring_path', $this->tempDir.'/recurring');
-        $this->configRepository->set('task.storage_completed_path', $this->tempDir.'/completed');
-        $this->configRepository->set('task.grace_period.enabled', false);
-        $this->configRepository->set('task.grace_period.seconds', 86400);
-        $this->configRepository->set('task.batch.limit', 1000);
-        $this->configRepository->set('task.batch.order', 'oldest');
+        $this->createdAliases = [];
     }
 
     protected function tearDown(): void
     {
-        if (is_dir($this->tempDir)) {
-            $this->deleteDirectory($this->tempDir);
+
+        if (! empty($this->createdAliases)) {
+            foreach ($this->createdAliases as $alias) {
+                $this->repository->delete(new TaskSignatureVO($alias));
+            }
+        }
+
+        if ($this->fs->isDirectory($this->baseStoragePath)) {
+            $this->fs->deleteDirectory($this->baseStoragePath);
         }
         parent::tearDown();
     }
 
-    private function deleteDirectory(string $dir): void
-    {
-        if (! is_dir($dir)) {
-            return;
-        }
-        foreach (glob($dir.'/*') as $file) {
-            is_dir($file) ? $this->deleteDirectory($file) : unlink($file);
-        }
-        rmdir($dir);
-    }
-
-    private function createTaskPayload(): TaskPayloadRecord
-    {
-
-        return new TaskPayloadRecord(
-            type: 'test',
-            data: new StrictDataObject([
-                'test_data' => 'recurring_repo_test',
-            ]),
-        );
-    }
-
-    private function createRecurringTask(string $signature): RecurringTaskRecord
+    private function createTaskRecord(string $alias): RecurringTaskRecord
     {
         return new RecurringTaskRecord(
-            signature: new TaskSignatureVO($signature),
-            class: 'TestClass',
-            payload: $this->createTaskPayload(),
-            start_at: new Iso8601DateTimeVO,
-            end_at: null,
-            delay_seconds: new CounterVO(300),
-            last_run_at: null,
-            next_run_at: new Iso8601DateTimeVO,
-            success_count: new CounterVO(0),
-            failure_count: new CounterVO(0),
+            alias: new TaskSignatureVO($alias),
+            fqcn: 'TestRecurringTask',
+            payload: StrictDataObject::from(['test' => 'recurring']),
+            interval_seconds: new CounterVO(3600),
+            start_at: new Iso8601DateTimeVO(now()->toIso8601String()),
+            status: RecurringTaskStatus::PENDING,
         );
     }
 
-    // ==================== Save Tests ====================
-
-    public function test_save_creates_recurring_task_file(): void
+    private function trackAlias(string $alias): void
     {
-        $task = $this->createRecurringTask('test-recurring-1');
-        $this->repository->save($task);
-
-        $found = $this->repository->find(new TaskSignatureVO('test-recurring-1'));
-        $this->assertNotNull($found);
-        $this->assertSame('test-recurring-1', $found->signature->value);
+        $this->createdAliases[] = $alias;
     }
 
-    public function test_save_updates_existing_recurring_task(): void
+    public function test_saves_task_adds_line_not_overwrite(): void
     {
-        $task = $this->createRecurringTask('test-recurring-2');
+
+        $alias = 'test-recurring-save';
+        $this->trackAlias($alias);
+
+        $task = $this->createTaskRecord($alias);
         $this->repository->save($task);
 
-        // Créer une nouvelle tâche avec la même signature mais des compteurs modifiés
+        $path = $this->baseStoragePath.'/recurring/pending/'.$alias.'.jsonl';
+        $this->assertTrue($this->fs->exists($path));
+
+        $updatedTask = new RecurringTaskRecord(
+            alias: $task->alias,
+            fqcn: $task->fqcn,
+            payload: $task->payload,
+            interval_seconds: $task->interval_seconds,
+            start_at: $task->start_at,
+            status: RecurringTaskStatus::PENDING,
+            last_run_at: new Iso8601DateTimeVO(now()->toIso8601String()),
+        );
+        $this->repository->save($updatedTask);
+
+        $content = $this->fs->get($path);
+        $lines = array_filter(explode("\n", $content));
+
+        $this->assertCount(2, $lines, 'Le fichier doit contenir 2 lignes');
+
+        $lastLine = json_decode(end($lines), true);
+        $this->assertNotNull($lastLine['last_run_at']);
+    }
+
+    public function test_finds_task_returns_last_version(): void
+    {
+
+        $alias = 'test-recurring-find';
+        $this->trackAlias($alias);
+
+        $task1 = $this->createTaskRecord($alias);
+        $this->repository->save($task1);
+
         $task2 = new RecurringTaskRecord(
-            signature: new TaskSignatureVO('test-recurring-2'),
-            class: 'TestClass',
-            payload: $this->createTaskPayload(),
-            start_at: new Iso8601DateTimeVO,
-            end_at: null,
-            delay_seconds: new CounterVO(300),
-            last_run_at: null,
-            next_run_at: new Iso8601DateTimeVO,
-            success_count: new CounterVO(5),  // ← modifié dans le constructeur
-            failure_count: new CounterVO(0),
+            alias: $task1->alias,
+            fqcn: $task1->fqcn,
+            payload: $task1->payload,
+            interval_seconds: $task1->interval_seconds,
+            start_at: $task1->start_at,
+            status: RecurringTaskStatus::PENDING,
+            last_run_at: new Iso8601DateTimeVO(now()->toIso8601String()),
         );
         $this->repository->save($task2);
 
-        $found = $this->repository->find(new TaskSignatureVO('test-recurring-2'));
-        $this->assertNotNull($found);
-        $this->assertSame(5, $found->success_count->value);
-    }
-
-    // ==================== Find Tests ====================
-
-    public function test_find_returns_recurring_task_when_exists(): void
-    {
-        $task = $this->createRecurringTask('test-recurring-3');
-        $this->repository->save($task);
-
-        $found = $this->repository->find(new TaskSignatureVO('test-recurring-3'));
-        $this->assertNotNull($found);
-        $this->assertSame('test-recurring-3', $found->signature->value);
-    }
-
-    public function test_find_returns_null_when_not_exists(): void
-    {
-        $found = $this->repository->find(new TaskSignatureVO('nonexistent'));
-        $this->assertNull($found);
-    }
-
-    public function test_find_returns_last_version_of_recurring_task(): void
-    {
-        $signature = new TaskSignatureVO('test-recurring-4');
-
-        // Créer et sauvegarder la tâche initiale
-        $task = $this->createRecurringTask('test-recurring-4');
-        $this->repository->save($task);
-
-        // Premier update - succès
-        $this->repository->updateAfterRun($task, true, null);
-
-        // Récupérer la version mise à jour depuis le repository
-        $updatedTask = $this->repository->find($signature);
-        $this->assertNotNull($updatedTask);
-        $this->assertSame(1, $updatedTask->success_count->value);
-
-        // Second update - échec (en utilisant la version récupérée)
-        $this->repository->updateAfterRun($updatedTask, false, 'Error');
-
-        // Vérifier le résultat final
-        $found = $this->repository->find($signature);
-        $this->assertNotNull($found);
-        $this->assertSame(1, $found->success_count->value);
-        $this->assertSame(1, $found->failure_count->value);
-    }
-
-    // ==================== FindAll Tests ====================
-
-    public function test_find_all_returns_all_recurring_tasks(): void
-    {
-        for ($i = 1; $i <= 3; $i++) {
-            $task = $this->createRecurringTask("recurring-{$i}");
-            $this->repository->save($task);
-        }
-
-        $tasks = $this->repository->findAll();
-        $this->assertSame(3, $tasks->count());
-    }
-
-    public function test_find_all_with_limit(): void
-    {
-        for ($i = 1; $i <= 5; $i++) {
-            $task = $this->createRecurringTask("recurring-limit-{$i}");
-            $this->repository->save($task);
-        }
-
-        $tasks = $this->repository->findAll(3);
-        $this->assertSame(3, $tasks->count());
-    }
-
-    public function test_find_all_with_limit_zero_returns_empty(): void
-    {
-        for ($i = 1; $i <= 3; $i++) {
-            $task = $this->createRecurringTask("recurring-zero-{$i}");
-            $this->repository->save($task);
-        }
-
-        $tasks = $this->repository->findAll(0);
-        $this->assertSame(0, $tasks->count());
-    }
-
-    public function test_find_all_with_order_oldest(): void
-    {
-        for ($i = 1; $i <= 3; $i++) {
-            $task = $this->createRecurringTask("recurring-oldest-{$i}");
-            $this->repository->save($task);
-        }
-
-        $tasks = $this->repository->findAll(null, TaskOrder::OLDEST);
-        $this->assertSame(3, $tasks->count());
-    }
-
-    public function test_find_all_with_order_newest(): void
-    {
-        for ($i = 1; $i <= 3; $i++) {
-            $task = $this->createRecurringTask("recurring-newest-{$i}");
-            $this->repository->save($task);
-        }
-
-        $tasks = $this->repository->findAll(null, TaskOrder::NEWEST);
-        $this->assertSame(3, $tasks->count());
-    }
-
-    public function test_find_all_returns_empty_when_no_tasks(): void
-    {
-        $tasks = $this->repository->findAll();
-        $this->assertSame(0, $tasks->count());
-    }
-
-    // ==================== Delete Tests ====================
-
-    public function test_delete_removes_recurring_task(): void
-    {
-        $task = $this->createRecurringTask('to-delete');
-        $this->repository->save($task);
-
-        $this->repository->delete(new TaskSignatureVO('to-delete'));
-        $found = $this->repository->find(new TaskSignatureVO('to-delete'));
-        $this->assertNull($found);
-    }
-
-    public function test_delete_nonexistent_task_does_nothing(): void
-    {
-        $this->repository->delete(new TaskSignatureVO('nonexistent'));
-        $this->assertTrue(true);
-    }
-
-    // ==================== UpdateAfterRun Tests ====================
-
-    public function test_update_after_run_increments_success_count(): void
-    {
-        $task = $this->createRecurringTask('update-success');
-        $this->repository->save($task);
-
-        $this->repository->updateAfterRun($task, true, null);
-
-        $found = $this->repository->find(new TaskSignatureVO('update-success'));
-        $this->assertNotNull($found);
-        $this->assertSame(1, $found->success_count->value);
-        $this->assertSame(0, $found->failure_count->value);
-        $this->assertNotNull($found->last_run_at);
-    }
-
-    public function test_update_after_run_increments_failure_count(): void
-    {
-        $task = $this->createRecurringTask('update-failure');
-        $this->repository->save($task);
-
-        $this->repository->updateAfterRun($task, false, 'Something went wrong');
-
-        $found = $this->repository->find(new TaskSignatureVO('update-failure'));
-        $this->assertNotNull($found);
-        $this->assertSame(0, $found->success_count->value);
-        $this->assertSame(1, $found->failure_count->value);
-        $this->assertNotNull($found->last_error);
-    }
-
-    public function test_update_after_run_updates_next_run_at(): void
-    {
-        $task = $this->createRecurringTask('update-next-run');
-        $this->repository->save($task);
-
-        $oldNextRunAt = $task->next_run_at->value;
-
-        $this->repository->updateAfterRun($task, true, null);
-
-        $found = $this->repository->find(new TaskSignatureVO('update-next-run'));
-        $this->assertNotNull($found);
-        $this->assertNotSame($oldNextRunAt, $found->next_run_at->value);
-    }
-
-    public function test_update_after_run_updates_last_run_at(): void
-    {
-        $task = $this->createRecurringTask('update-last-run');
-        $this->repository->save($task);
-
-        $this->repository->updateAfterRun($task, true, null);
-
-        $found = $this->repository->find(new TaskSignatureVO('update-last-run'));
+        $found = $this->repository->find(new TaskSignatureVO($alias));
         $this->assertNotNull($found);
         $this->assertNotNull($found->last_run_at);
+    }
+
+    public function test_finds_all_versions(): void
+    {
+
+        $alias = 'test-recurring-versions';
+        $this->trackAlias($alias);
+
+        for ($i = 0; $i < 3; $i++) {
+            $task = new RecurringTaskRecord(
+                alias: new TaskSignatureVO($alias),
+                fqcn: 'TestRecurringTask',
+                payload: StrictDataObject::from(['version' => $i]),
+                interval_seconds: new CounterVO(3600),
+                start_at: new Iso8601DateTimeVO(now()->toIso8601String()),
+                status: RecurringTaskStatus::PENDING,
+                last_run_at: $i > 0 ? new Iso8601DateTimeVO(now()->toIso8601String()) : null,
+            );
+            $this->repository->save($task);
+        }
+
+        $versions = $this->repository->findAllVersions(new TaskSignatureVO($alias));
+        $this->assertCount(3, $versions);
+    }
+
+    public function test_moves_to_running_moves_file_with_history(): void
+    {
+
+        $alias = 'test-recurring-running';
+        $this->trackAlias($alias);
+
+        $task = $this->createTaskRecord($alias);
+        $this->repository->save($task);
+
+        // ✅ Ajouter une deuxième version avant le move
+        $updatedTask = new RecurringTaskRecord(
+            alias: $task->alias,
+            fqcn: $task->fqcn,
+            payload: $task->payload,
+            interval_seconds: $task->interval_seconds,
+            start_at: $task->start_at,
+            status: RecurringTaskStatus::PENDING,
+            last_run_at: new Iso8601DateTimeVO(now()->toIso8601String()),
+        );
+        $this->repository->save($updatedTask);
+
+        $this->repository->moveToRunning(new TaskSignatureVO($alias), $task);
+
+        $sourcePath = $this->baseStoragePath.'/recurring/pending/'.$alias.'.jsonl';
+        $this->assertFalse($this->fs->exists($sourcePath), 'Le fichier source ne doit PAS exister dans pending');
+
+        $targetPath = $this->baseStoragePath.'/recurring/running/'.$alias.'.jsonl';
+        $this->assertTrue($this->fs->exists($targetPath), 'Le fichier target doit exister dans running');
+
+        $content = $this->fs->get($targetPath);
+        $lines = array_filter(explode("\n", $content));
+        $this->assertCount(3, $lines, 'Le fichier doit contenir 3 lignes (2 versions + 1 move)');
+
+        $lastLine = json_decode(end($lines), true);
+        $this->assertEquals(RecurringTaskStatus::RUNNING->value, $lastLine['status']);
+    }
+
+    public function test_moves_to_finished_moves_file_with_history(): void
+    {
+
+        $alias = 'test-recurring-finished';
+        $this->trackAlias($alias);
+
+        $task = $this->createTaskRecord($alias);
+        $this->repository->save($task);
+
+        $this->repository->moveToRunning(new TaskSignatureVO($alias), $task);
+
+        $task = $this->repository->find(new TaskSignatureVO($alias));
+        $this->repository->moveToFinished(new TaskSignatureVO($alias), $task);
+
+        $targetPath = $this->baseStoragePath.'/recurring/finished/'.$alias.'.jsonl';
+        $this->assertTrue($this->fs->exists($targetPath));
+
+        $content = $this->fs->get($targetPath);
+        $lines = array_filter(explode("\n", $content));
+
+        $lastLine = json_decode(end($lines), true);
+        $this->assertEquals(RecurringTaskStatus::FINISHED->value, $lastLine['status']);
+        $this->assertNotNull($lastLine['finished_at']);
+    }
+
+    public function test_update_after_run_adds_debug_and_keeps_pending(): void
+    {
+        $alias = 'test-recurring-update';
+        $this->trackAlias($alias);
+
+        $task = $this->createTaskRecord($alias);
+        $this->repository->save($task);
+
+        $this->repository->updateAfterRun($task, true);
+
+        $found = $this->repository->find(new TaskSignatureVO($alias));
+        $this->assertNotNull($found);
+
+        $this->assertEquals(RecurringTaskStatus::PENDING, $found->status);
+        $this->assertGreaterThan(0, $found->debug->count());
+
+        /** @var mixed $debugEntries */
+        $debugEntries = array_values(iterator_to_array($found->debug));
+
+        /** @var mixed $firstDebug */
+        $firstDebug = $debugEntries[0];
+        $this->assertEquals(ExecutionStatus::SUCCEEDED, $firstDebug->status);
+        $this->assertEquals('Task executed successfully', $firstDebug->info);
+    }
+
+    public function test_find_ready_to_run_calculates_next_run(): void
+    {
+
+        $alias1 = 'test-recurring-ready-1';
+        $alias2 = 'test-recurring-ready-2';
+
+        $this->trackAlias($alias1);
+        $this->trackAlias($alias2);
+
+        $task1 = new RecurringTaskRecord(
+            alias: new TaskSignatureVO($alias1),
+            fqcn: 'TestRecurringTask',
+            payload: StrictDataObject::from(['test' => 'recurring']),
+            interval_seconds: new CounterVO(3600),
+            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            status: RecurringTaskStatus::PENDING,
+            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+        );
+        $this->repository->save($task1);
+
+        $task2 = new RecurringTaskRecord(
+            alias: new TaskSignatureVO($alias2),
+            fqcn: 'TestRecurringTask',
+            payload: StrictDataObject::from(['test' => 'recurring']),
+            interval_seconds: new CounterVO(3600),
+            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            status: RecurringTaskStatus::PENDING,
+            last_run_at: new Iso8601DateTimeVO(now()->toIso8601String()),
+        );
+        $this->repository->save($task2);
+
+        $ready = $this->repository->findReadyToRun(date('c'));
+        $this->assertCount(1, $ready);
+        $this->assertEquals($alias1, $ready->first()->alias->value);
+    }
+
+    public function test_counts_tasks_by_status(): void
+    {
+
+        // PENDING
+        for ($i = 0; $i < 3; $i++) {
+            $alias = 'pending-'.$i;
+            $this->trackAlias($alias);
+            $task = $this->createTaskRecord($alias);
+            $this->repository->save($task);
+        }
+
+        // RUNNING
+        for ($i = 0; $i < 2; $i++) {
+            $alias = 'running-'.$i;
+            $this->trackAlias($alias);
+            $task = $this->createTaskRecord($alias);
+            $this->repository->save($task);
+            $this->repository->moveToRunning(new TaskSignatureVO($alias), $task);
+        }
+
+        // FINISHED
+        for ($i = 0; $i < 1; $i++) {
+            $alias = 'finished-'.$i;
+            $this->trackAlias($alias);
+            $task = $this->createTaskRecord($alias);
+            $this->repository->save($task);
+            $this->repository->moveToRunning(new TaskSignatureVO($alias), $task);
+            $found = $this->repository->find(new TaskSignatureVO($alias));
+            $this->repository->moveToFinished(new TaskSignatureVO($alias), $found);
+        }
+
+        $this->assertEquals(3, $this->repository->countPending());
+        $this->assertEquals(2, $this->repository->countRunning());
+        $this->assertEquals(1, $this->repository->countFinished());
+        $this->assertEquals(6, $this->repository->count());
+    }
+
+    public function test_deletes_task_removes_all_versions(): void
+    {
+
+        $alias = 'test-recurring-delete';
+        $this->trackAlias($alias);
+
+        for ($i = 0; $i < 3; $i++) {
+            $task = new RecurringTaskRecord(
+                alias: new TaskSignatureVO($alias),
+                fqcn: 'TestRecurringTask',
+                payload: StrictDataObject::from(['version' => $i]),
+                interval_seconds: new CounterVO(3600),
+                start_at: new Iso8601DateTimeVO(now()->toIso8601String()),
+                status: RecurringTaskStatus::PENDING,
+                last_run_at: $i > 0 ? new Iso8601DateTimeVO(now()->toIso8601String()) : null,
+            );
+            $this->repository->save($task);
+        }
+
+        $versions = $this->repository->findAllVersions(new TaskSignatureVO($alias));
+        $this->assertCount(3, $versions);
+
+        $this->repository->delete(new TaskSignatureVO($alias));
+
+        $versions = $this->repository->findAllVersions(new TaskSignatureVO($alias));
+        $this->assertCount(0, $versions);
+
+        $path = $this->baseStoragePath.'/recurring/pending/'.$alias.'.jsonl';
+        $this->assertFalse($this->fs->exists($path));
+    }
+
+    public function test_moves_to_pending_from_running_moves_file_with_history(): void
+    {
+
+        $alias = 'test-recurring-back-to-pending';
+        $this->trackAlias($alias);
+
+        $task = $this->createTaskRecord($alias);
+        $this->repository->save($task);
+
+        $this->repository->moveToRunning(new TaskSignatureVO($alias), $task);
+
+        $task = $this->repository->find(new TaskSignatureVO($alias));
+        $this->repository->moveToPending(new TaskSignatureVO($alias), $task);
+
+        $targetPath = $this->baseStoragePath.'/recurring/pending/'.$alias.'.jsonl';
+        $this->assertTrue($this->fs->exists($targetPath));
+
+        $content = $this->fs->get($targetPath);
+        $lines = array_filter(explode("\n", $content));
+
+        $lastLine = json_decode(end($lines), true);
+        $this->assertEquals(RecurringTaskStatus::PENDING->value, $lastLine['status']);
     }
 }

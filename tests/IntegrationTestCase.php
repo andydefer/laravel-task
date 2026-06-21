@@ -7,6 +7,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests;
 
 use AndyDefer\Directive\DirectiveServiceProvider;
+use AndyDefer\LaravelJsonl\LaravelJsonlServiceProvider;
 use AndyDefer\Logger\LoggerServiceProvider;
 use AndyDefer\Task\TaskServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
@@ -55,9 +56,10 @@ abstract class IntegrationTestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
+            LaravelJsonlServiceProvider::class,
             DirectiveServiceProvider::class,
-            TaskServiceProvider::class,
             LoggerServiceProvider::class,
+            TaskServiceProvider::class,
         ];
     }
 

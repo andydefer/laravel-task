@@ -2,24 +2,26 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\Task;
+namespace AndyDefer\Task\Abstract;
 
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
-use AndyDefer\Task\Contexts\TaskContext;
+use AndyDefer\Task\Contexts\RecurringTaskContext;
+use AndyDefer\Task\Contracts\Abstract\RecurringTaskInterface;
+use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
 
-abstract class AbstractTask
+abstract class RecurringTask implements RecurringTaskInterface
 {
-    protected TaskContext $context;
+    protected RecurringTaskContext $context;
 
     protected LoggerInterface $logger;
 
     protected HydrationService $hydration;
 
     final public function __construct(
-        TaskContext $context,
+        RecurringTaskContext $context,
         LoggerInterface $logger,
         HydrationService $hydration,
     ) {
@@ -27,6 +29,8 @@ abstract class AbstractTask
         $this->logger = $logger;
         $this->hydration = $hydration;
     }
+
+    abstract public function getConfig(): RecurringTaskConfigInterface;
 
     abstract protected function process(): void;
 
@@ -38,18 +42,14 @@ abstract class AbstractTask
     {
         $this->context->setPayload($payload);
 
-        $logData = [
-            'event' => 'task_started',
-            'alias' => $this->context->getAlias()->value,
-        ];
-
-        if ($this->context->hasTaskId()) {
-            $logData['task_id'] = $this->context->getTaskId()->value;
-        }
-
         $this->logger->info(new LogDataRecord(
-            type: 'task',
-            payload: $this->hydration->hydrate(StrictDataObject::class, $logData)
+            type: 'recurring_task',
+            payload: $this->hydration->hydrate(StrictDataObject::class, [
+                'event' => 'task_started',
+                'alias' => $this->context->getAlias()->value,
+                'interval_seconds' => $this->context->getIntervalSeconds()->value,
+                'next_run_at' => $this->context->getNextRunAt()?->value,
+            ])
         ));
 
         $this->before();
@@ -58,37 +58,25 @@ abstract class AbstractTask
             $this->process();
             $this->after(true);
 
-            $logData = [
-                'event' => 'task_completed',
-                'alias' => $this->context->getAlias()->value,
-                'status' => 'success',
-            ];
-
-            if ($this->context->hasTaskId()) {
-                $logData['task_id'] = $this->context->getTaskId()->value;
-            }
-
             $this->logger->info(new LogDataRecord(
-                type: 'task',
-                payload: $this->hydration->hydrate(StrictDataObject::class, $logData)
+                type: 'recurring_task',
+                payload: $this->hydration->hydrate(StrictDataObject::class, [
+                    'event' => 'task_completed',
+                    'alias' => $this->context->getAlias()->value,
+                    'status' => 'success',
+                ])
             ));
         } catch (\Throwable $e) {
             $this->after(false, $e->getMessage());
 
-            $logData = [
-                'event' => 'task_failed',
-                'alias' => $this->context->getAlias()->value,
-                'status' => 'failed',
-                'error' => $e->getMessage(),
-            ];
-
-            if ($this->context->hasTaskId()) {
-                $logData['task_id'] = $this->context->getTaskId()->value;
-            }
-
             $this->logger->error(new LogDataRecord(
-                type: 'task',
-                payload: $this->hydration->hydrate(StrictDataObject::class, $logData)
+                type: 'recurring_task',
+                payload: $this->hydration->hydrate(StrictDataObject::class, [
+                    'event' => 'task_failed',
+                    'alias' => $this->context->getAlias()->value,
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                ])
             ));
 
             throw $e;
@@ -98,7 +86,7 @@ abstract class AbstractTask
     public function info(string $message): void
     {
         $this->logger->info(new LogDataRecord(
-            type: 'task_output',
+            type: 'recurring_task_output',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'info',
                 'message' => $message,
@@ -109,7 +97,7 @@ abstract class AbstractTask
     public function error(string $message): void
     {
         $this->logger->error(new LogDataRecord(
-            type: 'task_output',
+            type: 'recurring_task_output',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'error',
                 'message' => $message,

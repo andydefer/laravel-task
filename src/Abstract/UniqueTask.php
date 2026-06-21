@@ -2,24 +2,26 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\Task;
+namespace AndyDefer\Task\Abstract;
 
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
-use AndyDefer\Task\Contexts\TaskContext;
+use AndyDefer\Task\Contexts\UniqueTaskContext;
+use AndyDefer\Task\Contracts\Abstract\UniqueTaskInterface;
+use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
 
-abstract class AbstractTask
+abstract class UniqueTask implements UniqueTaskInterface
 {
-    protected TaskContext $context;
+    protected UniqueTaskContext $context;
 
     protected LoggerInterface $logger;
 
     protected HydrationService $hydration;
 
     final public function __construct(
-        TaskContext $context,
+        UniqueTaskContext $context,
         LoggerInterface $logger,
         HydrationService $hydration,
     ) {
@@ -27,6 +29,8 @@ abstract class AbstractTask
         $this->logger = $logger;
         $this->hydration = $hydration;
     }
+
+    abstract public function getConfig(): UniqueTaskConfigInterface;
 
     abstract protected function process(): void;
 
@@ -38,18 +42,14 @@ abstract class AbstractTask
     {
         $this->context->setPayload($payload);
 
-        $logData = [
-            'event' => 'task_started',
-            'alias' => $this->context->getAlias()->value,
-        ];
-
-        if ($this->context->hasTaskId()) {
-            $logData['task_id'] = $this->context->getTaskId()->value;
-        }
-
         $this->logger->info(new LogDataRecord(
-            type: 'task',
-            payload: $this->hydration->hydrate(StrictDataObject::class, $logData)
+            type: 'unique_task',
+            payload: $this->hydration->hydrate(StrictDataObject::class, [
+                'event' => 'task_started',
+                'task_id' => $this->context->getTaskId()->value,
+                'alias' => $this->context->getAlias()->value,
+                'scheduled_at' => $this->context->getScheduledAt()->value,
+            ])
         ));
 
         $this->before();
@@ -58,37 +58,25 @@ abstract class AbstractTask
             $this->process();
             $this->after(true);
 
-            $logData = [
-                'event' => 'task_completed',
-                'alias' => $this->context->getAlias()->value,
-                'status' => 'success',
-            ];
-
-            if ($this->context->hasTaskId()) {
-                $logData['task_id'] = $this->context->getTaskId()->value;
-            }
-
             $this->logger->info(new LogDataRecord(
-                type: 'task',
-                payload: $this->hydration->hydrate(StrictDataObject::class, $logData)
+                type: 'unique_task',
+                payload: $this->hydration->hydrate(StrictDataObject::class, [
+                    'event' => 'task_completed',
+                    'task_id' => $this->context->getTaskId()->value,
+                    'status' => 'success',
+                ])
             ));
         } catch (\Throwable $e) {
             $this->after(false, $e->getMessage());
 
-            $logData = [
-                'event' => 'task_failed',
-                'alias' => $this->context->getAlias()->value,
-                'status' => 'failed',
-                'error' => $e->getMessage(),
-            ];
-
-            if ($this->context->hasTaskId()) {
-                $logData['task_id'] = $this->context->getTaskId()->value;
-            }
-
             $this->logger->error(new LogDataRecord(
-                type: 'task',
-                payload: $this->hydration->hydrate(StrictDataObject::class, $logData)
+                type: 'unique_task',
+                payload: $this->hydration->hydrate(StrictDataObject::class, [
+                    'event' => 'task_failed',
+                    'task_id' => $this->context->getTaskId()->value,
+                    'status' => 'failed',
+                    'error' => $e->getMessage(),
+                ])
             ));
 
             throw $e;
@@ -98,7 +86,7 @@ abstract class AbstractTask
     public function info(string $message): void
     {
         $this->logger->info(new LogDataRecord(
-            type: 'task_output',
+            type: 'unique_task_output',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'info',
                 'message' => $message,
@@ -109,7 +97,7 @@ abstract class AbstractTask
     public function error(string $message): void
     {
         $this->logger->error(new LogDataRecord(
-            type: 'task_output',
+            type: 'unique_task_output',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'error',
                 'message' => $message,
