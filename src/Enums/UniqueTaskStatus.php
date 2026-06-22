@@ -9,6 +9,7 @@ enum UniqueTaskStatus: string
     case PENDING = 'pending';
     case COMPLETED = 'completed';
     case FAILED = 'failed';
+    case CANCELED = 'canceled';
 
     public function getLabel(): string
     {
@@ -16,6 +17,7 @@ enum UniqueTaskStatus: string
             self::PENDING => 'Pending',
             self::COMPLETED => 'Completed',
             self::FAILED => 'Failed',
+            self::CANCELED => 'Canceled',
         };
     }
 
@@ -34,8 +36,13 @@ enum UniqueTaskStatus: string
         return $this === self::FAILED;
     }
 
+    public function isCanceled(): bool
+    {
+        return $this === self::CANCELED;
+    }
+
     public function isTerminal(): bool
     {
-        return $this === self::COMPLETED || $this === self::FAILED;
+        return $this === self::COMPLETED || $this === self::FAILED || $this === self::CANCELED;
     }
 }

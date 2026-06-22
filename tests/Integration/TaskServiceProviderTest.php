@@ -1,291 +1,280 @@
 <?php
 
-// tests/Integration/TaskServiceProviderTest.php
-
 declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration;
 
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
+use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
+use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\UniqueTaskProcessorInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
-use AndyDefer\Task\Contracts\Repositories\TaskRepositoryInterface;
-use AndyDefer\Task\Contracts\Services\BatchResultServiceInterface;
-use AndyDefer\Task\Contracts\Services\TaskBatchServiceInterface;
-use AndyDefer\Task\Contracts\Services\TaskFinderServiceInterface;
-use AndyDefer\Task\Contracts\Services\TaskRegistryServiceInterface;
-use AndyDefer\Task\Contracts\Services\TaskRunnerServiceInterface;
-use AndyDefer\Task\Contracts\Services\TaskServiceInterface;
-use AndyDefer\Task\Contracts\Services\TaskValidatorServiceInterface;
-use AndyDefer\Task\Services\BatchResultService;
-use AndyDefer\Task\Services\TaskBatchService;
-use AndyDefer\Task\Services\TaskFinderService;
-use AndyDefer\Task\Services\TaskRegistryService;
-use AndyDefer\Task\Services\TaskRunnerService;
-use AndyDefer\Task\Services\TaskService;
-use AndyDefer\Task\Services\TaskValidatorService;
+use AndyDefer\Task\Contracts\Repositories\TaskExecutionDebugRepositoryInterface;
+use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
+use AndyDefer\Task\Contracts\Runners\RecurringTaskRunnerInterface;
+use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
+use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
+use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
+use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
+use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
+use AndyDefer\Task\Directives\ProcessTasksDirective;
+use AndyDefer\Task\Loggers\RecurringTaskLogger;
+use AndyDefer\Task\Loggers\UniqueTaskLogger;
+use AndyDefer\Task\Processors\RecurringTaskProcessor;
+use AndyDefer\Task\Processors\UniqueTaskProcessor;
+use AndyDefer\Task\Repositories\RecurringTaskRepository;
+use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
+use AndyDefer\Task\Repositories\UniqueTaskRepository;
+use AndyDefer\Task\Runners\RecurringTaskRunner;
+use AndyDefer\Task\Runners\UniqueTaskRunner;
+use AndyDefer\Task\Services\RecurringTaskService;
+use AndyDefer\Task\Services\UniqueTaskService;
+use AndyDefer\Task\TaskServiceProvider;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\Validators\RecurringTaskValidator;
+use AndyDefer\Task\Validators\UniqueTaskValidator;
+use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Ramsey\Uuid\UuidFactoryInterface;
 
 final class TaskServiceProviderTest extends IntegrationTestCase
 {
-    // ==================== Repository Tests ====================
+    use DatabaseMigrations;
 
-    public function test_task_repository_is_registered(): void
+    protected function setUp(): void
     {
-        $this->assertTrue($this->app->bound(TaskRepositoryInterface::class));
+        parent::setUp();
 
-        $first = $this->app->make(TaskRepositoryInterface::class);
-        $second = $this->app->make(TaskRepositoryInterface::class);
-
-        $this->assertSame($first, $second);
+        $this->app->register(TaskServiceProvider::class);
+        $this->runDatabaseMigrations();
     }
 
-    public function test_recurring_task_repository_is_registered(): void
+    protected function tearDown(): void
     {
-        $this->assertTrue($this->app->bound(RecurringTaskRepositoryInterface::class));
-
-        $first = $this->app->make(RecurringTaskRepositoryInterface::class);
-        $second = $this->app->make(RecurringTaskRepositoryInterface::class);
-
-        $this->assertSame($first, $second);
+        parent::tearDown();
     }
 
-    // ==================== Service Tests (Interfaces) ====================
+    // ==================== SERVICES DE BASE ====================
 
-    public function test_task_validator_interface_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskValidatorServiceInterface::class));
-
-        $first = $this->app->make(TaskValidatorServiceInterface::class);
-        $second = $this->app->make(TaskValidatorServiceInterface::class);
-
-        $this->assertSame($first, $second);
-        $this->assertInstanceOf(TaskValidatorService::class, $first);
-    }
-
-    public function test_task_runner_interface_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskRunnerServiceInterface::class));
-
-        $first = $this->app->make(TaskRunnerServiceInterface::class);
-        $second = $this->app->make(TaskRunnerServiceInterface::class);
-
-        $this->assertSame($first, $second);
-        $this->assertInstanceOf(TaskRunnerService::class, $first);
-    }
-
-    public function test_task_registry_interface_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskRegistryServiceInterface::class));
-
-        $first = $this->app->make(TaskRegistryServiceInterface::class);
-        $second = $this->app->make(TaskRegistryServiceInterface::class);
-
-        $this->assertSame($first, $second);
-        $this->assertInstanceOf(TaskRegistryService::class, $first);
-    }
-
-    public function test_task_batch_interface_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskBatchServiceInterface::class));
-
-        $first = $this->app->make(TaskBatchServiceInterface::class);
-        $second = $this->app->make(TaskBatchServiceInterface::class);
-
-        $this->assertSame($first, $second);
-        $this->assertInstanceOf(TaskBatchService::class, $first);
-    }
-
-    public function test_batch_result_interface_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(BatchResultServiceInterface::class));
-
-        $first = $this->app->make(BatchResultServiceInterface::class);
-        $second = $this->app->make(BatchResultServiceInterface::class);
-
-        $this->assertSame($first, $second);
-        $this->assertInstanceOf(BatchResultService::class, $first);
-    }
-
-    public function test_task_finder_interface_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskFinderServiceInterface::class));
-
-        $first = $this->app->make(TaskFinderServiceInterface::class);
-        $second = $this->app->make(TaskFinderServiceInterface::class);
-
-        $this->assertSame($first, $second);
-        $this->assertInstanceOf(TaskFinderService::class, $first);
-    }
-
-    public function test_task_service_interface_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskServiceInterface::class));
-
-        $first = $this->app->make(TaskServiceInterface::class);
-        $second = $this->app->make(TaskServiceInterface::class);
-
-        $this->assertSame($first, $second);
-        $this->assertInstanceOf(TaskService::class, $first);
-    }
-
-    // ==================== Service Tests (Concrete Classes) ====================
-
-    public function test_task_validator_concrete_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskValidatorService::class));
-
-        $first = $this->app->make(TaskValidatorService::class);
-        $second = $this->app->make(TaskValidatorService::class);
-
-        $this->assertSame($first, $second);
-    }
-
-    public function test_task_runner_concrete_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskRunnerService::class));
-
-        $first = $this->app->make(TaskRunnerService::class);
-        $second = $this->app->make(TaskRunnerService::class);
-
-        $this->assertSame($first, $second);
-    }
-
-    public function test_task_registry_concrete_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskRegistryService::class));
-
-        $first = $this->app->make(TaskRegistryService::class);
-        $second = $this->app->make(TaskRegistryService::class);
-
-        $this->assertSame($first, $second);
-    }
-
-    public function test_task_batch_concrete_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskBatchService::class));
-
-        $first = $this->app->make(TaskBatchService::class);
-        $second = $this->app->make(TaskBatchService::class);
-
-        $this->assertSame($first, $second);
-    }
-
-    public function test_batch_result_concrete_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(BatchResultService::class));
-
-        $first = $this->app->make(BatchResultService::class);
-        $second = $this->app->make(BatchResultService::class);
-
-        $this->assertSame($first, $second);
-    }
-
-    public function test_task_finder_concrete_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskFinderService::class));
-
-        $first = $this->app->make(TaskFinderService::class);
-        $second = $this->app->make(TaskFinderService::class);
-
-        $this->assertSame($first, $second);
-    }
-
-    public function test_task_service_concrete_is_registered(): void
-    {
-        $this->assertTrue($this->app->bound(TaskService::class));
-
-        $first = $this->app->make(TaskService::class);
-        $second = $this->app->make(TaskService::class);
-
-        $this->assertSame($first, $second);
-    }
-
-    // ==================== Dependency Tests ====================
-
-    public function test_logger_interface_is_registered(): void
+    public function test_logger_interface_is_bound(): void
     {
         $this->assertTrue($this->app->bound(LoggerInterface::class));
 
-        $first = $this->app->make(LoggerInterface::class);
-        $second = $this->app->make(LoggerInterface::class);
-
-        $this->assertSame($first, $second);
-        $this->assertInstanceOf(LoggerInterface::class, $first);
+        $instance = $this->app->make(LoggerInterface::class);
+        $this->assertInstanceOf(LoggerInterface::class, $instance);
     }
 
-    // ==================== Injection Tests ====================
-
-    public function test_task_runner_receives_correct_dependencies(): void
+    public function test_uuid_factory_interface_is_bound(): void
     {
-        $runner = $this->app->make(TaskRunnerServiceInterface::class);
+        $this->assertTrue($this->app->bound(UuidFactoryInterface::class));
 
-        $this->assertInstanceOf(TaskRunnerServiceInterface::class, $runner);
+        $instance = $this->app->make(UuidFactoryInterface::class);
+        $this->assertInstanceOf(UuidFactoryInterface::class, $instance);
     }
 
-    public function test_task_registry_receives_correct_dependencies(): void
-    {
-        $registry = $this->app->make(TaskRegistryServiceInterface::class);
+    // ==================== REPOSITORIES ====================
 
-        $this->assertInstanceOf(TaskRegistryServiceInterface::class, $registry);
+    public function test_task_execution_debug_repository_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(TaskExecutionDebugRepositoryInterface::class));
+
+        $instance = $this->app->make(TaskExecutionDebugRepositoryInterface::class);
+        $this->assertInstanceOf(TaskExecutionDebugRepository::class, $instance);
     }
 
-    public function test_task_batch_receives_correct_dependencies(): void
+    public function test_unique_task_repository_is_bound(): void
     {
-        $batch = $this->app->make(TaskBatchServiceInterface::class);
+        $this->assertTrue($this->app->bound(UniqueTaskRepositoryInterface::class));
 
-        $this->assertInstanceOf(TaskBatchServiceInterface::class, $batch);
+        $instance = $this->app->make(UniqueTaskRepositoryInterface::class);
+        $this->assertInstanceOf(UniqueTaskRepository::class, $instance);
     }
 
-    public function test_task_finder_receives_correct_dependencies(): void
+    public function test_recurring_task_repository_is_bound(): void
     {
-        $finder = $this->app->make(TaskFinderServiceInterface::class);
+        $this->assertTrue($this->app->bound(RecurringTaskRepositoryInterface::class));
 
-        $this->assertInstanceOf(TaskFinderServiceInterface::class, $finder);
-        $this->assertInstanceOf(TaskFinderService::class, $finder);
+        $instance = $this->app->make(RecurringTaskRepositoryInterface::class);
+        $this->assertInstanceOf(RecurringTaskRepository::class, $instance);
     }
 
-    public function test_task_service_receives_correct_dependencies(): void
-    {
-        $service = $this->app->make(TaskServiceInterface::class);
+    // ==================== VALIDATORS ====================
 
-        $this->assertInstanceOf(TaskServiceInterface::class, $service);
-        $this->assertInstanceOf(TaskService::class, $service);
+    public function test_unique_task_validator_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(UniqueTaskValidatorInterface::class));
+
+        $instance = $this->app->make(UniqueTaskValidatorInterface::class);
+        $this->assertInstanceOf(UniqueTaskValidator::class, $instance);
     }
 
-    // ==================== Singleton Tests ====================
-
-    public function test_task_service_is_singleton(): void
+    public function test_recurring_task_validator_is_bound(): void
     {
-        $first = $this->app->make(TaskServiceInterface::class);
-        $second = $this->app->make(TaskServiceInterface::class);
+        $this->assertTrue($this->app->bound(RecurringTaskValidatorInterface::class));
 
-        $this->assertSame($first, $second);
+        $instance = $this->app->make(RecurringTaskValidatorInterface::class);
+        $this->assertInstanceOf(RecurringTaskValidator::class, $instance);
     }
 
-    public function test_task_finder_is_singleton(): void
-    {
-        $first = $this->app->make(TaskFinderServiceInterface::class);
-        $second = $this->app->make(TaskFinderServiceInterface::class);
+    // ==================== LOGGERS ====================
 
-        $this->assertSame($first, $second);
+    public function test_unique_task_logger_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(UniqueTaskLoggerInterface::class));
+
+        $instance = $this->app->make(UniqueTaskLoggerInterface::class);
+        $this->assertInstanceOf(UniqueTaskLogger::class, $instance);
     }
 
-    public function test_all_services_are_singletons(): void
+    public function test_recurring_task_logger_is_bound(): void
     {
-        $services = [
-            TaskValidatorServiceInterface::class,
-            TaskRunnerServiceInterface::class,
-            TaskRegistryServiceInterface::class,
-            TaskBatchServiceInterface::class,
-            BatchResultServiceInterface::class,
-            TaskFinderServiceInterface::class,
-            TaskServiceInterface::class,
-        ];
+        $this->assertTrue($this->app->bound(RecurringTaskLoggerInterface::class));
 
-        foreach ($services as $service) {
-            $first = $this->app->make($service);
-            $second = $this->app->make($service);
-            $this->assertSame($first, $second, "Service {$service} is not a singleton");
-        }
+        $instance = $this->app->make(RecurringTaskLoggerInterface::class);
+        $this->assertInstanceOf(RecurringTaskLogger::class, $instance);
+    }
+
+    // ==================== RUNNERS ====================
+
+    public function test_unique_task_runner_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(UniqueTaskRunnerInterface::class));
+
+        $instance = $this->app->make(UniqueTaskRunnerInterface::class);
+        $this->assertInstanceOf(UniqueTaskRunner::class, $instance);
+    }
+
+    public function test_recurring_task_runner_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(RecurringTaskRunnerInterface::class));
+
+        $instance = $this->app->make(RecurringTaskRunnerInterface::class);
+        $this->assertInstanceOf(RecurringTaskRunner::class, $instance);
+    }
+
+    // ==================== PROCESSORS ====================
+
+    public function test_unique_task_processor_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(UniqueTaskProcessorInterface::class));
+
+        $instance = $this->app->make(UniqueTaskProcessorInterface::class);
+        $this->assertInstanceOf(UniqueTaskProcessor::class, $instance);
+    }
+
+    public function test_recurring_task_processor_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(RecurringTaskProcessorInterface::class));
+
+        $instance = $this->app->make(RecurringTaskProcessorInterface::class);
+        $this->assertInstanceOf(RecurringTaskProcessor::class, $instance);
+    }
+
+    // ==================== SERVICES ====================
+
+    public function test_unique_task_service_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(UniqueTaskServiceInterface::class));
+
+        $instance = $this->app->make(UniqueTaskServiceInterface::class);
+        $this->assertInstanceOf(UniqueTaskService::class, $instance);
+    }
+
+    public function test_recurring_task_service_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(RecurringTaskServiceInterface::class));
+
+        $instance = $this->app->make(RecurringTaskServiceInterface::class);
+        $this->assertInstanceOf(RecurringTaskService::class, $instance);
+    }
+
+    // ==================== DIRECTIVES ====================
+
+    public function test_process_tasks_directive_is_bound(): void
+    {
+        $this->assertTrue($this->app->bound(ProcessTasksDirective::class));
+
+        $instance = $this->app->make(ProcessTasksDirective::class);
+        $this->assertInstanceOf(ProcessTasksDirective::class, $instance);
+    }
+
+    // ==================== ALIASES ====================
+
+    public function test_unique_task_service_alias_works(): void
+    {
+        $this->assertTrue($this->app->bound(UniqueTaskService::class));
+
+        $instance1 = $this->app->make(UniqueTaskServiceInterface::class);
+        $instance2 = $this->app->make(UniqueTaskService::class);
+
+        $this->assertSame($instance1, $instance2);
+    }
+
+    public function test_recurring_task_service_alias_works(): void
+    {
+        $this->assertTrue($this->app->bound(RecurringTaskService::class));
+
+        $instance1 = $this->app->make(RecurringTaskServiceInterface::class);
+        $instance2 = $this->app->make(RecurringTaskService::class);
+
+        $this->assertSame($instance1, $instance2);
+    }
+
+    public function test_unique_task_repository_alias_works(): void
+    {
+        $this->assertTrue($this->app->bound(UniqueTaskRepository::class));
+
+        $instance1 = $this->app->make(UniqueTaskRepositoryInterface::class);
+        $instance2 = $this->app->make(UniqueTaskRepository::class);
+
+        $this->assertSame($instance1, $instance2);
+    }
+
+    public function test_recurring_task_repository_alias_works(): void
+    {
+        $this->assertTrue($this->app->bound(RecurringTaskRepository::class));
+
+        $instance1 = $this->app->make(RecurringTaskRepositoryInterface::class);
+        $instance2 = $this->app->make(RecurringTaskRepository::class);
+
+        $this->assertSame($instance1, $instance2);
+    }
+
+    // ==================== SINGLETONS ====================
+
+    public function test_logger_is_singleton(): void
+    {
+        $instance1 = $this->app->make(LoggerInterface::class);
+        $instance2 = $this->app->make(LoggerInterface::class);
+
+        $this->assertSame($instance1, $instance2);
+    }
+
+    public function test_unique_task_service_is_singleton(): void
+    {
+        $instance1 = $this->app->make(UniqueTaskServiceInterface::class);
+        $instance2 = $this->app->make(UniqueTaskServiceInterface::class);
+
+        $this->assertSame($instance1, $instance2);
+    }
+
+    public function test_recurring_task_service_is_singleton(): void
+    {
+        $instance1 = $this->app->make(RecurringTaskServiceInterface::class);
+        $instance2 = $this->app->make(RecurringTaskServiceInterface::class);
+
+        $this->assertSame($instance1, $instance2);
+    }
+
+    // ==================== MIGRATIONS ====================
+
+    public function test_migrations_are_executed(): void
+    {
+        $tables = $this->app['db']->connection()->getSchemaBuilder()->getTables();
+        $tableNames = array_map(fn ($table) => $table['name'], $tables);
+
+        $this->assertContains('unique_tasks', $tableNames);
+        $this->assertContains('recurring_tasks', $tableNames);
+        $this->assertContains('task_execution_debugs', $tableNames);
     }
 }

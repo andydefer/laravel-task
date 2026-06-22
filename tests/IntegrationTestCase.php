@@ -26,6 +26,8 @@ abstract class IntegrationTestCase extends Orchestra
     protected function setUp(): void
     {
         parent::setUp();
+        $this->runDatabaseMigrations();
+
     }
 
     protected function tearDown(): void
@@ -68,9 +70,9 @@ abstract class IntegrationTestCase extends Orchestra
         $app['config']->set('view.paths', [__DIR__.'/Fixtures/views']);
     }
 
-    protected function runDatabaseMigrations(): void
+    protected function runDatabaseMigrations()
     {
-        $migrationPath = __DIR__.'/database/migrations';
+        $migrationPath = __DIR__.'/../database/migrations';
 
         if (is_dir($migrationPath)) {
             $this->loadMigrationsFrom($migrationPath);

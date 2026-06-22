@@ -6,13 +6,14 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Fixtures\Tasks;
 
-use AndyDefer\DomainStructures\Services\HydrationService;
-use AndyDefer\Task\AbstractTask;
-use AndyDefer\Task\Records\TaskConfigRecord;
+use AndyDefer\Task\Abstract\AbstractUniqueTask;
+use AndyDefer\Task\Configs\UniqueTaskConfig;
+use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
 use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
-class FailingTask extends AbstractTask
+class FailingTask extends AbstractUniqueTask
 {
     public bool $afterCalled = false;
 
@@ -20,19 +21,18 @@ class FailingTask extends AbstractTask
 
     public ?string $afterError = null;
 
-    public function getConfig(): TaskConfigRecord
+    public function getConfig(): UniqueTaskConfigInterface
     {
-        return new TaskConfigRecord(
-            signature: new TaskSignatureVO('failing-task'),
+        return new UniqueTaskConfig(
+            alias: new TaskSignatureVO('failing-task'),
             description: 'Task that always fails',
-            delay_seconds: new CounterVO(0),
+            scheduled_at: new Iso8601DateTimeVO(now()->addMinutes(5)->toIso8601String()),
             max_attempts: new CounterVO(3),
         );
     }
 
     protected function process(): void
     {
-        $this->context->getLaravelApp()->make(HydrationService::class);
         throw new \RuntimeException('Test exception');
     }
 

@@ -6,12 +6,14 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Fixtures\Tasks;
 
-use AndyDefer\Task\AbstractTask;
-use AndyDefer\Task\Records\TaskConfigRecord;
+use AndyDefer\Task\Abstract\AbstractUniqueTask;
+use AndyDefer\Task\Configs\UniqueTaskConfig;
+use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
 use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
-class TestTask extends AbstractTask
+class TestTask extends AbstractUniqueTask
 {
     public bool $beforeCalled = false;
 
@@ -23,12 +25,12 @@ class TestTask extends AbstractTask
 
     public ?string $afterError = null;
 
-    public function getConfig(): TaskConfigRecord
+    public function getConfig(): UniqueTaskConfigInterface
     {
-        return new TaskConfigRecord(
-            signature: new TaskSignatureVO('test-task'),
+        return new UniqueTaskConfig(
+            alias: new TaskSignatureVO('test-task'),
             description: 'Test task for unit tests',
-            delay_seconds: new CounterVO(0),
+            scheduled_at: new Iso8601DateTimeVO(now()->addMinutes(5)->toIso8601String()),
             max_attempts: new CounterVO(3),
         );
     }

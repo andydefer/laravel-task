@@ -4,433 +4,347 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Repositories;
 
-use AndyDefer\DomainStructures\Services\HydrationService;
-use AndyDefer\LaravelJsonl\JsonlService;
-use AndyDefer\PhpServices\Contracts\FileSystemInterface;
-use AndyDefer\PhpServices\Enums\PermissionMode;
-use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\Repository\AbstractRepository;
+use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
-use AndyDefer\Task\Enums\ExecutionStatus;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
+use AndyDefer\Task\Models\RecurringTask;
+use AndyDefer\Task\Records\RecurringTaskFiltersRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
-use AndyDefer\Task\Records\TaskExecutionDebugRecord;
-use AndyDefer\Task\Strategies\RecurringTaskPathStrategy;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 
-final class RecurringTaskRepository implements RecurringTaskRepositoryInterface
+/**
+ * @extends AbstractRepository<RecurringTask, RecurringTaskRecord>
+ */
+final class RecurringTaskRepository extends AbstractRepository implements RecurringTaskRepositoryInterface
 {
-    private string $basePath;
-
-    private RecurringTaskPathStrategy $pathStrategy;
+    private TaskExecutionDebugRepository $debugRepository;
 
     public function __construct(
-        private readonly JsonlService $jsonl,
-        private readonly HydrationService $hydration,
-        private readonly FileSystemInterface $fs,
-        string $storagePath,
+        TaskExecutionDebugRepository $debugRepository,
     ) {
-        $this->basePath = rtrim($storagePath, '/').'/recurring';
-        $this->pathStrategy = new RecurringTaskPathStrategy($this->basePath);
+        parent::__construct(RecurringTask::class, RecurringTaskRecord::class);
+        $this->debugRepository = $debugRepository;
     }
 
-    private function ensureDirectory(string $path): void
+    protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
-        if (! $this->fs->isDirectory($path)) {
-            $this->fs->makeDirectory($path, PermissionMode::DIRECTORY, true);
-        }
-    }
-
-    private function getStatusDirectory(RecurringTaskStatus $status): string
-    {
-        return match ($status) {
-            RecurringTaskStatus::PENDING => $this->basePath.'/pending',
-            RecurringTaskStatus::RUNNING => $this->basePath.'/running',
-            RecurringTaskStatus::FINISHED => $this->basePath.'/finished',
-        };
-    }
-
-    private function getFilePath(TaskSignatureVO $alias, RecurringTaskStatus $status): string
-    {
-        return $this->getStatusDirectory($status).'/'.$alias->value.'.jsonl';
-    }
-
-    public function save(RecurringTaskRecord $task): void
-    {
-        $dir = $this->getStatusDirectory($task->status);
-        $this->ensureDirectory($dir);
-
-        $path = $dir.'/'.$task->alias->value.'.jsonl';
-
-        $this->jsonl->write($task);
-    }
-
-    public function find(TaskSignatureVO $alias): ?RecurringTaskRecord
-    {
-        $statuses = [RecurringTaskStatus::PENDING, RecurringTaskStatus::RUNNING, RecurringTaskStatus::FINISHED];
-
-        foreach ($statuses as $status) {
-            $path = $this->getFilePath($alias, $status);
-
-            if ($this->fs->exists($path)) {
-                $lines = $this->jsonl->readAll($path);
-                if (! empty($lines)) {
-                    $last = end($lines);
-
-                    return $this->hydration->hydrate(RecurringTaskRecord::class, $last);
-                }
-            }
-        }
-
-        return null;
-    }
-
-    public function findAllVersions(TaskSignatureVO $alias): RecurringTaskRecordCollection
-    {
-        $collection = new RecurringTaskRecordCollection;
-        $statuses = [RecurringTaskStatus::PENDING, RecurringTaskStatus::RUNNING, RecurringTaskStatus::FINISHED];
-
-        foreach ($statuses as $status) {
-            $path = $this->getFilePath($alias, $status);
-
-            if ($this->fs->exists($path)) {
-                $lines = $this->jsonl->readAll($path);
-                foreach ($lines as $line) {
-                    $task = $this->hydration->hydrate(RecurringTaskRecord::class, $line);
-                    $collection->add($task);
-                }
-            }
-        }
-
-        return $collection;
-    }
-
-    public function findAll(?int $limit = null): RecurringTaskRecordCollection
-    {
-        $collection = new RecurringTaskRecordCollection;
-        $statuses = [RecurringTaskStatus::PENDING, RecurringTaskStatus::RUNNING, RecurringTaskStatus::FINISHED];
-
-        $count = 0;
-        foreach ($statuses as $status) {
-            $dir = $this->getStatusDirectory($status);
-            if (! $this->fs->isDirectory($dir)) {
-                continue;
-            }
-
-            $files = $this->fs->glob($dir.'/*.jsonl');
-
-            foreach ($files as $file) {
-                if ($limit !== null && $count >= $limit) {
-                    break 2;
-                }
-
-                $lines = $this->jsonl->readAll($file);
-                if (! empty($lines)) {
-                    $task = $this->hydration->hydrate(RecurringTaskRecord::class, end($lines));
-                    $collection->add($task);
-                    $count++;
-                }
-            }
-        }
-
-        return $collection;
-    }
-
-    public function findPending(?int $limit = null): RecurringTaskRecordCollection
-    {
-        $collection = new RecurringTaskRecordCollection;
-        $dir = $this->getStatusDirectory(RecurringTaskStatus::PENDING);
-
-        if (! $this->fs->isDirectory($dir)) {
-            return $collection;
-        }
-
-        $files = $this->fs->glob($dir.'/*.jsonl');
-        $count = 0;
-
-        foreach ($files as $file) {
-            if ($limit !== null && $count >= $limit) {
-                break;
-            }
-
-            $lines = $this->jsonl->readAll($file);
-            if (! empty($lines)) {
-                $task = $this->hydration->hydrate(RecurringTaskRecord::class, end($lines));
-                $collection->add($task);
-                $count++;
-            }
-        }
-
-        return $collection;
-    }
-
-    public function findRunning(?int $limit = null): RecurringTaskRecordCollection
-    {
-        $collection = new RecurringTaskRecordCollection;
-        $dir = $this->getStatusDirectory(RecurringTaskStatus::RUNNING);
-
-        if (! $this->fs->isDirectory($dir)) {
-            return $collection;
-        }
-
-        $files = $this->fs->glob($dir.'/*.jsonl');
-        $count = 0;
-
-        foreach ($files as $file) {
-            if ($limit !== null && $count >= $limit) {
-                break;
-            }
-
-            $lines = $this->jsonl->readAll($file);
-            if (! empty($lines)) {
-                $task = $this->hydration->hydrate(RecurringTaskRecord::class, end($lines));
-                $collection->add($task);
-                $count++;
-            }
-        }
-
-        return $collection;
-    }
-
-    public function findFinished(?int $limit = null): RecurringTaskRecordCollection
-    {
-        $collection = new RecurringTaskRecordCollection;
-        $dir = $this->getStatusDirectory(RecurringTaskStatus::FINISHED);
-
-        if (! $this->fs->isDirectory($dir)) {
-            return $collection;
-        }
-
-        $files = $this->fs->glob($dir.'/*.jsonl');
-        $count = 0;
-
-        foreach ($files as $file) {
-            if ($limit !== null && $count >= $limit) {
-                break;
-            }
-
-            $lines = $this->jsonl->readAll($file);
-            if (! empty($lines)) {
-                $task = $this->hydration->hydrate(RecurringTaskRecord::class, end($lines));
-                $collection->add($task);
-                $count++;
-            }
-        }
-
-        return $collection;
-    }
-
-    public function findReadyToRun(string $now): RecurringTaskRecordCollection
-    {
-        $collection = new RecurringTaskRecordCollection;
-        $dir = $this->getStatusDirectory(RecurringTaskStatus::PENDING);
-
-        if (! $this->fs->isDirectory($dir)) {
-            return $collection;
-        }
-
-        $files = $this->fs->glob($dir.'/*.jsonl');
-
-        foreach ($files as $file) {
-            $lines = $this->jsonl->readAll($file);
-            if (empty($lines)) {
-                continue;
-            }
-
-            $task = $this->hydration->hydrate(RecurringTaskRecord::class, end($lines));
-
-            $lastRun = $task->last_run_at ?? $task->start_at;
-            $nextRun = $lastRun !== null
-                ? strtotime($lastRun->value) + $task->interval_seconds->value
-                : strtotime($task->start_at->value);
-
-            if ($task->status === RecurringTaskStatus::PENDING && $nextRun <= strtotime($now)) {
-                $collection->add($task);
-            }
-        }
-
-        return $collection;
-    }
-
-    public function delete(TaskSignatureVO $alias): void
-    {
-        $statuses = [RecurringTaskStatus::PENDING, RecurringTaskStatus::RUNNING, RecurringTaskStatus::FINISHED];
-
-        foreach ($statuses as $status) {
-            $path = $this->getFilePath($alias, $status);
-            if ($this->fs->exists($path)) {
-                $this->fs->delete($path);
-
-                return;
-            }
-        }
-
-    }
-
-    public function moveToRunning(TaskSignatureVO $alias, RecurringTaskRecord $task): void
-    {
-        $source = $this->getFilePath($alias, RecurringTaskStatus::PENDING);
-
-        if (! $this->fs->exists($source)) {
-
+        if (! $filters instanceof RecurringTaskFiltersRecord) {
             return;
         }
 
-        // ✅ 1. Lire TOUTES les lignes du fichier source
-        $lines = $this->jsonl->readAll($source);
-        if (empty($lines)) {
-            return;
+        if ($filters->alias !== null) {
+            $query->where('alias', $filters->alias->value);
         }
 
-        // ✅ 2. Prendre la dernière ligne et la modifier avec le nouveau statut
-        $lastLine = end($lines);
-        $lastLine['status'] = RecurringTaskStatus::RUNNING->value;
+        if ($filters->fqcn !== null) {
+            $query->where('fqcn', $filters->fqcn);
+        }
 
-        // ✅ 3. Ajouter la nouvelle ligne au fichier source
-        $this->fs->append($source, json_encode($lastLine)."\n");
+        if ($filters->status !== null) {
+            $query->where('status', $filters->status->value);
+        }
 
-        // ✅ 4. Déplacer le fichier entier vers le nouveau dossier
-        $targetDir = $this->getStatusDirectory(RecurringTaskStatus::RUNNING);
-        $this->ensureDirectory($targetDir);
+        if ($filters->start_at_from !== null) {
+            $query->where('start_at', '>=', $this->formatDateForDatabase($filters->start_at_from));
+        }
 
-        $target = $targetDir.'/'.$alias->value.'.jsonl';
+        if ($filters->start_at_to !== null) {
+            $query->where('start_at', '<=', $this->formatDateForDatabase($filters->start_at_to));
+        }
 
-        // ✅ 5. Déplacer (move) le fichier source vers target
-        $this->fs->move($source, $target);
+        if ($filters->end_at_from !== null) {
+            $query->where('end_at', '>=', $this->formatDateForDatabase($filters->end_at_from));
+        }
 
+        if ($filters->end_at_to !== null) {
+            $query->where('end_at', '<=', $this->formatDateForDatabase($filters->end_at_to));
+        }
+
+        if ($filters->last_run_at_from !== null) {
+            $query->where('last_run_at', '>=', $this->formatDateForDatabase($filters->last_run_at_from));
+        }
+
+        if ($filters->last_run_at_to !== null) {
+            $query->where('last_run_at', '<=', $this->formatDateForDatabase($filters->last_run_at_to));
+        }
+
+        if ($filters->cancelled_at_from !== null) {
+            $query->where('cancelled_at', '>=', $this->formatDateForDatabase($filters->cancelled_at_from));
+        }
+
+        if ($filters->cancelled_at_to !== null) {
+            $query->where('cancelled_at', '<=', $this->formatDateForDatabase($filters->cancelled_at_to));
+        }
+
+        if ($filters->include_deleted === true) {
+            $query->withTrashed();
+        }
     }
 
-    public function moveToFinished(TaskSignatureVO $alias, RecurringTaskRecord $task): void
+    // ==================== FINDERS ====================
+
+    public function findWaiting(?int $limit = null): Collection
     {
-        $source = $this->getFilePath($alias, RecurringTaskStatus::RUNNING);
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::WAITING);
 
-        if (! $this->fs->exists($source)) {
-
-            return;
-        }
-
-        // ✅ 1. Lire TOUTES les lignes du fichier source
-        $lines = $this->jsonl->readAll($source);
-        if (empty($lines)) {
-            return;
-        }
-
-        // ✅ 2. Prendre la dernière ligne et la modifier avec le nouveau statut
-        $lastLine = end($lines);
-        $lastLine['status'] = RecurringTaskStatus::FINISHED->value;
-        $lastLine['finished_at'] = (new Iso8601DateTimeVO)->value;
-
-        // ✅ 3. Ajouter la nouvelle ligne au fichier source
-        $this->fs->append($source, json_encode($lastLine)."\n");
-
-        // ✅ 4. Déplacer le fichier entier vers le nouveau dossier
-        $targetDir = $this->getStatusDirectory(RecurringTaskStatus::FINISHED);
-        $this->ensureDirectory($targetDir);
-
-        $target = $targetDir.'/'.$alias->value.'.jsonl';
-
-        // ✅ 5. Déplacer (move) le fichier source vers target
-        $this->fs->move($source, $target);
-
+        return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
     }
 
-    public function moveToPending(TaskSignatureVO $alias, RecurringTaskRecord $task): void
+    public function findPlaying(?int $limit = null): Collection
     {
-        $source = $this->getFilePath($alias, RecurringTaskStatus::RUNNING);
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::PLAYING);
 
-        if (! $this->fs->exists($source)) {
-
-            return;
-        }
-
-        // ✅ 1. Lire TOUTES les lignes du fichier source
-        $lines = $this->jsonl->readAll($source);
-        if (empty($lines)) {
-            return;
-        }
-
-        // ✅ 2. Prendre la dernière ligne et la modifier avec le nouveau statut
-        $lastLine = end($lines);
-        $lastLine['status'] = RecurringTaskStatus::PENDING->value;
-
-        // ✅ 3. Ajouter la nouvelle ligne au fichier source
-        $this->fs->append($source, json_encode($lastLine)."\n");
-
-        // ✅ 4. Déplacer le fichier entier vers le nouveau dossier
-        $targetDir = $this->getStatusDirectory(RecurringTaskStatus::PENDING);
-        $this->ensureDirectory($targetDir);
-
-        $target = $targetDir.'/'.$alias->value.'.jsonl';
-
-        // ✅ 5. Déplacer (move) le fichier source vers target
-        $this->fs->move($source, $target);
-
+        return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
     }
 
-    public function updateAfterRun(RecurringTaskRecord $task, bool $success, ?string $error = null): void
+    public function findPaused(?int $limit = null): Collection
     {
-        $now = new Iso8601DateTimeVO;
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::PAUSED);
 
-        $debugEntry = new TaskExecutionDebugRecord(
-            acted_at: $now,
-            status: $success ? ExecutionStatus::SUCCEEDED : ExecutionStatus::FAILED,
-            info: $success ? 'Task executed successfully' : ($error ?? 'Task execution failed'),
-        );
+        return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
+    }
 
-        $newDebug = clone $task->debug;
-        $newDebug->add($debugEntry);
+    public function findFinished(?int $limit = null): Collection
+    {
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::FINISHED);
 
-        $updated = new RecurringTaskRecord(
+        return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
+    }
+
+    public function findCanceled(?int $limit = null): Collection
+    {
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::CANCELED);
+
+        return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
+    }
+
+    public function findReadyToRun(string $now, ?int $limit = null): Collection
+    {
+        $dateTime = new \DateTime($now);
+        $dateTime->setTimezone(new \DateTimeZone('UTC'));
+        $formattedNow = $dateTime->format('Y-m-d H:i:s');
+
+        $query = $this->model->newQuery();
+        $query->where('status', RecurringTaskStatus::WAITING->value);
+        $query->where('start_at', '<=', $formattedNow);
+
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        /** @var Collection<int, RecurringTask> $result */
+        $result = $query->get();
+
+        return $result;
+    }
+
+    public function findExpired(string $now, ?int $limit = null): Collection
+    {
+        $dateTime = new \DateTime($now);
+        $dateTime->setTimezone(new \DateTimeZone('UTC'));
+        $formattedNow = $dateTime->format('Y-m-d H:i:s');
+
+        $query = $this->model->newQuery();
+        $query->where('status', RecurringTaskStatus::PLAYING->value);
+        $query->where('end_at', '<=', $formattedNow);
+
+        if ($limit !== null) {
+            $query->limit($limit);
+        }
+
+        /** @var Collection<int, RecurringTask> $result */
+        $result = $query->get();
+
+        return $result;
+    }
+
+    public function findByAlias(string $alias): ?RecurringTask
+    {
+        $filters = new RecurringTaskFiltersRecord(alias: new TaskSignatureVO($alias));
+        $results = $this->findBy(new FindByRecord(filters: $filters));
+
+        return $results->first() ?? null;
+    }
+
+    // ==================== MOVES ====================
+
+    public function moveToPlaying(RecurringTaskRecord $task): void
+    {
+        $existingTask = $this->findByAlias($task->alias->value);
+        if ($existingTask === null) {
+            throw new \RuntimeException("Task not found: {$task->alias->value}");
+        }
+
+        $this->update($existingTask->getId(), new RecurringTaskRecord(
             alias: $task->alias,
             fqcn: $task->fqcn,
             payload: $task->payload,
             interval_seconds: $task->interval_seconds,
             start_at: $task->start_at,
             end_at: $task->end_at,
-            status: RecurringTaskStatus::PENDING,
-            last_run_at: $now,
-            debug: $newDebug,
-        );
-
-        $this->save($updated);
+            status: RecurringTaskStatus::PLAYING,
+            last_run_at: $task->last_run_at,
+        ));
     }
 
-    public function count(): int
+    public function moveToPaused(RecurringTaskRecord $task): void
     {
-        $count = 0;
-        $statuses = [RecurringTaskStatus::PENDING, RecurringTaskStatus::RUNNING, RecurringTaskStatus::FINISHED];
-
-        foreach ($statuses as $status) {
-            $dir = $this->getStatusDirectory($status);
-            if ($this->fs->isDirectory($dir)) {
-                $count += count($this->fs->glob($dir.'/*.jsonl'));
-            }
+        $existingTask = $this->findByAlias($task->alias->value);
+        if ($existingTask === null) {
+            throw new \RuntimeException("Task not found: {$task->alias->value}");
         }
 
-        return $count;
+        $this->update($existingTask->getId(), new RecurringTaskRecord(
+            alias: $task->alias,
+            fqcn: $task->fqcn,
+            payload: $task->payload,
+            interval_seconds: $task->interval_seconds,
+            start_at: $task->start_at,
+            end_at: $task->end_at,
+            status: RecurringTaskStatus::PAUSED,
+            last_run_at: $task->last_run_at,
+        ));
     }
 
-    public function countPending(): int
+    public function moveToWaiting(RecurringTaskRecord $task): void
     {
-        $dir = $this->getStatusDirectory(RecurringTaskStatus::PENDING);
-        $count = $this->fs->isDirectory($dir) ? count($this->fs->glob($dir.'/*.jsonl')) : 0;
+        $existingTask = $this->findByAlias($task->alias->value);
+        if ($existingTask === null) {
+            throw new \RuntimeException("Task not found: {$task->alias->value}");
+        }
 
-        return $count;
+        $this->update($existingTask->getId(), new RecurringTaskRecord(
+            alias: $task->alias,
+            fqcn: $task->fqcn,
+            payload: $task->payload,
+            interval_seconds: $task->interval_seconds,
+            start_at: $task->start_at,
+            end_at: $task->end_at,
+            status: RecurringTaskStatus::WAITING,
+            last_run_at: $task->last_run_at,
+        ));
     }
 
-    public function countRunning(): int
+    public function moveToFinished(RecurringTaskRecord $task): void
     {
-        $dir = $this->getStatusDirectory(RecurringTaskStatus::RUNNING);
-        $count = $this->fs->isDirectory($dir) ? count($this->fs->glob($dir.'/*.jsonl')) : 0;
+        $existingTask = $this->findByAlias($task->alias->value);
+        if ($existingTask === null) {
+            throw new \RuntimeException("Task not found: {$task->alias->value}");
+        }
 
-        return $count;
+        $this->update($existingTask->getId(), new RecurringTaskRecord(
+            alias: $task->alias,
+            fqcn: $task->fqcn,
+            payload: $task->payload,
+            interval_seconds: $task->interval_seconds,
+            start_at: $task->start_at,
+            end_at: $task->end_at,
+            status: RecurringTaskStatus::FINISHED,
+            last_run_at: $task->last_run_at,
+            finished_at: new Iso8601DateTimeVO,
+        ));
+    }
+
+    public function moveToCanceled(RecurringTaskRecord $task): void
+    {
+        $existingTask = $this->findByAlias($task->alias->value);
+        if ($existingTask === null) {
+            throw new \RuntimeException("Task not found: {$task->alias->value}");
+        }
+
+        $this->update($existingTask->getId(), new RecurringTaskRecord(
+            alias: $task->alias,
+            fqcn: $task->fqcn,
+            payload: $task->payload,
+            interval_seconds: $task->interval_seconds,
+            start_at: $task->start_at,
+            end_at: $task->end_at,
+            status: RecurringTaskStatus::CANCELED,
+            last_run_at: $task->last_run_at,
+            finished_at: new Iso8601DateTimeVO,
+            cancelled_at: new Iso8601DateTimeVO,
+        ));
+    }
+
+    // ==================== UPDATE ====================
+
+    public function updateAfterRun(RecurringTaskRecord $task, bool $success, ?string $error = null): void
+    {
+        $now = new Iso8601DateTimeVO;
+
+        $existingTask = $this->findByAlias($task->alias->value);
+        if ($existingTask === null) {
+            throw new \RuntimeException("Task not found: {$task->alias->value}");
+        }
+
+        $this->debugRepository->addDebug(
+            taskType: 'recurring',
+            taskIdentifier: $task->alias->value,
+            status: $success ? 'succeeded' : 'failed',
+            info: $success ? 'Recurring task executed successfully' : ($error ?? 'Recurring task execution failed'),
+        );
+
+        $this->update($existingTask->getId(), new RecurringTaskRecord(
+            alias: $task->alias,
+            fqcn: $task->fqcn,
+            payload: $task->payload,
+            interval_seconds: $task->interval_seconds,
+            start_at: $task->start_at,
+            end_at: $task->end_at,
+            status: RecurringTaskStatus::PLAYING,
+            last_run_at: $now,
+        ));
+    }
+
+    // ==================== COUNTS ====================
+
+    public function countWaiting(): int
+    {
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::WAITING);
+
+        return $this->count($filters);
+    }
+
+    public function countPlaying(): int
+    {
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::PLAYING);
+
+        return $this->count($filters);
+    }
+
+    public function countPaused(): int
+    {
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::PAUSED);
+
+        return $this->count($filters);
     }
 
     public function countFinished(): int
     {
-        $dir = $this->getStatusDirectory(RecurringTaskStatus::FINISHED);
-        $count = $this->fs->isDirectory($dir) ? count($this->fs->glob($dir.'/*.jsonl')) : 0;
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::FINISHED);
 
-        return $count;
+        return $this->count($filters);
+    }
+
+    public function countCanceled(): int
+    {
+        $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::CANCELED);
+
+        return $this->count($filters);
+    }
+
+    /**
+     * Convertit un Iso8601DateTimeVO en format MySQL datetime.
+     */
+    private function formatDateForDatabase(Iso8601DateTimeVO $date): string
+    {
+        $dateTime = new \DateTime($date->value);
+
+        return $dateTime->format('Y-m-d H:i:s');
     }
 }

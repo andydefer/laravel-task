@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
-use AndyDefer\Task\Enums\ExecutionStatus;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
 final class TaskExecutionDebugRecord extends AbstractRecord
 {
     public function __construct(
-        public readonly Iso8601DateTimeVO $acted_at,
-        public readonly ExecutionStatus $status,
-        public readonly string $info,
+        public readonly string $task_type,
+        public readonly string $task_identifier,
+        public readonly StrictDataObject $data,
     ) {}
 }

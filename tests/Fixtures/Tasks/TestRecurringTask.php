@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Fixtures\Tasks;
 
-use AndyDefer\Task\Abstract\RecurringTask;
+use AndyDefer\Task\Abstract\AbstractRecurringTask;
 use AndyDefer\Task\Configs\RecurringTaskConfig;
 use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
-final class TestRecurringTask extends RecurringTask
+final class TestRecurringTask extends AbstractRecurringTask
 {
     private array $executionLog = [];
 

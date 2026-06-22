@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Fixtures\Tasks;
 
-use AndyDefer\Task\Abstract\UniqueTask;
+use AndyDefer\Task\Abstract\AbstractUniqueTask;
 use AndyDefer\Task\Configs\UniqueTaskConfig;
 use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
-final class TestUniqueTask extends UniqueTask
+final class TestUniqueTask extends AbstractUniqueTask
 {
     private array $executionLog = [];
 

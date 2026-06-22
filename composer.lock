@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "d26c311cecb2100db7517b5b148ac3a4",
+    "content-hash": "b221e21f9f73a185f40333cbbf0088e5",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -236,6 +236,61 @@
                 "source": "https://github.com/andydefer/laravel-logger/tree/v3.7.7"
             },
             "time": "2026-06-19T07:38:28+00:00"
+        },
+        {
+            "name": "andydefer/laravel-repository",
+            "version": "v2.9.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/andydefer/laravel-repository.git",
+                "reference": "1fbb95e582df20c48ce9bef1596afe5a7e8b2c1e"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/andydefer/laravel-repository/zipball/1fbb95e582df20c48ce9bef1596afe5a7e8b2c1e",
+                "reference": "1fbb95e582df20c48ce9bef1596afe5a7e8b2c1e",
+                "shasum": ""
+            },
+            "require": {
+                "andydefer/php-vo": "^0.9.3",
+                "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
+                "php": "^8.1"
+            },
+            "require-dev": {
+                "laravel/pint": "^1.29",
+                "mockery/mockery": "^1.6",
+                "orchestra/testbench": "^9.0|^10.0",
+                "phpunit/phpunit": "^10.5|^11.0|^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "AndyDefer\\Repository\\RepositoryServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "AndyDefer\\Repository\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Andy Defer",
+                    "email": "contact@andydefer.com"
+                }
+            ],
+            "description": "A lightweight, type-safe repository pattern implementation for Laravel",
+            "support": {
+                "issues": "https://github.com/andydefer/laravel-repository/issues",
+                "source": "https://github.com/andydefer/laravel-repository/tree/v2.9.0"
+            },
+            "time": "2026-06-22T07:28:40+00:00"
         },
         {
             "name": "andydefer/php-services",

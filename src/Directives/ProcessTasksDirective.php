@@ -9,8 +9,14 @@ use AndyDefer\Directive\Contexts\DirectiveContext;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
+use AndyDefer\Task\Collections\RecurringResultCollection;
+use AndyDefer\Task\Collections\RecurringTaskErrorCollection;
+use AndyDefer\Task\Collections\TaskErrorCollection;
+use AndyDefer\Task\Collections\UniqueResultCollection;
+use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
+use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Records\BatchResultRecord;
-use AndyDefer\Task\Services\TaskBatchService;
+use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
 /**
@@ -68,9 +74,16 @@ final class ProcessTasksDirective extends AbstractDirective
 
         $this->displayProcessingStart($limit);
 
-        $batch = $this->getBatchService();
+        $uniqueService = $this->getUniqueTaskService();
+        $recurringService = $this->getRecurringTaskService();
 
-        $record = $this->executeBatchProcessing($batch, $uniqueOnly, $recurringOnly, $limit);
+        $record = $this->executeBatchProcessing(
+            $uniqueService,
+            $recurringService,
+            $uniqueOnly,
+            $recurringOnly,
+            $limit
+        );
 
         $this->displayResultsSummary($record);
         $this->displayErrorsIfVerbose($verbose, $record);
@@ -80,7 +93,7 @@ final class ProcessTasksDirective extends AbstractDirective
         return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
     }
 
-    private function getBatchService(): TaskBatchService
+    private function getUniqueTaskService(): UniqueTaskServiceInterface
     {
         $laravel = $this->getLaravel();
 
@@ -88,7 +101,18 @@ final class ProcessTasksDirective extends AbstractDirective
             throw new \RuntimeException('Laravel container is not available. Task processing requires Laravel.');
         }
 
-        return $laravel->make(TaskBatchService::class);
+        return $laravel->make(UniqueTaskServiceInterface::class);
+    }
+
+    private function getRecurringTaskService(): RecurringTaskServiceInterface
+    {
+        $laravel = $this->getLaravel();
+
+        if ($laravel === null) {
+            throw new \RuntimeException('Laravel container is not available. Task processing requires Laravel.');
+        }
+
+        return $laravel->make(RecurringTaskServiceInterface::class);
     }
 
     private function validateOptions(): ?ExitCode
@@ -129,17 +153,86 @@ final class ProcessTasksDirective extends AbstractDirective
         }
     }
 
-    private function executeBatchProcessing(TaskBatchService $batch, bool $uniqueOnly, bool $recurringOnly, ?int $limit): BatchResultRecord
-    {
+    private function executeBatchProcessing(
+        UniqueTaskServiceInterface $uniqueService,
+        RecurringTaskServiceInterface $recurringService,
+        bool $uniqueOnly,
+        bool $recurringOnly,
+        ?int $limit
+    ): BatchResultRecord {
+        $startedAt = new Iso8601DateTimeVO;
+
         if ($uniqueOnly) {
-            return $batch->processUniqueOnly($limit);
+            return $this->processUniqueOnly($uniqueService, $startedAt, $limit);
         }
 
         if ($recurringOnly) {
-            return $batch->processRecurringOnly($limit);
+            return $this->processRecurringOnly($recurringService, $startedAt, $limit);
         }
 
-        return $batch->process($limit);
+        return $this->processFull($uniqueService, $recurringService, $startedAt, $limit);
+    }
+
+    private function processUniqueOnly(
+        UniqueTaskServiceInterface $service,
+        Iso8601DateTimeVO $startedAt,
+        ?int $limit
+    ): BatchResultRecord {
+        $results = $service->process($limit);
+
+        return new BatchResultRecord(
+            started_at: $startedAt,
+            unique_success: new CounterVO($results['success']),
+            unique_failed: new CounterVO($results['failed']),
+            recurring_success: new CounterVO(0),
+            recurring_failed: new CounterVO(0),
+            unique_results: new UniqueResultCollection,
+            recurring_results: new RecurringResultCollection,
+            unique_errors: new TaskErrorCollection,
+            recurring_errors: new RecurringTaskErrorCollection,
+        );
+    }
+
+    private function processRecurringOnly(
+        RecurringTaskServiceInterface $service,
+        Iso8601DateTimeVO $startedAt,
+        ?int $limit
+    ): BatchResultRecord {
+        $results = $service->process($limit);
+
+        return new BatchResultRecord(
+            started_at: $startedAt,
+            unique_success: new CounterVO(0),
+            unique_failed: new CounterVO(0),
+            recurring_success: new CounterVO($results['success']),
+            recurring_failed: new CounterVO($results['failed']),
+            unique_results: new UniqueResultCollection,
+            recurring_results: new RecurringResultCollection,
+            unique_errors: new TaskErrorCollection,
+            recurring_errors: new RecurringTaskErrorCollection,
+        );
+    }
+
+    private function processFull(
+        UniqueTaskServiceInterface $uniqueService,
+        RecurringTaskServiceInterface $recurringService,
+        Iso8601DateTimeVO $startedAt,
+        ?int $limit
+    ): BatchResultRecord {
+        $uniqueResults = $uniqueService->process($limit);
+        $recurringResults = $recurringService->process($limit);
+
+        return new BatchResultRecord(
+            started_at: $startedAt,
+            unique_success: new CounterVO($uniqueResults['success']),
+            unique_failed: new CounterVO($uniqueResults['failed']),
+            recurring_success: new CounterVO($recurringResults['success']),
+            recurring_failed: new CounterVO($recurringResults['failed']),
+            unique_results: new UniqueResultCollection,
+            recurring_results: new RecurringResultCollection,
+            unique_errors: new TaskErrorCollection,
+            recurring_errors: new RecurringTaskErrorCollection,
+        );
     }
 
     private function displayResultsSummary(BatchResultRecord $record): void
@@ -192,7 +285,7 @@ final class ProcessTasksDirective extends AbstractDirective
         if ($hasUniqueErrors) {
             $this->info('  Unique tasks:');
             foreach ($record->unique_errors as $error) {
-                $this->info(sprintf('    ❌ %s: %s', $error->task_id->value, $error->details));
+                $this->info(sprintf('    ❌ %s: %s', $error->identifier, $error->error));
             }
         }
 
