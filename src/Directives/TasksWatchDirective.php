@@ -10,22 +10,16 @@ use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
-use AndyDefer\Task\Contracts\Services\TasksWatchServiceInterface;
+use AndyDefer\Task\Contracts\Services\WatchRendererServiceInterface;
+use AndyDefer\Task\Contracts\Services\WatchServiceInterface;
 use AndyDefer\Task\Records\CycleResultRecord;
-use AndyDefer\Task\Services\TasksWatchService;
+use AndyDefer\Task\Services\WatchService;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
-/**
- * Console directive for continuously watching and processing tasks in a loop.
- *
- * @example ./vendor/bin/directive tasks-watch --interval=30
- * @example ./vendor/bin/directive tasks-watch --duration=3600 --interval=60
- * @example ./vendor/bin/directive tasks-watch --recurring-only --limit=10 --verbose
- * @example ./vendor/bin/directive tasks-watch --unique-only --interval=15 --limit=5
- * @example ./vendor/bin/directive tasks-watch --testing --duration=2 --interval=5
- */
 final class TasksWatchDirective extends AbstractDirective
 {
+    private const MIN_INTERVAL_SECONDS = 3;
+
     private bool $shouldStop = false;
 
     private int $cycleCount = 0;
@@ -38,9 +32,9 @@ final class TasksWatchDirective extends AbstractDirective
 
     private ?Iso8601DateTimeVO $startedAt = null;
 
-    private TasksWatchServiceInterface $service;
+    private WatchServiceInterface $service;
 
-    private const MIN_INTERVAL_SECONDS = 5;
+    private WatchRendererServiceInterface $renderer;
 
     public function __construct(
         DirectiveContext $context,
@@ -54,37 +48,22 @@ final class TasksWatchDirective extends AbstractDirective
         return 'tasks-watch {--duration=} {--interval=60} {--unique-only} {--recurring-only} {--limit=} {--verbose} {--testing}';
     }
 
-    public function shouldBootLaravel(): bool
-    {
-        return true;
-    }
-
     public function getDescription(): string
     {
-        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 5) and duration. Use --testing for development without full Laravel environment.';
+        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 3) and duration. Use --testing for development without full Laravel environment.';
     }
 
     public function getAliases(): StringTypedCollection
     {
-        $aliases = new StringTypedCollection;
-        $aliases->add('task-watch');
-        $aliases->add('tasks-watch');
-
-        return $aliases;
+        return StringTypedCollection::from(['task-watch', 'tasks-watch']);
     }
 
     protected function execute(): ExitCode
     {
-        // ✅ Récupérer le service via le conteneur Laravel
-        $this->service = $this->getLaravel()->make(TasksWatchServiceInterface::class);
-
-        // ✅ Mode testing : activer le DirectiveTestingService
-        if ($this->hasOption('testing')) {
-            $this->enableTestingMode();
-        }
+        $this->initializeServices();
+        $this->handleTestingMode();
 
         $validationResult = $this->validateOptions();
-
         if ($validationResult !== null) {
             return $validationResult;
         }
@@ -95,6 +74,7 @@ final class TasksWatchDirective extends AbstractDirective
         $this->displayStartMessage();
 
         $hasErrors = false;
+        $lastException = null;
 
         while ($this->shouldContinue()) {
             $this->cycleCount++;
@@ -106,10 +86,11 @@ final class TasksWatchDirective extends AbstractDirective
                 $this->totalSuccess += $cycleResult->success;
                 $this->totalFailed += $cycleResult->failed;
                 $this->totalErrors += $cycleResult->errors;
+                $lastException = $cycleResult->message;
             }
 
             if ($this->shouldStop) {
-                $this->info("\n🛑 Received interrupt signal. Stopping gracefully...");
+                $this->renderer->renderInterruptSignal('SIGINT');
                 break;
             }
 
@@ -118,26 +99,27 @@ final class TasksWatchDirective extends AbstractDirective
             }
         }
 
-        $this->displayFinalSummary($cycleResult?->message ?? null);
+        $this->renderSummary($lastException);
 
         return $hasErrors ? ExitCode::FAILURE : ExitCode::SUCCESS;
     }
 
-    // ==================== TESTING MODE ====================
-
-    private function enableTestingMode(): void
+    private function initializeServices(): void
     {
-        if (! $this->service instanceof TasksWatchService) {
+        $this->service = $this->getLaravel()->make(WatchServiceInterface::class);
+        $this->renderer = $this->getLaravel()->make(WatchRendererServiceInterface::class);
+    }
+
+    private function handleTestingMode(): void
+    {
+        if (! $this->hasOption('testing') || ! $this->service instanceof WatchService) {
             return;
         }
 
         $testingService = new DirectiveTestingService($this->getLaravel());
         $this->service->enableTestingMode($testingService);
-
-        $this->info('🧪 Testing mode enabled');
+        $this->renderer->renderTestingModeEnabled();
     }
-
-    // ==================== VALIDATION ====================
 
     private function validateOptions(): ?ExitCode
     {
@@ -145,42 +127,37 @@ final class TasksWatchDirective extends AbstractDirective
         $recurringOnly = $this->hasOption('recurring-only');
 
         if ($uniqueOnly && $recurringOnly) {
-            $this->error('Cannot use both --unique-only and --recurring-only');
+            $this->interaction->error('Cannot use both --unique-only and --recurring-only');
 
             return ExitCode::INVALID_ARGUMENT;
         }
 
         $duration = $this->option('duration');
-
         if ($duration !== null && (int) $duration <= 0) {
-            $this->error('Duration must be a positive integer (in seconds)');
+            $this->interaction->error('Duration must be a positive integer (in seconds)');
 
             return ExitCode::INVALID_ARGUMENT;
         }
 
         $interval = $this->option('interval');
+        if ($interval !== null && (int) $interval < self::MIN_INTERVAL_SECONDS) {
+            $this->interaction->error(sprintf(
+                'Interval must be at least %d seconds',
+                self::MIN_INTERVAL_SECONDS
+            ));
 
-        if ($interval !== null) {
-            $intervalSeconds = (int) $interval;
-            if ($intervalSeconds < self::MIN_INTERVAL_SECONDS) {
-                $this->error(sprintf('Interval must be at least %d seconds', self::MIN_INTERVAL_SECONDS));
-
-                return ExitCode::INVALID_ARGUMENT;
-            }
+            return ExitCode::INVALID_ARGUMENT;
         }
 
         $limit = $this->option('limit');
-
         if ($limit !== null && (int) $limit <= 0) {
-            $this->error('Limit must be a positive integer');
+            $this->interaction->error('Limit must be a positive integer');
 
             return ExitCode::INVALID_ARGUMENT;
         }
 
         return null;
     }
-
-    // ==================== SIGNAL HANDLING ====================
 
     private function installSignalHandlers(): void
     {
@@ -195,14 +172,12 @@ final class TasksWatchDirective extends AbstractDirective
     public function handleSignal(int $signal): void
     {
         $this->shouldStop = true;
-
         $signalName = match ($signal) {
             SIGINT => 'SIGINT (Ctrl+C)',
             SIGTERM => 'SIGTERM',
             default => 'signal',
         };
-
-        $this->warn("\n⚠️  Received {$signalName}, stopping after current cycle...");
+        $this->renderer->renderInterruptSignal($signalName);
     }
 
     private function dispatchSignals(): void
@@ -211,8 +186,6 @@ final class TasksWatchDirective extends AbstractDirective
             pcntl_signal_dispatch();
         }
     }
-
-    // ==================== CYCLE EXECUTION ====================
 
     private function executeCycle(): ?CycleResultRecord
     {
@@ -223,58 +196,27 @@ final class TasksWatchDirective extends AbstractDirective
         }
 
         $cycleStartedAt = new Iso8601DateTimeVO;
-        $this->displayCycleStart($this->cycleCount, $cycleStartedAt);
+        $this->renderer->renderCycleStart($this->cycleCount, $cycleStartedAt);
 
-        $arguments = $this->service->buildProcessTasksArguments(
+        $arguments = $this->service->buildArguments(
             uniqueOnly: $this->hasOption('unique-only'),
             recurringOnly: $this->hasOption('recurring-only'),
             limit: $this->option('limit') !== null ? (int) $this->option('limit') : null,
             verbose: $this->hasOption('verbose')
         );
 
-        // Afficher la commande (adaptée au mode)
-        if ($this->hasOption('testing')) {
-            $this->info('  ➜ Running: [TEST MODE] process-tasks '.$arguments->join(' '));
-        } else {
-            $this->info('  ➜ Running: '.PHP_BINARY.' ./vendor/bin/directive process-tasks '.$arguments->join(' '));
-        }
-
         $result = $this->service->executeCycle($this->cycleCount, $arguments, $cycleStartedAt);
 
-        $this->displayCycleEnd($result, $cycleStartedAt);
+        $intervalSeconds = (int) ($this->option('interval') ?? 60);
+        $this->renderer->renderCycleEnd($result, $cycleStartedAt, $intervalSeconds);
 
         return $result;
     }
 
-    // ==================== DISPLAY METHODS ====================
-
     private function displayStartMessage(): void
     {
-        $this->newLine();
-        $this->info('🚀 Starting tasks watch loop...');
-
-        if ($this->hasOption('testing')) {
-            $this->info('   🔬 Mode: TESTING (in-process execution)');
-        }
-
         $duration = $this->option('duration');
         $intervalSeconds = (int) ($this->option('interval') ?? 60);
-
-        if ($duration !== null) {
-            $durationSeconds = (int) $duration;
-            $this->info(sprintf(
-                '   Duration: %d seconds (%s)',
-                $durationSeconds,
-                $this->service->formatDuration($durationSeconds)
-            ));
-        } else {
-            $this->info('   Duration: unlimited (Ctrl+C to stop)');
-        }
-
-        $this->info(sprintf('   Interval: %d seconds (%s)',
-            $intervalSeconds,
-            $this->service->formatDuration($intervalSeconds)
-        ));
 
         $options = new StringTypedCollection;
 
@@ -294,79 +236,31 @@ final class TasksWatchDirective extends AbstractDirective
             $options->add('--verbose');
         }
 
-        if ($options->isNotEmpty()) {
-            $this->info('   Options: '.$options->join(' '));
-        }
-
-        $this->newLine();
-        $this->separator('=', 80);
+        $this->renderer->renderStartMessage(
+            duration: $duration !== null ? (int) $duration : null,
+            intervalSeconds: $intervalSeconds,
+            options: $options,
+            testingMode: $this->hasOption('testing')
+        );
     }
 
-    private function displayCycleStart(int $cycleNumber, Iso8601DateTimeVO $startedAt): void
+    private function renderSummary(?string $exception = null): void
     {
-        $time = $startedAt->toDateTime()->format('H:i:s');
-        $this->newLine();
-        $this->info(sprintf('🔄 Cycle #%d (started at %s):', $cycleNumber, $time));
+        $duration = $this->option('duration');
+        $durationReached = $duration !== null;
+
+        $this->renderer->renderSummary(
+            cycleCount: $this->cycleCount,
+            totalSuccess: $this->totalSuccess,
+            totalFailed: $this->totalFailed,
+            totalErrors: $this->totalErrors,
+            startedAt: $this->startedAt,
+            testingMode: $this->hasOption('testing'),
+            stoppedBySignal: $this->shouldStop,
+            durationReached: $durationReached,
+            exception: $exception
+        );
     }
-
-    private function displayCycleEnd(CycleResultRecord $result, Iso8601DateTimeVO $startedAt): void
-    {
-        $totalProcessed = $result->success + $result->failed;
-
-        if ($totalProcessed === 0) {
-            $this->info('  ⏳ No tasks to process');
-        } else {
-            $this->info(sprintf('  ✅ %d tasks succeeded, ❌ %d tasks failed', $result->success, $result->failed));
-        }
-
-        $elapsed = $this->service->calculateElapsedSeconds($startedAt);
-        $this->info(sprintf('  ⏱️  Cycle duration: %.2f seconds', $elapsed));
-
-        $intervalSeconds = (int) ($this->option('interval') ?? 60);
-        $remaining = max(0, $intervalSeconds - $elapsed);
-
-        if ($remaining > 0 && $this->shouldContinue()) {
-            $this->info(sprintf('  ⏳ Next cycle in %.0f seconds...', $remaining));
-        }
-    }
-
-    private function displayFinalSummary(?string $exception = null): void
-    {
-        $this->newLine();
-        $this->separator('=', 80);
-        $this->info('📊 === Summary ===');
-
-        if ($this->hasOption('testing')) {
-            $this->info('   🔬 Mode: TESTING');
-        }
-
-        $this->info(sprintf('  Cycles executed:  %d', $this->cycleCount));
-        $this->info(sprintf('  Total success:    %d', $this->totalSuccess));
-        $this->info(sprintf('  Total failures:   %d', $this->totalFailed));
-        $this->info(sprintf('  Total errors:     %d', $this->totalErrors));
-
-        if ($this->startedAt !== null) {
-            $totalDuration = $this->service->calculateElapsedSeconds($this->startedAt);
-            $this->info(sprintf('  Total duration:   %s', $this->service->formatDuration((int) $totalDuration)));
-        }
-
-        $this->newLine();
-
-        if ($this->shouldStop) {
-            $this->info('🛑 Stopped by user signal');
-        } elseif ($this->option('duration') !== null) {
-            $this->info('⏰ Duration reached. Stopping gracefully...');
-        }
-
-        $this->separator('=', 80);
-        $this->newLine();
-
-        if ($exception) {
-            $this->error($exception);
-        }
-    }
-
-    // ==================== UTILITY METHODS ====================
 
     private function shouldContinue(): bool
     {

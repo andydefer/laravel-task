@@ -26,6 +26,8 @@ use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\TasksWatchServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
+use AndyDefer\Task\Contracts\Services\WatchRendererServiceInterface;
+use AndyDefer\Task\Contracts\Services\WatchServiceInterface;
 use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
@@ -39,9 +41,12 @@ use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
 use AndyDefer\Task\Runners\RecurringTaskRunner;
 use AndyDefer\Task\Runners\UniqueTaskRunner;
+use AndyDefer\Task\Services\DurationFormatterService;
 use AndyDefer\Task\Services\RecurringTaskService;
 use AndyDefer\Task\Services\TasksWatchService;
 use AndyDefer\Task\Services\UniqueTaskService;
+use AndyDefer\Task\Services\WatchRendererService;
+use AndyDefer\Task\Services\WatchService;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -231,14 +236,8 @@ final class TaskServiceProvider extends ServiceProvider
         );
         $this->app->alias(RecurringTaskServiceInterface::class, RecurringTaskService::class);
 
-        // ✅ TASKS WATCH SERVICE
-        $this->app->singleton(
-            abstract: TasksWatchServiceInterface::class,
-            concrete: function () {
-                return new TasksWatchService;
-            }
-        );
-        $this->app->alias(TasksWatchServiceInterface::class, TasksWatchService::class);
+        // ✅ WATCH SERVICES
+        $this->registerWatchServices();
 
         // ✅ DIRECTIVES
         $this->app->singleton(
@@ -261,6 +260,50 @@ final class TaskServiceProvider extends ServiceProvider
                 );
             }
         );
+    }
+
+    /**
+     * Enregistre les services de watch.
+     */
+    private function registerWatchServices(): void
+    {
+        // ✅ DurationFormatterService (utilitaire)
+        $this->app->singleton(
+            abstract: DurationFormatterService::class,
+            concrete: DurationFormatterService::class
+        );
+
+        // ✅ WatchService
+        $this->app->singleton(
+            abstract: WatchServiceInterface::class,
+            concrete: function (Application $app) {
+                return new WatchService(
+                    formatter: $app->make(DurationFormatterService::class)
+                );
+            }
+        );
+        $this->app->alias(WatchServiceInterface::class, WatchService::class);
+
+        // ✅ WatchRendererService
+        $this->app->singleton(
+            abstract: WatchRendererServiceInterface::class,
+            concrete: function (Application $app) {
+                return new WatchRendererService(
+                    interaction: $app->make(DirectiveInteractionService::class),
+                    formatter: $app->make(DurationFormatterService::class)
+                );
+            }
+        );
+        $this->app->alias(WatchRendererServiceInterface::class, WatchRendererService::class);
+
+        // ✅ TasksWatchService (legacy, conservé pour compatibilité)
+        $this->app->singleton(
+            abstract: TasksWatchServiceInterface::class,
+            concrete: function () {
+                return new TasksWatchService;
+            }
+        );
+        $this->app->alias(TasksWatchServiceInterface::class, TasksWatchService::class);
     }
 
     private function registerLogger(): void

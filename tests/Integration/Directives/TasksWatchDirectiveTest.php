@@ -32,8 +32,6 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 {
     use DatabaseMigrations;
 
-    private const MIN_INTERVAL_SECONDS = 5;
-
     private DirectiveTestingService $service;
 
     private UniqueTaskRepository $uniqueRepository;
@@ -187,7 +185,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertNotEmpty($description);
         $this->assertStringContainsString('interval', $description);
         $this->assertStringContainsString('seconds', $description);
-        $this->assertStringContainsString('5', $description);
+        $this->assertStringContainsString('3', $description);
         $this->assertStringContainsString('testing', $description);
     }
 
@@ -240,11 +238,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--interval=4']
+            ['--interval=2']
         );
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
-        $this->assertStringContainsString('Interval must be at least 5 seconds', $response->output);
+        $this->assertStringContainsString('Interval must be at least 3 seconds', $response->output);
     }
 
     public function test_execute_with_interval_zero_returns_invalid_argument(): void
@@ -255,7 +253,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         );
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
-        $this->assertStringContainsString('Interval must be at least 5 seconds', $response->output);
+        $this->assertStringContainsString('Interval must be at least 3 seconds', $response->output);
     }
 
     public function test_execute_with_duration_zero_returns_invalid_argument(): void
@@ -286,14 +284,14 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--duration=2', '--interval=5']
+            ['--testing', '--duration=2', '--interval=3']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('🔬 Mode: TESTING', $response->output);
         $this->assertStringContainsString('🚀 Starting tasks watch loop...', $response->output);
         $this->assertStringContainsString('Duration: 2 seconds', $response->output);
-        $this->assertStringContainsString('Interval: 5 seconds', $response->output);
+        $this->assertStringContainsString('Interval: 3 seconds', $response->output);
         $this->assertStringContainsString('📊 === Summary ===', $response->output);
         $this->assertStringContainsString('Cycles executed:  1', $response->output);
         $this->assertStringContainsString('Total success:    0', $response->output);
@@ -306,7 +304,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--unique-only', '--duration=2', '--interval=5']
+            ['--testing', '--unique-only', '--duration=2', '--interval=3']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
@@ -323,7 +321,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--recurring-only', '--duration=2', '--interval=5']
+            ['--testing', '--recurring-only', '--duration=2', '--interval=3']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
@@ -341,7 +339,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--unique-only', '--limit=3', '--duration=2', '--interval=5']
+            ['--testing', '--unique-only', '--limit=3', '--duration=2', '--interval=3']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
@@ -357,11 +355,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--interval=5', '--unique-only', '--duration=2']
+            ['--testing', '--interval=3', '--unique-only', '--duration=2']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-        $this->assertStringContainsString('Interval: 5 seconds', $response->output);
+        $this->assertStringContainsString('Interval: 3 seconds', $response->output);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
         $this->assertStringContainsString('Total success:    1', $response->output);
     }
@@ -372,7 +370,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--duration=2', '--interval=5']
+            ['--testing', '--duration=2', '--interval=3']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
@@ -387,7 +385,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--duration=2', '--interval=5']
+            ['--testing', '--duration=2', '--interval=3']
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
@@ -402,7 +400,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--duration=2', '--interval=5']
+            ['--testing', '--duration=2', '--interval=3']
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
@@ -418,7 +416,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--duration=2', '--interval=5']
+            ['--testing', '--duration=2', '--interval=3']
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
@@ -437,7 +435,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->run(
             TasksWatchDirective::class,
-            ['--testing', '--unique-only', '--limit=2', '--duration=20', '--interval=5']
+            ['--testing', '--unique-only', '--limit=3', '--duration=12', '--interval=4']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);

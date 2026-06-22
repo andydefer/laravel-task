@@ -39,7 +39,6 @@ final class TestUniqueTask extends AbstractUniqueTask
 
     protected function process(): void
     {
-        sleep(1);
         $this->executionLog[] = [
             'time' => date('c'),
             'payload' => $this->context->getPayload()->toArray(),

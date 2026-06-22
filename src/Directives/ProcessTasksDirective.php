@@ -38,11 +38,6 @@ final class ProcessTasksDirective extends AbstractDirective
         return 'process-tasks {--unique-only} {--recurring-only} {--verbose} {--limit=} {--format=}';
     }
 
-    public function shouldBootLaravel(): bool
-    {
-        return true;
-    }
-
     public function getDescription(): string
     {
         return 'Process all pending tasks in a single batch (no polling, no waiting)';

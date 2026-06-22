@@ -2,9 +2,9 @@
 
 ## Description
 
-Directive console pour le traitement par lots des tâches en attente. Permet d'exécuter des tâches uniques et/ou récurrentes en une seule opération, avec des options de filtrage et de limitation.
+Directive CLI qui exécute en un seul lot toutes les tâches en attente (uniques et/ou récurrentes) avec support des formats de sortie texte et JSON.
 
-## Hiérarchie / Implémentations
+## Hiérarchie
 
 ```
 AbstractDirective
@@ -13,238 +13,288 @@ AbstractDirective
 
 ## Rôle principal
 
-Cette directive est le point d'entrée CLI pour le traitement des tâches. Elle orchestre :
+Orchestrer l'exécution des tâches en attente en un seul passage (batch) avec :
+- Filtrage par type de tâche (`--unique-only`, `--recurring-only`)
+- Limitation du nombre de tâches par cycle (`--limit`)
+- Sortie formatée (`--format=text` ou `--format=json`)
+- Affichage détaillé en mode verbose (`--verbose`)
 
-1. **Validation** des options de la ligne de commande
-2. **Traitement** des tâches uniques et/ou récurrentes
-3. **Affichage** des résultats et des erreurs
-4. **Gestion** des codes de retour
+## Options disponibles
 
-## Signature
+| Option | Type | Description | Par défaut |
+|--------|------|-------------|------------|
+| `--unique-only` | `flag` | Traite uniquement les tâches uniques | `false` |
+| `--recurring-only` | `flag` | Traite uniquement les tâches récurrentes | `false` |
+| `--verbose` | `flag` | Affiche les détails des erreurs | `false` |
+| `--limit` | `int` | Nombre maximum de tâches à traiter | `null` (illimité) |
+| `--format` | `string` | Format de sortie (`text` ou `json`) | `text` |
 
-```bash
-./vendor/bin/directive process-tasks {--unique-only} {--recurring-only} {--verbose} {--limit=}
+## API / Méthodes publiques
+
+### `getSignature(): string`
+
+**Retourne :** `string` - Signature de la directive
+
+**Exemple :**
+```php
+$signature = $directive->getSignature();
+// 'process-tasks {--unique-only} {--recurring-only} {--verbose} {--limit=} {--format=}'
 ```
 
-## Options
+---
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `--unique-only` | Flag | Traite uniquement les tâches uniques |
-| `--recurring-only` | Flag | Traite uniquement les tâches récurrentes |
-| `--verbose` | Flag | Affiche les détails des erreurs |
-| `--limit=` | `int` | Nombre maximum de tâches à traiter |
+### `getDescription(): string`
 
-## Aliases
+**Retourne :** `string` - Description de la directive
 
-| Alias | Description |
-|-------|-------------|
-| `task:process` | Alias court pour la directive |
-| `tasks:process` | Alias pluriel |
-
-## Comportement
-
-### Ordre de traitement
-
-1. **Validation des options** : Vérifie que les options sont valides
-2. **Récupération des services** : Obtient les services via le conteneur Laravel
-3. **Traitement** : Exécute les tâches selon les options
-4. **Affichage** : Montre les résultats et les erreurs
-5. **Retour** : Retourne un code de sortie approprié
-
-### Modes de traitement
-
-| Mode | Comportement |
-|------|--------------|
-| **Normal** | Traite toutes les tâches (uniques + récurrentes) |
-| **--unique-only** | Traite uniquement les tâches uniques |
-| **--recurring-only** | Traite uniquement les tâches récurrentes |
-
-## Exemples d'utilisation
-
-### Traitement standard
-
-```bash
-# Traiter toutes les tâches
-./vendor/bin/directive process-tasks
-
-# Traiter avec une limite de 10 tâches
-./vendor/bin/directive process-tasks --limit=10
-
-# Traiter avec affichage détaillé
-./vendor/bin/directive process-tasks --verbose
+**Exemple :**
+```php
+$description = $directive->getDescription();
+// 'Process all pending tasks in a single batch (no polling, no waiting)'
 ```
 
-### Filtrage
+---
 
-```bash
-# Traiter uniquement les tâches uniques
-./vendor/bin/directive process-tasks --unique-only
+### `getAliases(): StringTypedCollection`
 
-# Traiter uniquement les tâches récurrentes
-./vendor/bin/directive process-tasks --recurring-only
+**Retourne :** `StringTypedCollection` - Collection des alias
 
-# Traiter 5 tâches uniques avec détails
-./vendor/bin/directive process-tasks --unique-only --limit=5 --verbose
+**Exemple :**
+```php
+$aliases = $directive->getAliases();
+// Collection contenant 'task-process' et 'tasks-process'
 ```
 
-### Utilisation des alias
+---
 
-```bash
-# Via l'alias task:process
-./vendor/bin/directive task:process --limit=20
+### `execute(): ExitCode`
 
-# Via l'alias tasks:process
-./vendor/bin/directive tasks:process --unique-only
-```
+**Retourne :** `ExitCode` - `SUCCESS` (0) ou `FAILURE` (1)
 
-## Sortie console
+**Description :** Point d'entrée principal de la directive.
 
-### Exemple de sortie standard
+## Flux d'exécution
 
 ```
-Processing tasks...
-Limit: 10 tasks
-
-=== Batch Results ===
-  Unique tasks: 8 processed (✅ 7, ❌ 1)
-  Recurring tasks: 2 processed (✅ 2, ❌ 0)
-  Total:          10 tasks in 1245 ms
-```
-
-### Exemple de sortie verbose
-
-```
-Processing tasks...
-Limit: 10 tasks
-
-=== Batch Results ===
-  Unique tasks: 8 processed (✅ 7, ❌ 1)
-  Recurring tasks: 2 processed (✅ 2, ❌ 0)
-  Total:          10 tasks in 1245 ms
-
-=== Failed Tasks ===
-  Unique tasks:
-    ❌ 550e8400-e29b-41d4-a716-446655440000: Connection timeout
-  Recurring tasks:
-    ❌ email-newsletter: API rate limit exceeded
-```
-
-## Codes de retour
-
-| Code | Description |
-|------|-------------|
-| `ExitCode::SUCCESS` | Toutes les tâches ont réussi (aucun échec) |
-| `ExitCode::FAILURE` | Au moins une tâche a échoué |
-| `ExitCode::INVALID_ARGUMENT` | Options invalides (ex: --unique-only et --recurring-only ensemble) |
-
-## Validation des options
-
-| Condition | Résultat |
-|-----------|----------|
-| `--unique-only` et `--recurring-only` ensemble | `INVALID_ARGUMENT` |
-| `--limit=0` ou négatif | `INVALID_ARGUMENT` |
-| `--limit` non numérique | `INVALID_ARGUMENT` |
-| Options valides | Traitement normal |
-
-## Architecture interne
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    ProcessTasksDirective                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  execute()                                                         │
-│  ├── validateOptions() → ExitCode|null                            │
-│  ├── getUniqueTaskService() → UniqueTaskServiceInterface         │
-│  ├── getRecurringTaskService() → RecurringTaskServiceInterface   │
-│  ├── executeBatchProcessing() → BatchResultRecord                │
-│  │   ├── processUniqueOnly() → BatchResultRecord                 │
-│  │   ├── processRecurringOnly() → BatchResultRecord              │
-│  │   └── processFull() → BatchResultRecord                       │
-│  ├── displayResultsSummary()                                     │
-│  ├── displayErrorsIfVerbose()                                    │
-│  └── return ExitCode                                             │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+execute()
+    │
+    ├── validateOptions()
+    │   ├── --unique-only + --recurring-only → INVALID_ARGUMENT
+    │   ├── --limit ≤ 0 → INVALID_ARGUMENT
+    │   └── --format invalide → INVALID_ARGUMENT
+    │
+    ├── Détermination du mode
+    │   ├── --unique-only → mode UNIQUE
+    │   ├── --recurring-only → mode RECURRING
+    │   └── Aucun → mode FULL
+    │
+    ├── Récupération des services
+    │   ├── UniqueTaskServiceInterface
+    │   └── RecurringTaskServiceInterface
+    │
+    └── Exécution selon le mode
+        ├── UNIQUE → processUniqueOnly() → displayUniqueResults() ou outputUniqueJsonStruct()
+        ├── RECURRING → processRecurringOnly() → displayRecurringResults() ou outputRecurringJsonStruct()
+        └── FULL → processFull() → displayFullResults() ou outputFullJsonStruct()
 ```
 
 ## Cas d'utilisation
 
-### Cas 1 : Traitement régulier
+### Cas 1 : Traiter toutes les tâches en mode texte
 
 ```bash
-# Planifier dans crontab
-* * * * * cd /path/to/project && ./vendor/bin/directive process-tasks --limit=50 >> /dev/null 2>&1
+./vendor/bin/directive process-tasks
 ```
 
-### Cas 2 : Traitement des tâches prioritaires
+**Sortie :**
+```
+=== Batch Results ===
+  Unique:    ✅ 3, ❌ 0
+  Recurring: ✅ 2, ❌ 1
+  Total:     ✅ 5, ❌ 1, 📦 6
+  Has failures: Yes
+```
+
+### Cas 2 : Traiter uniquement les tâches uniques en JSON
 
 ```bash
-# Traiter les tâches uniques prioritaires
-./vendor/bin/directive process-tasks --unique-only --verbose
-
-# Puis les tâches récurrentes
-./vendor/bin/directive process-tasks --recurring-only
+./vendor/bin/directive process-tasks --unique-only --format=json
 ```
 
-### Cas 3 : Débogage
+**Sortie :**
+```json
+{
+  "started_at": "2026-06-22T14:30:00+00:00",
+  "ended_at": "2026-06-22T14:30:05+00:00",
+  "duration_ms": 5000,
+  "success": 3,
+  "failed": 0,
+  "total": 3,
+  "errors": [],
+  "has_failures": false
+}
+```
+
+### Cas 3 : Limiter le nombre de tâches
 
 ```bash
-# Exécuter avec affichage détaillé pour identifier les problèmes
-./vendor/bin/directive process-tasks --verbose --limit=5
-
-# Tester un type spécifique
-./vendor/bin/directive process-tasks --recurring-only --verbose
+./vendor/bin/directive process-tasks --limit=10 --verbose
 ```
 
-## Dépendances
+**Sortie :**
+```
+Processing tasks...
+Limit: 10 tasks
 
-| Dépendance | Rôle |
-|------------|------|
-| `UniqueTaskServiceInterface` | Traitement des tâches uniques |
-| `RecurringTaskServiceInterface` | Traitement des tâches récurrentes |
-| `AbstractDirective` | Classe de base des directives |
-| `DirectiveContext` | Contexte d'exécution |
-| `DirectiveInteractionService` | Services d'interaction |
+=== Batch Results ===
+  Unique:    ✅ 7, ❌ 2
+  Recurring: ✅ 1, ❌ 0
+  Total:     ✅ 8, ❌ 2, 📦 10
+  Has failures: Yes
+
+=== Failed Tasks ===
+  Unique tasks:
+    ❌ failing-task: Task execution failed
+```
+
+### Cas 4 : Exécution en mode full avec JSON
+
+```bash
+./vendor/bin/directive process-tasks --format=json
+```
+
+**Sortie :** Structure JSON plate
+
+```json
+{
+  "started_at": "...",
+  "ended_at": "...",
+  "duration_ms": 1234,
+  "success": 5,
+  "failed": 1,
+  "total": 6,
+  "errors": [
+    {
+      "alias": "failing-task",
+      "fqcn": "App\\Tasks\\FailingTask",
+      "error": "Task execution failed",
+      "context": "Unique task failed (attempts: 2/3)"
+    }
+  ],
+  "has_failures": true
+}
+```
+
+## Structure des données
+
+### Mode UNIQUE / RECURRING
+
+```json
+{
+  "started_at": "string (ISO8601)",
+  "ended_at": "string (ISO8601)",
+  "duration_ms": "int",
+  "success": "int",
+  "failed": "int",
+  "total": "int",
+  "errors": [
+    {
+      "alias": "string",
+      "fqcn": "string",
+      "error": "string",
+      "context": "string|null"
+    }
+  ],
+  "has_failures": "bool"
+}
+```
+
+### Mode FULL
+
+**Même structure que les modes UNIQUE/RECURRING**, mais les valeurs `success`, `failed` et `total` sont la somme des tâches uniques et récurrentes.
+
+## Gestion des erreurs
+
+| Situation | Code de retour | Message |
+|-----------|----------------|---------|
+| `--unique-only` et `--recurring-only` ensemble | `ExitCode::INVALID_ARGUMENT` | `Cannot use both --unique-only and --recurring-only` |
+| `--limit ≤ 0` | `ExitCode::INVALID_ARGUMENT` | `Limit must be a positive integer` |
+| `--format` invalide | `ExitCode::INVALID_ARGUMENT` | `Format must be "text" or "json"` |
+| Échec d'une tâche | `ExitCode::FAILURE` | Affiché dans les erreurs |
+| Laravel non disponible | `RuntimeException` | `Laravel container is not available. Task processing requires Laravel.` |
+
+## Intégration
+
+### Dépendances
+
+| Service | Interface | Rôle |
+|---------|-----------|------|
+| `UniqueTaskService` | `UniqueTaskServiceInterface` | Traitement des tâches uniques |
+| `RecurringTaskService` | `RecurringTaskServiceInterface` | Traitement des tâches récurrentes |
+
+### Enregistrement dans le conteneur Laravel
+
+```php
+$this->app->singleton(
+    abstract: ProcessTasksDirective::class,
+    concrete: function (Application $app) {
+        return new ProcessTasksDirective(
+            context: $app->make(DirectiveContext::class),
+            interaction: $app->make(DirectiveInteractionService::class)
+        );
+    }
+);
+```
 
 ## Performance
 
-- **Complexité** : O(n) où n est le nombre de tâches à traiter
-- **Limite** : Configurable via `--limit`
-- **Temps** : Dépend du nombre de tâches et de leur complexité
-- **Mémoire** : Les résultats sont chargés en mémoire
+| Aspect | Considération |
+|--------|---------------|
+| **Exécution** | Single batch, pas de polling |
+| **Mémoire** | Toutes les tâches sont chargées en mémoire |
+| **Temps** | Dépend du nombre de tâches et de leur durée |
+| **Limite** | Peut être limitée avec `--limit` pour éviter les surcharges |
 
 ## Compatibilité
 
 | Version | Support |
 |---------|---------|
 | PHP 8.1+ | ✅ Complet |
-| Laravel 12.x, 13.x, 14.x, 15.x | ✅ Complet |
+| PHP 8.2+ | ✅ Complet |
+| Laravel 12.x | ✅ Complet |
+| Laravel 13.x | ✅ Complet |
+| Laravel 14.x | ✅ Complet |
+| Laravel 15.x | ✅ Complet |
 
 ## Exemple complet
 
-```bash
-# 1. Traitement standard avec limite
-./vendor/bin/directive process-tasks --limit=20
+```php
+<?php
 
-# 2. Traitement des tâches uniques uniquement
-./vendor/bin/directive process-tasks --unique-only
+declare(strict_types=1);
 
-# 3. Traitement avec débogage
-./vendor/bin/directive process-tasks --recurring-only --verbose --limit=10
+use AndyDefer\Directive\Contexts\DirectiveContext;
+use AndyDefer\Directive\Services\DirectiveInteractionService;
+use AndyDefer\Task\Directives\ProcessTasksDirective;
 
-# 4. Utilisation d'un alias
-./vendor/bin/directive task:process
+// Création de la directive
+$context = new DirectiveContext();
+$interaction = new DirectiveInteractionService();
+$directive = new ProcessTasksDirective($context, $interaction);
 
-# 5. Planification cron
-* * * * * cd /var/www/project && ./vendor/bin/directive process-tasks --limit=50
+// Exécution en mode JSON avec limit
+$argv = ['directive', 'process-tasks', '--limit=5', '--format=json', '--unique-only'];
+$exitCode = $directive->run($argv);
+
+// Exécution en mode texte avec verbose
+$argv = ['directive', 'process-tasks', '--verbose', '--recurring-only'];
+$exitCode = $directive->run($argv);
 ```
 
 ## Voir aussi
 
-- `AbstractDirective` - Classe de base des directives
-- `UniqueTaskService` - Service des tâches uniques
-- `RecurringTaskService` - Service des tâches récurrentes
-- `BatchResultRecord` - DTO des résultats de traitement
-- `DirectiveContext` - Contexte des directives
+- `UniqueTaskService` - Service de traitement des tâches uniques
+- `RecurringTaskService` - Service de traitement des tâches récurrentes
+- `TasksWatchDirective` - Directive de surveillance continue
+- `BatchResultStruct` - Structure de données JSON
+```
