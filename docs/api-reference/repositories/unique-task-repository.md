@@ -2,7 +2,7 @@
 
 ## Description
 
-Repository pour les tâches uniques. Fournit un accès typé aux données des tâches uniques avec des méthodes spécifiques pour la gestion des UUID, des statuts et du cycle de vie (PENDING → COMPLETED/FAILED).
+Repository pour la gestion des tâches uniques en base de données. Fournit une API complète pour la persistance, la recherche, les changements d'état et le comptage des tâches uniques.
 
 ## Hiérarchie / Implémentations
 
@@ -14,102 +14,93 @@ AbstractRepository<UniqueTask, UniqueTaskRecord>
 
 ## Rôle principal
 
-Ce repository sert de couche d'accès aux données pour les tâches uniques. Il :
+Ce repository est responsable de l'accès aux données des tâches uniques. Il orchestre toutes les opérations de persistance :
 
-1. **Encapsule** les requêtes Eloquent spécifiques aux tâches uniques
-2. **Gère** les UUID comme identifiants primaires (`incrementing = false`)
-3. **Fournit** des méthodes de recherche par statut (PENDING, COMPLETED, FAILED)
-4. **Gère** les tentatives et la période de grâce (`grace_period`)
-5. **Applique** les filtres via `UniqueTaskFiltersRecord`
+1. **Recherche** des tâches par statut, ID, alias, dates
+2. **Changements d'état** (mouvements entre statuts)
+3. **Mise à jour** des tentatives
+4. **Ajout** de logs de débogage
+5. **Comptage** des tâches par statut
+6. **Filtrage** avancé via `UniqueTaskFiltersRecord`
 
 ## API
 
-### `applyFilters(Builder $query, AbstractRecord $filters): void`
+### `findPending(?int $limit = null): Collection`
 
-Applique les filtres à la requête Eloquent.
+Récupère toutes les tâches en attente.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$query` | `Builder` | Requête Eloquent |
-| `$filters` | `AbstractRecord` | Filtres à appliquer |
+| `$limit` | `?int` | Nombre maximum de résultats |
 
-**Filtres supportés :**
-- `id` - Recherche par UUID
-- `alias` - Recherche par alias
-- `fqcn` - Recherche par classe
-- `status` - Recherche par statut
-- `scheduled_at_from/to` - Plage de dates planifiées
-- `finished_at_from/to` - Plage de dates de fin
-- `attempts` - Nombre de tentatives exact
-- `max_attempts` - Nombre maximum de tentatives
-- `include_deleted` - Inclut les soft deleted
-
----
-
-### `findPending(): Collection`
-
-Récupère toutes les tâches en statut `PENDING`.
-
-**Retourne :** `Collection<int, UniqueTask>`
+**Retourne :** `Collection<int, UniqueTask>` - Collection de modèles Eloquent
 
 **Exemple :**
 ```php
-$pending = $repository->findPending();
-foreach ($pending as $task) {
-    echo $task->getAlias(); // 'task-name'
-}
+$repository = app(UniqueTaskRepository::class);
+$pendingTasks = $repository->findPending(10);
 ```
 
 ---
 
-### `findCompleted(): Collection`
+### `findCompleted(?int $limit = null): Collection`
 
-Récupère toutes les tâches en statut `COMPLETED`.
-
-**Retourne :** `Collection<int, UniqueTask>`
+Récupère toutes les tâches terminées avec succès.
 
 ---
 
-### `findFailed(): Collection`
+### `findFailed(?int $limit = null): Collection`
 
-Récupère toutes les tâches en statut `FAILED`.
-
-**Retourne :** `Collection<int, UniqueTask>`
+Récupère toutes les tâches en échec.
 
 ---
 
-### `findReadyToRun(string $now): Collection`
+### `findCanceled(?int $limit = null): Collection`
 
-Récupère les tâches prêtes à être exécutées (PENDING et scheduled_at <= now).
+Récupère toutes les tâches annulées.
+
+---
+
+### `findReadyToRun(string $now, ?int $limit = null): Collection`
+
+Récupère les tâches prêtes à être exécutées.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$now` | `string` | Date au format ISO 8601 |
+| `$limit` | `?int` | Nombre maximum de résultats |
+
+**Conditions :**
+- Statut = `PENDING`
+- `scheduled_at <= now`
 
 **Retourne :** `Collection<int, UniqueTask>`
 
 **Exemple :**
 ```php
-$ready = $repository->findReadyToRun(date('c'));
+$ready = $repository->findReadyToRun(now()->toIso8601String(), 50);
 ```
 
 ---
 
-### `findExpired(string $now): Collection`
+### `findExpired(string $now, ?int $limit = null): Collection`
 
-Récupère les tâches expirées (PENDING et scheduled_at + grace_period < now).
+Récupère les tâches expirées.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$now` | `string` | Date au format ISO 8601 |
+| `$limit` | `?int` | Nombre maximum de résultats |
+
+**Conditions :**
+- Statut = `PENDING`
+- `scheduled_at + grace_period_seconds < now`
 
 **Retourne :** `Collection<int, UniqueTask>`
 
 **Exemple :**
 ```php
-// Tâche avec scheduled_at = now - 48h, grace_period = 86400 (24h)
-// → expirée si now > scheduled_at + 86400
-$expired = $repository->findExpired(date('c'));
+$expired = $repository->findExpired(now()->toIso8601String());
 ```
 
 ---
@@ -122,9 +113,9 @@ Trouve une tâche par son UUID.
 |-----------|------|-------------|
 | `$id` | `string` | UUID de la tâche |
 
-**Retourne :** `?UniqueTask` - Tâche trouvée ou `null`
+**Validation :** Format UUID v4 (36 caractères avec tirets)
 
-**Validation :** L'UUID doit être valide (format `^[a-f0-9-]{36}$`)
+**Retourne :** `?UniqueTask` - Modèle de la tâche ou `null`
 
 **Exemple :**
 ```php
@@ -139,7 +130,7 @@ Met à jour le nombre de tentatives d'une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `UniqueTaskRecord` | Tâche à mettre à jour |
+| `$task` | `UniqueTaskRecord` | DTO de la tâche |
 | `$newAttempts` | `int` | Nouveau nombre de tentatives |
 
 **Exceptions :** `RuntimeException` - Si la tâche n'existe pas
@@ -148,27 +139,28 @@ Met à jour le nombre de tentatives d'une tâche.
 
 ### `addDebug(UniqueTaskRecord $task, string $status, string $info): void`
 
-Ajoute une entrée de debug pour une tâche.
+Ajoute une entrée de débogage pour une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `UniqueTaskRecord` | Tâche concernée |
-| `$status` | `string` | Statut (succeeded/failed) |
+| `$task` | `UniqueTaskRecord` | DTO de la tâche |
+| `$status` | `string` | Statut de l'opération |
 | `$info` | `string` | Informations supplémentaires |
+
+**Comportement :** Délègue à `TaskExecutionDebugRepository`
 
 ---
 
 ### `moveToCompleted(UniqueTaskRecord $task): void`
 
-Déplace une tâche de `PENDING` vers `COMPLETED`.
+Déplace une tâche vers le statut `COMPLETED`.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `UniqueTaskRecord` | Tâche à déplacer |
+| `$task` | `UniqueTaskRecord` | DTO de la tâche |
 
-**Actions :**
-- Statut → `COMPLETED`
-- `finished_at` → maintenant
+**Comportement :**
+- Définit `finished_at` à la date actuelle
 
 **Exceptions :** `RuntimeException` - Si la tâche n'existe pas
 
@@ -176,176 +168,213 @@ Déplace une tâche de `PENDING` vers `COMPLETED`.
 
 ### `moveToFailed(UniqueTaskRecord $task): void`
 
-Déplace une tâche de `PENDING` vers `FAILED`.
+Déplace une tâche vers le statut `FAILED`.
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$task` | `UniqueTaskRecord` | Tâche à déplacer |
+**Comportement :**
+- Définit `finished_at` à la date actuelle
 
-**Actions :**
-- Statut → `FAILED`
-- `finished_at` → maintenant
+---
 
-**Exceptions :** `RuntimeException` - Si la tâche n'existe pas
+### `moveToCanceled(UniqueTaskRecord $task): void`
+
+Déplace une tâche vers le statut `CANCELED`.
+
+**Comportement :**
+- Définit `finished_at` à la date actuelle
 
 ---
 
 ### `countPending(): int`
 
-Compte le nombre de tâches en statut PENDING.
-
----
+Compte le nombre de tâches en attente.
 
 ### `countCompleted(): int`
 
-Compte le nombre de tâches en statut COMPLETED.
-
----
+Compte le nombre de tâches terminées avec succès.
 
 ### `countFailed(): int`
 
-Compte le nombre de tâches en statut FAILED.
+Compte le nombre de tâches en échec.
+
+### `countCanceled(): int`
+
+Compte le nombre de tâches annulées.
+
+## Filtres
+
+Le repository utilise `UniqueTaskFiltersRecord` pour les recherches avancées :
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `id` | `TaskIdVO` | UUID de la tâche |
+| `alias` | `TaskSignatureVO` | Alias de la tâche |
+| `fqcn` | `string` | Classe de la tâche |
+| `status` | `UniqueTaskStatus` | Statut de la tâche |
+| `scheduled_at_from` | `Iso8601DateTimeVO` | Date planifiée (>=) |
+| `scheduled_at_to` | `Iso8601DateTimeVO` | Date planifiée (<=) |
+| `finished_at_from` | `Iso8601DateTimeVO` | Date de fin (>=) |
+| `finished_at_to` | `Iso8601DateTimeVO` | Date de fin (<=) |
+| `attempts` | `int` | Nombre de tentatives |
+| `max_attempts` | `int` | Nombre maximum de tentatives |
+| `include_deleted` | `bool` | Inclure les tâches supprimées |
+
+**Exemple de filtres :**
+```php
+$filters = new UniqueTaskFiltersRecord(
+    status: UniqueTaskStatus::PENDING,
+    scheduled_at_from: new Iso8601DateTimeVO(now()->subDays(1)->toIso8601String()),
+    attempts: 0,
+);
+
+$results = $repository->findBy(new FindByRecord(filters: $filters));
+```
+
+## Flux des mouvements d'état
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Mouvements d'état                              │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  PENDING ──────────────────────────────────────────────────────────┐│
+│     │                                                             ││
+│     │ moveToCompleted() (succès)                                 ││
+│     ▼                                                             ││
+│  COMPLETED                                                        ││
+│                                                                     ││
+│  PENDING ──────────────────────────────────────────────────────────┐│
+│     │                                                             ││
+│     │ moveToFailed() (échec final)                               ││
+│     ▼                                                             ││
+│  FAILED                                                           ││
+│                                                                     ││
+│  PENDING ──────────────────────────────────────────────────────────┐│
+│     │                                                             ││
+│     │ moveToCanceled() (annulation manuelle)                     ││
+│     ▼                                                             ││
+│  CANCELED                                                         ││
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ## Cas d'utilisation
 
-### Cas 1 : Récupérer les tâches à exécuter
+### Cas 1 : Recherche de tâches prêtes
 
 ```php
 $repository = app(UniqueTaskRepository::class);
 
-// Récupérer les tâches prêtes
-$ready = $repository->findReadyToRun(date('c'));
+// Récupérer les 10 premières tâches prêtes
+$readyTasks = $repository->findReadyToRun(now()->toIso8601String(), 10);
 
-foreach ($ready as $task) {
-    $record = UniqueTaskRecord::from([...]);
-    $result = $runner->run($record);
-    
-    if ($result->success) {
-        $repository->moveToCompleted($record);
-    } else {
-        // Incrémenter les tentatives
-        $newAttempts = $record->attempts->increment();
-        $repository->updateAttempts($record, $newAttempts->value);
-        
-        if ($newAttempts->value >= $record->max_attempts->value) {
-            $repository->moveToFailed($record);
-        }
-    }
+foreach ($readyTasks as $task) {
+    $record = $task->toRecord();
+    // Traiter la tâche...
 }
 ```
 
-### Cas 2 : Recherche par UUID
+### Cas 2 : Changement d'état
+
+```php
+$repository = app(UniqueTaskRepository::class);
+
+// Trouver une tâche
+$task = $repository->findById('550e8400-e29b-41d4-a716-446655440000');
+if ($task) {
+    $record = $task->toRecord();
+    
+    // Marquer comme complétée
+    $repository->moveToCompleted($record);
+    
+    // ou comme échouée
+    $repository->moveToFailed($record);
+    
+    // ou comme annulée
+    $repository->moveToCanceled($record);
+}
+```
+
+### Cas 3 : Mise à jour des tentatives
 
 ```php
 $repository = app(UniqueTaskRepository::class);
 
 $task = $repository->findById('550e8400-e29b-41d4-a716-446655440000');
 if ($task) {
-    echo $task->getAlias();
-    echo $task->getStatusVO()->value;
+    $record = $task->toRecord();
+    $newAttempts = $record->attempts->increment();
+    
+    // Mettre à jour le nombre de tentatives
+    $repository->updateAttempts($record, $newAttempts->value);
 }
 ```
 
-### Cas 3 : Gestion des tâches expirées
+### Cas 4 : Ajout de logs de débogage
 
 ```php
 $repository = app(UniqueTaskRepository::class);
 
-$expired = $repository->findExpired(date('c'));
-foreach ($expired as $task) {
-    $record = UniqueTaskRecord::from([...]);
-    $repository->moveToFailed($record);
-    // La tâche est maintenant marquée comme FAILED
+$task = $repository->findById('550e8400-e29b-41d4-a716-446655440000');
+if ($task) {
+    $record = $task->toRecord();
+    
+    $repository->addDebug(
+        $record,
+        'succeeded',
+        'Task executed successfully'
+    );
 }
 ```
 
-### Cas 4 : Statistiques par statut
+### Cas 5 : Comptage des tâches
 
 ```php
 $repository = app(UniqueTaskRepository::class);
 
-echo "En attente: " . $repository->countPending() . "\n";
-echo "Terminées: " . $repository->countCompleted() . "\n";
-echo "En échec: " . $repository->countFailed() . "\n";
+echo "PENDING: " . $repository->countPending() . "\n";
+echo "COMPLETED: " . $repository->countCompleted() . "\n";
+echo "FAILED: " . $repository->countFailed() . "\n";
+echo "CANCELED: " . $repository->countCanceled() . "\n";
 ```
 
-## Flux d'exécution
+## Dépendances
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    UniqueTaskRepository                            │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  FINDERS                                                           │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  findPending()      → Collection<UniqueTask>                │   │
-│  │  findCompleted()    → Collection<UniqueTask>                │   │
-│  │  findFailed()       → Collection<UniqueTask>                │   │
-│  │  findReadyToRun()   → Collection<UniqueTask>                │   │
-│  │  findExpired()      → Collection<UniqueTask>                │   │
-│  │  findById()         → ?UniqueTask                           │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  MOVES                                                             │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  PENDING ──moveToCompleted──► COMPLETED                    │   │
-│  │  PENDING ──moveToFailed────► FAILED                        │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  UPDATE                                                            │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  updateAttempts() → mise à jour des tentatives              │   │
-│  │  addDebug() → ajout d'une entrée de debug                   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  COUNTS                                                            │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  countPending() → int                                       │   │
-│  │  countCompleted() → int                                     │   │
-│  │  countFailed() → int                                        │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| Dépendance | Rôle |
+|------------|------|
+| `TaskExecutionDebugRepository` | Ajout des logs de débogage |
+| `AbstractRepository` | Classe de base du Repository Pattern |
+| `UniqueTask` | Modèle Eloquent |
+| `UniqueTaskRecord` | DTO de la tâche |
 
-## Gestion des erreurs
+## Héritage / Méthodes héritées
 
-| Situation | Exception | Message |
-|-----------|-----------|---------|
-| Tâche non trouvée dans `updateAttempts` | `RuntimeException` | `Task not found: {id}` |
-| Tâche non trouvée dans `moveToCompleted` | `RuntimeException` | `Task not found: {id}` |
-| Tâche non trouvée dans `moveToFailed` | `RuntimeException` | `Task not found: {id}` |
-| ID invalide dans `findById` | ❌ Non bloquant | Retourne `null` |
+Ce repository hérite de `AbstractRepository` et bénéficie des méthodes suivantes :
 
-## Filtres supportés
-
-| Filtre | Type | Description |
-|--------|------|-------------|
-| `id` | `TaskIdVO` | Recherche par UUID |
-| `alias` | `TaskSignatureVO` | Recherche exacte par alias |
-| `fqcn` | `string` | Recherche par classe |
-| `status` | `UniqueTaskStatus` | Recherche par statut |
-| `scheduled_at_from` | `Iso8601DateTimeVO` | scheduled_at >= valeur |
-| `scheduled_at_to` | `Iso8601DateTimeVO` | scheduled_at <= valeur |
-| `finished_at_from` | `Iso8601DateTimeVO` | finished_at >= valeur |
-| `finished_at_to` | `Iso8601DateTimeVO` | finished_at <= valeur |
-| `attempts` | `int` | Nombre de tentatives exact |
-| `max_attempts` | `int` | Nombre maximum de tentatives |
-| `include_deleted` | `bool` | Inclut les soft deleted |
+| Méthode | Description |
+|---------|-------------|
+| `create(AbstractRecord $record)` | Crée un nouvel enregistrement |
+| `update(int $id, AbstractRecord $record)` | Met à jour un enregistrement existant |
+| `delete(int $id)` | Supprime un enregistrement (soft delete) |
+| `findBy(FindByRecord $findByRecord)` | Recherche avec filtres |
+| `findWithTrashed(int $id)` | Trouve un enregistrement supprimé |
+| `count(?AbstractRecord $filters = null)` | Compte les enregistrements |
 
 ## Performance
 
-- **Complexité** : O(n) pour les finders, O(1) pour les counts
-- **Index** : La colonne `id` est la clé primaire (UUID), `alias` est indexé
-- **Soft Delete** : Les soft deleted sont exclus par défaut
-- **Mémoire** : Les collections sont chargées en mémoire
+- **Complexité** : O(1) pour les opérations unitaires, O(n) pour les finders avec résultats
+- **Base de données** : Utilise Eloquent avec des requêtes optimisées
+- **Index recommandés** :
+  - `id` (clé primaire)
+  - `status`
+  - `scheduled_at`
+  - `alias`
 
 ## Compatibilité
 
 | Version | Support |
 |---------|---------|
 | PHP 8.1+ | ✅ Complet |
-| Laravel 10+ | ✅ Complet |
+| Laravel 12.x, 13.x, 14.x, 15.x | ✅ Complet |
 
 ## Exemple complet
 
@@ -355,59 +384,67 @@ echo "En échec: " . $repository->countFailed() . "\n";
 declare(strict_types=1);
 
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
+use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Records\UniqueTaskFiltersRecord;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use Ramsey\Uuid\Uuid;
+use AndyDefer\Task\ValueObjects\TaskIdVO;
 
 $repository = app(UniqueTaskRepository::class);
 
-// 1. Récupérer les tâches en attente
-$pending = $repository->findPending();
-
-// 2. Récupérer une tâche par UUID
+// 1. Trouver une tâche par ID
 $task = $repository->findById('550e8400-e29b-41d4-a716-446655440000');
-
-// 3. Récupérer les tâches prêtes
-$ready = $repository->findReadyToRun(date('c'));
-
-// 4. Récupérer les tâches expirées
-$expired = $repository->findExpired(date('c'));
-
-// 5. Mettre à jour les tentatives
-$record = UniqueTaskRecord::from([...]);
-$repository->updateAttempts($record, 2);
-
-// 6. Ajouter un debug
-$repository->addDebug($record, 'succeeded', 'Task executed successfully');
-
-// 7. Marquer comme terminée ou en échec
-if ($success) {
-    $repository->moveToCompleted($record);
-} else {
-    $repository->moveToFailed($record);
+if ($task) {
+    echo "Tâche trouvée: {$task->getId()->value}\n";
+    echo "Statut: {$task->getStatus()->value}\n";
 }
 
-// 8. Compter par statut
+// 2. Récupérer les tâches prêtes
+$ready = $repository->findReadyToRun(now()->toIso8601String(), 10);
+echo "Tâches prêtes: " . $ready->count() . "\n";
+
+// 3. Récupérer les tâches expirées
+$expired = $repository->findExpired(now()->toIso8601String());
+echo "Tâches expirées: " . $expired->count() . "\n";
+
+// 4. Compter par statut
 echo "PENDING: " . $repository->countPending() . "\n";
 echo "COMPLETED: " . $repository->countCompleted() . "\n";
 echo "FAILED: " . $repository->countFailed() . "\n";
+echo "CANCELED: " . $repository->countCanceled() . "\n";
 
-// 9. Recherche avec filtres
+// 5. Recherche avancée
 $filters = new UniqueTaskFiltersRecord(
     status: UniqueTaskStatus::PENDING,
-    scheduled_at_from: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-    max_attempts: 3,
+    scheduled_at_from: new Iso8601DateTimeVO(now()->subDays(7)->toIso8601String()),
+    attempts: 0,
 );
 
-$tasks = $repository->findBy(new FindByRecord(filters: $filters));
+$results = $repository->findBy(new FindByRecord(filters: $filters, limit: 20));
+
+foreach ($results as $task) {
+    echo "{$task->getAlias()->value} (planifiée: {$task->getScheduledAt()->value})\n";
+}
+
+// 6. Mettre à jour les tentatives
+$task = $repository->findById('550e8400-e29b-41d4-a716-446655440000');
+if ($task) {
+    $record = $task->toRecord();
+    $repository->updateAttempts($record, 2);
+}
+
+// 7. Ajouter un log de débogage
+$task = $repository->findById('550e8400-e29b-41d4-a716-446655440000');
+if ($task) {
+    $record = $task->toRecord();
+    $repository->addDebug($record, 'succeeded', 'Task completed');
+}
 ```
 
 ## Voir aussi
 
-- `AbstractRepository` - Classe de base des repositories
-- `UniqueTask` - Modèle Eloquent avec UUID
-- `UniqueTaskRecord` - DTO de tâche unique
+- `UniqueTaskRepositoryInterface` - Interface du repository
+- `UniqueTask` - Modèle Eloquent
+- `UniqueTaskRecord` - DTO des tâches uniques
+- `UniqueTaskFiltersRecord` - DTO de filtres
 - `RecurringTaskRepository` - Repository des tâches récurrentes
-- `TaskExecutionDebugRepository` - Repository des logs de debug
+- `UniqueTaskService` - Service des tâches uniques

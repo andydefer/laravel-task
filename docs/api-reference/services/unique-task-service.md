@@ -2,7 +2,7 @@
 
 ## Description
 
-Service métier pour la gestion des tâches uniques. Fournit une API complète pour l'enregistrement, l'exécution, la gestion d'état et la recherche des tâches uniques.
+Service métier pour la gestion des tâches uniques. Fournit une API complète pour l'enregistrement, l'exécution, la gestion d'état, la modification et la recherche des tâches uniques.
 
 ## Hiérarchie / Implémentations
 
@@ -17,10 +17,11 @@ Ce service est le point d'entrée principal pour la gestion des tâches uniques.
 
 1. **Enregistrement** des nouvelles tâches uniques avec génération d'UUID
 2. **Exécution** des tâches en `PENDING` avec gestion des tentatives
-3. **Gestion d'état** (annulation, reprogrammation, prolongation de période de grâce)
-4. **Recherche** et consultation des tâches
-5. **Suppression** des tâches
-6. **Comptage** des tâches par statut
+3. **Gestion d'état** (annulation, reprogrammation)
+4. **Modification** des paramètres (date d'exécution, période de grâce)
+5. **Recherche** et consultation des tâches
+6. **Suppression** des tâches
+7. **Comptage** des tâches par statut
 
 ## API
 
@@ -109,10 +110,10 @@ Annule une tâche en attente.
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$taskId` | `TaskIdVO` | UUID de la tâche |
-| `$reason` | `?string` | Raison de l'annulation |
+| `$reason` | `?string` | Raison de l'annulation (optionnelle) |
 
 **Comportement :**
-- Marque la tâche comme `FAILED`
+- Marque la tâche comme `CANCELED`
 - Log un événement `unique_task_cancelled`
 
 **Conditions :** La tâche doit être en `PENDING`
@@ -126,6 +127,7 @@ $service->cancel(
     new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
     'User requested cancellation'
 );
+// Statut → CANCELED
 ```
 
 ---
@@ -234,11 +236,9 @@ Récupère toutes les tâches en échec.
 
 ---
 
-### `findCancelled(?int $limit = null): array`
+### `findCanceled(?int $limit = null): array`
 
 Récupère toutes les tâches annulées.
-
-**Note :** Les tâches annulées sont marquées comme `FAILED` avec un log spécifique.
 
 ---
 
@@ -256,7 +256,7 @@ Vérifie si une tâche existe.
 
 ### `delete(TaskIdVO $taskId): void`
 
-Supprime une tâche.
+Supprime une tâche (soft delete).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -282,7 +282,7 @@ Compte le nombre de tâches terminées avec succès.
 
 Compte le nombre de tâches en échec.
 
-### `countCancelled(): int`
+### `countCanceled(): int`
 
 Compte le nombre de tâches annulées.
 
@@ -341,7 +341,7 @@ $service->cancel(
     'User requested cancellation'
 );
 
-// La tâche est marquée FAILED
+// La tâche est marquée CANCELED
 // Un log 'unique_task_cancelled' est créé
 ```
 
@@ -380,13 +380,13 @@ $task = $service->find(new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'));
 $pending = $service->findPending(10);
 
 // Lister les tâches annulées
-$cancelled = $service->findCancelled(5);
+$cancelled = $service->findCanceled(5);
 
 // Compter les tâches par statut
 echo "PENDING: " . $service->countPending() . "\n";
 echo "COMPLETED: " . $service->countCompleted() . "\n";
 echo "FAILED: " . $service->countFailed() . "\n";
-echo "CANCELLED: " . $service->countCancelled() . "\n";
+echo "CANCELED: " . $service->countCanceled() . "\n";
 ```
 
 ## Flux d'exécution
@@ -424,7 +424,7 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 │                                                                     │
 │  GESTION D'ÉTAT                                                    │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  cancel()        → PENDING → FAILED + cancelled_at + log  │   │
+│  │  cancel()        → PENDING → CANCELED + cancelled_at + log│   │
 │  │  reschedule()    → Update scheduled_at + log              │   │
 │  │  extendGracePeriod() → Update grace_period + log          │   │
 │  └─────────────────────────────────────────────────────────────┘   │
@@ -435,13 +435,13 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 │  │  findPending()   → array<UniqueTaskRecord>                 │   │
 │  │  findCompleted() → array<UniqueTaskRecord>                 │   │
 │  │  findFailed()    → array<UniqueTaskRecord>                 │   │
-│  │  findCancelled() → array<UniqueTaskRecord>                 │   │
+│  │  findCanceled()  → array<UniqueTaskRecord>                 │   │
 │  │  exists()        → bool                                    │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  SUPPRESSION                                                       │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  delete() → $model->delete()                               │   │
+│  │  delete() → $model->delete() (soft delete)                 │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  COMPTAGE                                                          │
@@ -450,7 +450,7 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 │  │  countPending()    → int                                    │   │
 │  │  countCompleted()  → int                                    │   │
 │  │  countFailed()     → int                                    │   │
-│  │  countCancelled()  → int                                    │   │
+│  │  countCanceled()   → int                                    │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -474,6 +474,40 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 │  Exécution 1 → Échec → attempts = 1                               │
 │  Exécution 2 → Succès → COMPLETED                                 │
 │                                                                     │
+│  cancel() → PENDING → CANCELED (quel que soit attempts)          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+## Cycle de vie d'une tâche unique
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Cycle de vie d'une tâche unique                 │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  PENDING ──────────────────────────────────────────────────────────┐│
+│     │                                                             ││
+│     │ run() → succès                                             ││
+│     ▼                                                             ││
+│  COMPLETED                                                        ││
+│                                                                     ││
+│  PENDING ──────────────────────────────────────────────────────────┐│
+│     │                                                             ││
+│     │ run() → échec (attempts < max_attempts)                    ││
+│     ▼                                                             ││
+│  PENDING (attempts + 1)                                           ││
+│     │                                                             ││
+│     │ run() → échec (attempts >= max_attempts)                   ││
+│     ▼                                                             ││
+│  FAILED                                                           ││
+│                                                                     ││
+│  PENDING ──────────────────────────────────────────────────────────┐│
+│     │                                                             ││
+│     │ cancel()                                                    ││
+│     ▼                                                             ││
+│  CANCELED                                                         ││
+│                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -492,35 +526,11 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 
 | Dépendance | Rôle |
 |------------|------|
-| `UniqueTaskRepositoryInterface` | Accès aux données |
-| `LoggerInterface` | Journalisation |
+| `UniqueTaskRepositoryInterface` | Accès aux données via Repository |
+| `LoggerInterface` | Journalisation des événements |
 | `HydrationService` | Hydratation des objets |
 | `UuidFactoryInterface` | Génération des UUID |
 | `Application` (Laravel) | Instanciation des classes |
-
-## Nouveautés
-
-### Méthode `cancel()`
-
-Ajoutée pour permettre l'annulation explicite d'une tâche avec raison :
-- Marque la tâche comme `FAILED`
-- Logge l'événement `unique_task_cancelled`
-
-### Méthode `reschedule()`
-
-Permet de reprogrammer une tâche en attente avec une nouvelle date d'exécution.
-
-### Méthode `extendGracePeriod()`
-
-Permet de prolonger la période de grâce d'une tâche en attente.
-
-### Méthode `findCancelled()`
-
-Permet de lister les tâches annulées.
-
-### Méthode `countCancelled()`
-
-Compte les tâches annulées.
 
 ## Performance
 
@@ -534,7 +544,7 @@ Compte les tâches annulées.
 | Version | Support |
 |---------|---------|
 | PHP 8.1+ | ✅ Complet |
-| Laravel 10+ | ✅ Complet |
+| Laravel 12.x, 13.x, 14.x, 15.x | ✅ Complet |
 
 ## Exemple complet
 
@@ -588,13 +598,14 @@ echo $success ? "Exécution réussie\n" : "Exécution échouée\n";
 
 // 6. Annuler (si besoin)
 $service->cancel($taskId, 'Campagne annulée');
+echo "Tâche annulée\n";
 
 // 7. Compter les tâches
 echo "Total: " . $service->count() . "\n";
 echo "En attente: " . $service->countPending() . "\n";
 echo "Terminées: " . $service->countCompleted() . "\n";
 echo "En échec: " . $service->countFailed() . "\n";
-echo "Annulées: " . $service->countCancelled() . "\n";
+echo "Annulées: " . $service->countCanceled() . "\n";
 
 // 8. Supprimer
 $service->delete($taskId);

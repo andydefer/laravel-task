@@ -2,7 +2,7 @@
 
 ## Description
 
-Service métier pour la gestion des tâches récurrentes. Fournit une API complète pour l'enregistrement, l'exécution, la gestion d'état et la recherche des tâches récurrentes.
+Service métier pour la gestion des tâches récurrentes. Fournit une API complète pour l'enregistrement, l'exécution, la gestion d'état, la modification et la recherche des tâches récurrentes.
 
 ## Hiérarchie / Implémentations
 
@@ -21,6 +21,7 @@ Ce service est le point d'entrée principal pour la gestion des tâches récurre
 4. **Modification** des paramètres (intervalle, date de début, date de fin)
 5. **Recherche** et consultation des tâches
 6. **Suppression** des tâches
+7. **Comptage** des tâches par statut
 
 ## API
 
@@ -148,7 +149,11 @@ Termine une tâche prématurément.
 |-----------|------|-------------|
 | `$alias` | `TaskSignatureVO` | Alias de la tâche |
 
-**Exceptions :** `RuntimeException` - Si la tâche n'existe pas
+**Conditions :** La tâche ne doit pas être `CANCELED`
+
+**Exceptions :** 
+- `RuntimeException` - Si la tâche n'existe pas
+- `RuntimeException` - Si la tâche est déjà annulée
 
 **Exemple :**
 ```php
@@ -160,15 +165,15 @@ $service->finish(new TaskSignatureVO('email-newsletter'));
 
 ### `cancel(TaskSignatureVO $alias, ?string $reason = null): void`
 
-Annule une tâche récurrente avec une raison.
+Annule une tâche récurrente.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskSignatureVO` | Alias de la tâche |
-| `$reason` | `?string` | Raison de l'annulation |
+| `$reason` | `?string` | Raison de l'annulation (optionnelle) |
 
 **Comportement :**
-- Marque la tâche comme `FINISHED`
+- Marque la tâche comme `CANCELED`
 - Enregistre `cancelled_at`
 - Log un événement `recurring_task_cancelled`
 
@@ -180,6 +185,7 @@ $service->cancel(
     new TaskSignatureVO('email-newsletter'),
     'Campaign cancelled due to budget constraints'
 );
+// Statut → CANCELED
 ```
 
 ---
@@ -193,7 +199,11 @@ Avance la date de début d'une tâche.
 | `$alias` | `TaskSignatureVO` | Alias de la tâche |
 | `$newStartAt` | `Iso8601DateTimeVO` | Nouvelle date de début |
 
-**Exceptions :** `RuntimeException` - Si la tâche n'existe pas
+**Conditions :** La tâche ne doit pas être `CANCELED`
+
+**Exceptions :** 
+- `RuntimeException` - Si la tâche n'existe pas
+- `RuntimeException` - Si la tâche est déjà annulée
 
 **Exemple :**
 ```php
@@ -214,7 +224,11 @@ Repousse la date de début d'une tâche (alias de `advanceStartAt`).
 | `$alias` | `TaskSignatureVO` | Alias de la tâche |
 | `$newStartAt` | `Iso8601DateTimeVO` | Nouvelle date de début |
 
-**Exceptions :** `RuntimeException` - Si la tâche n'existe pas
+**Conditions :** La tâche ne doit pas être `CANCELED`
+
+**Exceptions :** 
+- `RuntimeException` - Si la tâche n'existe pas
+- `RuntimeException` - Si la tâche est déjà annulée
 
 **Exemple :**
 ```php
@@ -235,7 +249,11 @@ Modifie l'intervalle d'une tâche.
 | `$alias` | `TaskSignatureVO` | Alias de la tâche |
 | `$intervalSeconds` | `int` | Nouvel intervalle en secondes |
 
-**Exceptions :** `RuntimeException` - Si la tâche n'existe pas
+**Conditions :** La tâche ne doit pas être `CANCELED`
+
+**Exceptions :** 
+- `RuntimeException` - Si la tâche n'existe pas
+- `RuntimeException` - Si la tâche est déjà annulée
 
 **Exemple :**
 ```php
@@ -256,7 +274,11 @@ Prolonge la date de fin d'une tâche.
 | `$alias` | `TaskSignatureVO` | Alias de la tâche |
 | `$newEndAt` | `Iso8601DateTimeVO` | Nouvelle date de fin |
 
-**Exceptions :** `RuntimeException` - Si la tâche n'existe pas
+**Conditions :** La tâche ne doit pas être `CANCELED`
+
+**Exceptions :** 
+- `RuntimeException` - Si la tâche n'existe pas
+- `RuntimeException` - Si la tâche est déjà annulée
 
 **Exemple :**
 ```php
@@ -318,11 +340,9 @@ Récupère toutes les tâches terminées.
 
 ---
 
-### `findCancelled(?int $limit = null): array`
+### `findCanceled(?int $limit = null): array`
 
 Récupère toutes les tâches annulées.
-
-**Note :** Filtre les tâches `FINISHED` qui ont un `cancelled_at` non null
 
 ---
 
@@ -340,7 +360,7 @@ Vérifie si une tâche existe.
 
 ### `delete(TaskSignatureVO $alias): void`
 
-Supprime une tâche récurrente.
+Supprime une tâche récurrente (soft delete).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
@@ -370,7 +390,7 @@ Compte le nombre de tâches en pause.
 
 Compte le nombre de tâches terminées.
 
-### `countCancelled(): int`
+### `countCanceled(): int`
 
 Compte le nombre de tâches annulées.
 
@@ -430,7 +450,7 @@ $service->cancel(
     'Campaign cancelled due to budget constraints'
 );
 
-// La tâche est marquée FINISHED avec cancelled_at renseigné
+// La tâche est marquée CANCELED avec cancelled_at renseigné
 // Un log 'recurring_task_cancelled' est créé
 ```
 
@@ -474,14 +494,14 @@ $task = $service->find(new TaskSignatureVO('email-newsletter'));
 $waiting = $service->findWaiting(10);
 
 // Lister les tâches annulées
-$cancelled = $service->findCancelled(5);
+$cancelled = $service->findCanceled(5);
 
 // Compter les tâches par statut
 echo "WAITING: " . $service->countWaiting() . "\n";
 echo "PLAYING: " . $service->countPlaying() . "\n";
 echo "PAUSED: " . $service->countPaused() . "\n";
 echo "FINISHED: " . $service->countFinished() . "\n";
-echo "CANCELLED: " . $service->countCancelled() . "\n";
+echo "CANCELED: " . $service->countCanceled() . "\n";
 ```
 
 ## Flux d'exécution
@@ -516,8 +536,8 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 │  ┌─────────────────────────────────────────────────────────────┐   │
 │  │  pause()   → PLAYING → PAUSED                              │   │
 │  │  resume()  → PAUSED → WAITING                              │   │
-│  │  finish()  → WAITING/PLAYING → FINISHED                   │   │
-│  │  cancel()  → * → FINISHED + cancelled_at + log            │   │
+│  │  finish()  → * → FINISHED (sauf CANCELED)                 │   │
+│  │  cancel()  → * → CANCELED + cancelled_at + log            │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  MODIFICATION                                                      │
@@ -526,6 +546,7 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 │  │  postponeStartAt()  → updateRaw('start_at')                │   │
 │  │  changeInterval()   → updateRaw('interval_seconds')        │   │
 │  │  extendEndAt()      → updateRaw('end_at')                  │   │
+│  │  Toutes vérifient CANCELED avant modification              │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  RECHERCHE                                                         │
@@ -535,13 +556,13 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 │  │  findPlaying()   → array<RecurringTaskRecord>              │   │
 │  │  findPaused()    → array<RecurringTaskRecord>              │   │
 │  │  findFinished()  → array<RecurringTaskRecord>              │   │
-│  │  findCancelled() → array<RecurringTaskRecord>              │   │
+│  │  findCanceled()  → array<RecurringTaskRecord>              │   │
 │  │  exists()        → bool                                    │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  SUPPRESSION                                                       │
 │  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  delete() → repository->delete()                           │   │
+│  │  delete() → repository->delete() (soft delete)             │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 │  COMPTAGE                                                          │
@@ -551,7 +572,7 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 │  │  countPlaying()    → int                                    │   │
 │  │  countPaused()     → int                                    │   │
 │  │  countFinished()   → int                                    │   │
-│  │  countCancelled()  → int                                    │   │
+│  │  countCanceled()   → int                                    │   │
 │  └─────────────────────────────────────────────────────────────┘   │
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
@@ -566,36 +587,43 @@ echo "CANCELLED: " . $service->countCancelled() . "\n";
 | Tâche non trouvée | `RuntimeException` | `Task not found: {alias}` |
 | Pause sur tâche non PLAYING | `RuntimeException` | `Task '{alias}' is not in PLAYING state` |
 | Reprise sur tâche non PAUSED | `RuntimeException` | `Task '{alias}' is not in PAUSED state` |
+| Finition sur tâche CANCELED | `RuntimeException` | `Task '{alias}' is already canceled` |
+| Modification sur tâche CANCELED | `RuntimeException` | `Task '{alias}' is already canceled` |
 
 ## Dépendances
 
 | Dépendance | Rôle |
 |------------|------|
-| `RecurringTaskRepositoryInterface` | Accès aux données |
-| `LoggerInterface` | Journalisation |
+| `RecurringTaskRepositoryInterface` | Accès aux données via Repository |
+| `LoggerInterface` | Journalisation des événements |
 | `HydrationService` | Hydratation des objets |
 | `Application` (Laravel) | Instanciation des classes |
 
-## Nouveautés
+## États d'une tâche récurrente
 
-### Méthode `cancel()`
-
-Ajoutée pour permettre l'annulation explicite d'une tâche avec raison :
-- Marque la tâche comme `FINISHED`
-- Renseigne `cancelled_at`
-- Logge l'événement `recurring_task_cancelled`
-
-### Méthode `extendEndAt()`
-
-Permet de prolonger la date de fin d'une tâche existante.
-
-### Méthode `findCancelled()`
-
-Permet de lister les tâches annulées.
-
-### Méthode `countCancelled()`
-
-Compte les tâches annulées.
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    Cycle de vie d'une tâche récurrente             │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  WAITING ──────────────────────────────────────────────────────────┐│
+│     │                                                             ││
+│     │ start_at atteint                                           ││
+│     ▼                                                             ││
+│  PLAYING ◄───────────────┐                                        ││
+│     │                     │                                        ││
+│     │ pause()            │ resume()                               ││
+│     ▼                     │                                        ││
+│  PAUSED ──────────────────┘                                        ││
+│     │                                                             ││
+│     │ end_at atteint / finish()                                  ││
+│     ▼                                                             ││
+│  FINISHED                                                         ││
+│                                                                     ││
+│  * → cancel() → CANCELED (depuis n'importe quel état)            ││
+│                                                                     ││
+└─────────────────────────────────────────────────────────────────────┘
+```
 
 ## Performance
 
@@ -609,7 +637,7 @@ Compte les tâches annulées.
 | Version | Support |
 |---------|---------|
 | PHP 8.1+ | ✅ Complet |
-| Laravel 10+ | ✅ Complet |
+| Laravel 12.x, 13.x, 14.x, 15.x | ✅ Complet |
 
 ## Exemple complet
 
@@ -660,16 +688,21 @@ echo "Tâche reprise\n";
 $success = $service->run($alias);
 echo $success ? "Exécution réussie\n" : "Exécution échouée\n";
 
-// 6. Annuler (si besoin)
-$service->cancel($alias, 'Maintenance programmée');
+// 6. Modifier l'intervalle
+$service->changeInterval($alias, 7200);
+echo "Intervalle modifié\n";
 
-// 7. Compter les tâches
+// 7. Annuler (si besoin)
+$service->cancel($alias, 'Maintenance programmée');
+echo "Tâche annulée\n";
+
+// 8. Compter les tâches
 echo "Total: " . $service->count() . "\n";
 echo "En attente: " . $service->countWaiting() . "\n";
 echo "En cours: " . $service->countPlaying() . "\n";
-echo "Annulées: " . $service->countCancelled() . "\n";
+echo "Annulées: " . $service->countCanceled() . "\n";
 
-// 8. Supprimer
+// 9. Supprimer
 $service->delete($alias);
 echo "Tâche supprimée\n";
 ```
