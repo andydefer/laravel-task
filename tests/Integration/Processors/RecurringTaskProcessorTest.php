@@ -39,8 +39,6 @@ final class RecurringTaskProcessorTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->runDatabaseMigrations();
-
         // Repository
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new RecurringTaskRepository($this->debugRepository);
@@ -319,19 +317,26 @@ final class RecurringTaskProcessorTest extends IntegrationTestCase
         // Process avec limit = 2
         $result = $this->processor->process(2);
 
+        // ✅ Vérifier que seules 2 tâches ont été exécutées avec succès
         $this->assertEquals(2, $result->success->value);
         $this->assertEquals(0, $result->failed->value);
         $this->assertEquals(0, $result->finished->value);
 
-        // Vérifier que seules 2 tâches ont démarré
-        $playedTasks = 0;
+        // ✅ Vérifier que seules 2 tâches ont été exécutées (last_run_at mis à jour)
+        $executedTasks = 0;
         for ($i = 1; $i <= 3; $i++) {
             $task = $this->repository->findByAlias("test-limit-{$i}");
-            if ($task !== null && $task->getStatus() === RecurringTaskStatus::PLAYING) {
-                $playedTasks++;
+            if ($task !== null && $task->getLastRunAt() !== null) {
+                $executedTasks++;
             }
         }
-        $this->assertEquals(2, $playedTasks);
+        $this->assertEquals(2, $executedTasks);
+
+        // ✅ Vérifier que les 3 tâches sont en PLAYING (freshState les a toutes passées)
+        for ($i = 1; $i <= 3; $i++) {
+            $task = $this->repository->findByAlias("test-limit-{$i}");
+            $this->assertEquals(RecurringTaskStatus::PLAYING, $task->getStatus());
+        }
     }
 
     public function test_process_handles_multiple_scenarios(): void

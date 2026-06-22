@@ -13,16 +13,4 @@ final class RecurringTaskRecordCollection extends AbstractTypedCollection
     {
         parent::__construct(RecurringTaskRecord::class);
     }
-
-    public function getExpiredTasks(string $now): self
-    {
-        $expired = new self;
-        foreach ($this as $task) {
-            if ($task->end_at !== null && $task->end_at->value <= $now) {
-                $expired->add($task);
-            }
-        }
-
-        return $expired;
-    }
 }

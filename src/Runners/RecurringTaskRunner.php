@@ -40,7 +40,8 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
             return new ExecutionResultRecord(
                 success: false,
                 error: new TaskErrorRecord(
-                    identifier: $record->alias->value,
+                    alias: $record->alias->value,
+                    fqcn: $record->fqcn,
                     error: 'Validation failed: '.$errorMessage,
                 ),
             );
@@ -81,7 +82,8 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
         return new ExecutionResultRecord(
             success: $success,
             error: $error ? new TaskErrorRecord(
-                identifier: $record->alias->value,
+                alias: $record->alias->value,
+                fqcn: $record->fqcn,
                 error: $error,
             ) : null,
             execution_time: $this->calculateDuration($startTime),

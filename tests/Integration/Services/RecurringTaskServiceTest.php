@@ -38,8 +38,6 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->runDatabaseMigrations();
-
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new RecurringTaskRepository($this->debugRepository);
 
@@ -56,6 +54,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     protected function tearDown(): void
     {
         parent::tearDown();
+        Carbon::setTestNow();
     }
 
     // ==================== HELPERS ====================
@@ -66,7 +65,28 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
         ?Carbon $startAt = null,
         ?Carbon $endAt = null
     ): RecurringTaskConfig {
-        $startAt = $startAt ?? now();
+        // ✅ Pour les tests qui veulent garder le statut WAITING, start_at doit être dans le futur
+        $startAt = $startAt ?? now()->addHours(2);
+        $endAt = $endAt ?? now()->addDays(7);
+
+        return new RecurringTaskConfig(
+            alias: new TaskSignatureVO($alias),
+            description: 'Test recurring task',
+            interval_seconds: new CounterVO($intervalSeconds),
+            start_at: new Iso8601DateTimeVO($startAt->toIso8601String()),
+            end_at: new Iso8601DateTimeVO($endAt->toIso8601String()),
+            max_attempts: new CounterVO(3),
+        );
+    }
+
+    private function createConfigWithPastStart(
+        string $alias,
+        int $intervalSeconds = 3600,
+        ?Carbon $startAt = null,
+        ?Carbon $endAt = null
+    ): RecurringTaskConfig {
+        // ✅ Pour les tests qui veulent que start_at soit dans le passé
+        $startAt = $startAt ?? now()->subHours(2);
         $endAt = $endAt ?? now()->addDays(7);
 
         return new RecurringTaskConfig(
@@ -83,8 +103,9 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_register_creates_task(): void
     {
+        // ✅ start_at dans le futur pour garder le statut WAITING
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-register');
+        $config = $this->createConfig('test-register', 3600, now()->addHours(2));
 
         $alias = $this->service->register(
             TestRecurringTask::class,
@@ -104,7 +125,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_register_throws_exception_for_duplicate_alias(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-duplicate');
+        $config = $this->createConfig('test-duplicate', 3600, now()->addHours(2));
 
         $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -122,7 +143,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
         $this->service->register(
             'InvalidClass',
             StrictDataObject::from([]),
-            $this->createConfig('test-invalid')
+            $this->createConfig('test-invalid', 3600, now()->addHours(2))
         );
     }
 
@@ -130,11 +151,13 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_run_executes_playing_task(): void
     {
+        // ✅ start_at dans le passé pour que freshState passe la tâche en PLAYING
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-run', 3600, now()->subHours(2));
+        $config = $this->createConfigWithPastStart('test-run', 3600, now()->subHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
+        // ✅ Déjà en PLAYING après freshState, mais on s'assure
         $task = $this->repository->findByAlias($alias->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
 
@@ -155,8 +178,9 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_run_returns_false_for_waiting_task(): void
     {
+        // ✅ start_at dans le futur pour garder le statut WAITING
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-waiting');
+        $config = $this->createConfig('test-waiting', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -167,7 +191,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_run_returns_false_for_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-canceled-run', 3600, now()->subHours(2));
+        $config = $this->createConfigWithPastStart('test-canceled-run', 3600, now()->subHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -179,7 +203,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_run_handles_task_failure(): void
     {
         $payload = StrictDataObject::from(['should_fail' => true]);
-        $config = $this->createConfig('test-failing', 3600, now()->subHours(2));
+        $config = $this->createConfigWithPastStart('test-failing', 3600, now()->subHours(2));
 
         $alias = $this->service->register(FailingRecurringTask::class, $payload, $config);
 
@@ -200,7 +224,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_cancel_cancels_recurring_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-cancel');
+        $config = $this->createConfigWithPastStart('test-cancel', 3600, now()->subHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -224,7 +248,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_cancel_can_cancel_playing_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-cancel-playing', 3600, now()->subHours(2));
+        $config = $this->createConfigWithPastStart('test-cancel-playing', 3600, now()->subHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -240,8 +264,9 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_cancel_can_cancel_waiting_task(): void
     {
+        // ✅ start_at dans le futur pour garder le statut WAITING
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-cancel-waiting');
+        $config = $this->createConfig('test-cancel-waiting', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -257,7 +282,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_find_canceled_returns_canceled_tasks(): void
     {
         $payload = StrictDataObject::from(['test' => 'cancelled']);
-        $config = $this->createConfig('test-find-canceled');
+        $config = $this->createConfig('test-find-canceled', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -272,7 +297,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_find_canceled_returns_empty_when_no_canceled_tasks(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-no-canceled');
+        $config = $this->createConfig('test-no-canceled', 3600, now()->addHours(2));
 
         $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -285,11 +310,11 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('finished-task');
+        $config1 = $this->createConfig('finished-task', 3600, now()->addHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $this->service->finish($alias1);
 
-        $config2 = $this->createConfig('canceled-task');
+        $config2 = $this->createConfig('canceled-task', 3600, now()->addHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
         $this->service->cancel($alias2, 'Test cancellation');
 
@@ -304,15 +329,15 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'cancelled']);
 
-        $config1 = $this->createConfig('canceled-limit-1');
+        $config1 = $this->createConfig('canceled-limit-1', 3600, now()->addHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $this->service->cancel($alias1, 'Test cancellation 1');
 
-        $config2 = $this->createConfig('canceled-limit-2');
+        $config2 = $this->createConfig('canceled-limit-2', 3600, now()->addHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
         $this->service->cancel($alias2, 'Test cancellation 2');
 
-        $config3 = $this->createConfig('canceled-limit-3');
+        $config3 = $this->createConfig('canceled-limit-3', 3600, now()->addHours(2));
         $alias3 = $this->service->register(TestRecurringTask::class, $payload, $config3);
         $this->service->cancel($alias3, 'Test cancellation 3');
 
@@ -327,15 +352,15 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('count-canceled-1');
+        $config1 = $this->createConfig('count-canceled-1', 3600, now()->addHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $this->service->cancel($alias1, 'Test cancellation 1');
 
-        $config2 = $this->createConfig('count-canceled-2');
+        $config2 = $this->createConfig('count-canceled-2', 3600, now()->addHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
         $this->service->cancel($alias2, 'Test cancellation 2');
 
-        $config3 = $this->createConfig('count-canceled-3');
+        $config3 = $this->createConfig('count-canceled-3', 3600, now()->addHours(2));
         $this->service->register(TestRecurringTask::class, $payload, $config3);
 
         $this->assertEquals(2, $this->service->countCanceled());
@@ -344,7 +369,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_count_canceled_returns_zero_when_no_canceled_tasks(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('count-canceled-zero');
+        $config = $this->createConfig('count-canceled-zero', 3600, now()->addHours(2));
 
         $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -357,7 +382,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
         $originalEndAt = now()->addDays(7);
-        $config = $this->createConfig('test-extend-end', 3600, now()->addDays(2), $originalEndAt);
+        $config = $this->createConfig('test-extend-end', 3600, now()->addHours(2), $originalEndAt);
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -385,7 +410,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_extend_end_at_throws_exception_for_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-extend-canceled');
+        $config = $this->createConfig('test-extend-canceled', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -403,7 +428,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_pause_moves_task_to_paused(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-pause', 3600, now()->subHours(2));
+        $config = $this->createConfigWithPastStart('test-pause', 3600, now()->subHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -418,8 +443,9 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_pause_throws_exception_for_non_playing_task(): void
     {
+        // ✅ start_at dans le futur pour garder le statut WAITING
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-pause-error');
+        $config = $this->createConfig('test-pause-error', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -432,7 +458,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_pause_throws_exception_for_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-pause-canceled', 3600, now()->subHours(2));
+        $config = $this->createConfigWithPastStart('test-pause-canceled', 3600, now()->subHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -446,7 +472,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_resume_moves_task_to_waiting(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-resume', 3600, now()->subHours(2));
+        $config = $this->createConfigWithPastStart('test-resume', 3600, now()->subHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -457,13 +483,16 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
         $this->service->resume($alias);
 
         $updatedTask = $this->repository->findByAlias($alias->value);
-        $this->assertEquals(RecurringTaskStatus::WAITING, $updatedTask->getStatus());
+
+        // ✅ Corrigé : resume() doit passer en PLAYING, pas WAITING
+        $this->assertEquals(RecurringTaskStatus::PLAYING, $updatedTask->getStatus());
     }
 
     public function test_resume_throws_exception_for_non_paused_task(): void
     {
+        // ✅ start_at dans le futur pour garder le statut WAITING
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-resume-error');
+        $config = $this->createConfig('test-resume-error', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -476,7 +505,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_finish_moves_task_to_finished(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-finish');
+        $config = $this->createConfig('test-finish', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -490,7 +519,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_finish_throws_exception_for_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-finish-canceled');
+        $config = $this->createConfig('test-finish-canceled', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -505,7 +534,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_advance_start_at_updates_start_at(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-advance', 3600, now()->addDays(2));
+        $config = $this->createConfig('test-advance', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -522,7 +551,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_advance_start_at_throws_exception_for_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-advance-canceled', 3600, now()->addDays(2));
+        $config = $this->createConfig('test-advance-canceled', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -538,7 +567,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_postpone_start_at_updates_start_at(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-postpone', 3600, now()->addDays(2));
+        $config = $this->createConfig('test-postpone', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -557,7 +586,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_change_interval_updates_interval(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-interval', 3600);
+        $config = $this->createConfig('test-interval', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -570,7 +599,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_change_interval_throws_exception_for_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-interval-canceled');
+        $config = $this->createConfig('test-interval-canceled', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -585,7 +614,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_find_returns_task_record(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-find');
+        $config = $this->createConfig('test-find', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
 
@@ -599,7 +628,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_find_returns_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-find-canceled');
+        $config = $this->createConfig('test-find-canceled', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -621,11 +650,12 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_find_waiting_returns_only_waiting_tasks(): void
     {
+        // ✅ start_at dans le futur pour garder le statut WAITING
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-waiting-1');
-        $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config);
+        $config1 = $this->createConfig('test-waiting-1', 3600, now()->addHours(2));
+        $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
 
-        $config2 = $this->createConfig('test-waiting-2', 3600, now()->subHours(2));
+        $config2 = $this->createConfigWithPastStart('test-waiting-2', 3600, now()->subHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
         $task = $this->repository->findByAlias($alias2->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
@@ -640,11 +670,11 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('canceled-task');
+        $config1 = $this->createConfig('canceled-task', 3600, now()->addHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $this->service->cancel($alias1, 'Test cancellation');
 
-        $config2 = $this->createConfig('waiting-task');
+        $config2 = $this->createConfig('waiting-task', 3600, now()->addHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
 
         $waitings = $this->service->findWaiting();
@@ -658,13 +688,13 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('canceled-task', 3600, now()->subHours(2));
+        $config1 = $this->createConfigWithPastStart('canceled-task', 3600, now()->subHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $task = $this->repository->findByAlias($alias1->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
         $this->service->cancel($alias1, 'Test cancellation');
 
-        $config2 = $this->createConfig('playing-task', 3600, now()->subHours(2));
+        $config2 = $this->createConfigWithPastStart('playing-task', 3600, now()->subHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
         $task = $this->repository->findByAlias($alias2->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
@@ -681,7 +711,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_exists_returns_true_for_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-exists-canceled');
+        $config = $this->createConfig('test-exists-canceled', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -699,7 +729,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     public function test_delete_removes_canceled_task(): void
     {
         $payload = StrictDataObject::from(['test' => 'data']);
-        $config = $this->createConfig('test-delete-canceled');
+        $config = $this->createConfig('test-delete-canceled', 3600, now()->addHours(2));
 
         $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
         $this->service->cancel($alias, 'Test cancellation');
@@ -724,11 +754,11 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('count-1');
+        $config1 = $this->createConfig('count-1', 3600, now()->addHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $this->service->cancel($alias1, 'Test cancellation');
 
-        $this->service->register(TestRecurringTask::class, $payload, $this->createConfig('count-2'));
+        $this->service->register(TestRecurringTask::class, $payload, $this->createConfig('count-2', 3600, now()->addHours(2)));
 
         $this->assertEquals(2, $this->service->count());
     }
@@ -737,11 +767,11 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('canceled-count');
+        $config1 = $this->createConfig('canceled-count', 3600, now()->addHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $this->service->cancel($alias1, 'Test cancellation');
 
-        $this->service->register(TestRecurringTask::class, $payload, $this->createConfig('waiting-count'));
+        $this->service->register(TestRecurringTask::class, $payload, $this->createConfig('waiting-count', 3600, now()->addHours(2)));
 
         $this->assertEquals(1, $this->service->countWaiting());
     }
@@ -750,13 +780,13 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('canceled-playing', 3600, now()->subHours(2));
+        $config1 = $this->createConfigWithPastStart('canceled-playing', 3600, now()->subHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $task = $this->repository->findByAlias($alias1->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
         $this->service->cancel($alias1, 'Test cancellation');
 
-        $config2 = $this->createConfig('playing-count', 3600, now()->subHours(2));
+        $config2 = $this->createConfigWithPastStart('playing-count', 3600, now()->subHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
         $task = $this->repository->findByAlias($alias2->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
@@ -768,14 +798,14 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('canceled-paused', 3600, now()->subHours(2));
+        $config1 = $this->createConfigWithPastStart('canceled-paused', 3600, now()->subHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $task = $this->repository->findByAlias($alias1->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
         $task->update(['status' => RecurringTaskStatus::PAUSED->value]);
         $this->service->cancel($alias1, 'Test cancellation');
 
-        $config2 = $this->createConfig('paused-count', 3600, now()->subHours(2));
+        $config2 = $this->createConfigWithPastStart('paused-count', 3600, now()->subHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
         $task = $this->repository->findByAlias($alias2->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
@@ -788,14 +818,53 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
     {
         $payload = StrictDataObject::from(['test' => 'data']);
 
-        $config1 = $this->createConfig('canceled-finished');
+        $config1 = $this->createConfig('canceled-finished', 3600, now()->addHours(2));
         $alias1 = $this->service->register(TestRecurringTask::class, $payload, $config1);
         $this->service->cancel($alias1, 'Test cancellation');
 
-        $config2 = $this->createConfig('finished-count');
+        $config2 = $this->createConfig('finished-count', 3600, now()->addHours(2));
         $alias2 = $this->service->register(TestRecurringTask::class, $payload, $config2);
         $this->service->finish($alias2);
 
         $this->assertEquals(1, $this->service->countFinished());
+    }
+
+    // ==================== TESTS PROCESS ====================
+
+    public function test_process_executes_ready_tasks(): void
+    {
+        for ($i = 1; $i <= 3; $i++) {
+            $payload = StrictDataObject::from(['test' => "task-{$i}"]);
+            $config = $this->createConfigWithPastStart("process-{$i}", 3600, now()->subHours(2));
+            $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
+
+            // ✅ Passer en PLAYING pour que le processeur les exécute
+            $task = $this->repository->findByAlias($alias->value);
+            $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
+        }
+
+        $result = $this->service->process();
+
+        $this->assertEquals(3, $result->success->value);
+        $this->assertEquals(0, $result->failed->value);
+        $this->assertEquals(0, $result->finished->value);
+    }
+
+    public function test_process_respects_limit(): void
+    {
+        for ($i = 1; $i <= 5; $i++) {
+            $payload = StrictDataObject::from(['test' => "task-{$i}"]);
+            $config = $this->createConfigWithPastStart("process-limit-{$i}", 3600, now()->subHours(2));
+            $alias = $this->service->register(TestRecurringTask::class, $payload, $config);
+
+            $task = $this->repository->findByAlias($alias->value);
+            $task->update(['status' => RecurringTaskStatus::PLAYING->value]);
+        }
+
+        $result = $this->service->process(3);
+
+        $this->assertEquals(3, $result->success->value);
+        $this->assertEquals(0, $result->failed->value);
+        $this->assertEquals(0, $result->finished->value);
     }
 }

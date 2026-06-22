@@ -7,13 +7,18 @@ namespace AndyDefer\Task\Repositories;
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\Repository\AbstractRepository;
 use AndyDefer\Repository\Records\FindByRecord;
+use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\Models\RecurringTask;
+use AndyDefer\Task\Records\FreshStateResultRecord;
 use AndyDefer\Task\Records\RecurringTaskFiltersRecord;
+use AndyDefer\Task\Records\RecurringTaskReadyToRunResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -86,10 +91,49 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * Récupère la date courante en respectant le freeze de Carbon (pour les tests)
+     */
+    private function getCurrentTimestamp(): string
+    {
+        return Carbon::now()->toIso8601String();
+    }
+
+    /**
+     * Rafraîchit les états des tâches et retourne les statistiques.
+     * - Les tâches WAITING dont start_at est atteint passent en PLAYING
+     * - Les tâches PLAYING dont end_at est dépassé passent en FINISHED
+     */
+    private function freshState(?string $now = null): FreshStateResultRecord
+    {
+        $timestamp = $now ?? $this->getCurrentTimestamp();
+        $dateTime = new \DateTime($timestamp);
+        $dateTime->setTimezone(new \DateTimeZone('UTC'));
+        $formattedNow = $dateTime->format('Y-m-d H:i:s');
+
+        // ✅ Étape 1: WAITING → PLAYING (start_at <= now)
+        $waitingToPlaying = $this->model->newQuery()
+            ->where('status', RecurringTaskStatus::WAITING->value)
+            ->where('start_at', '<=', $formattedNow)
+            ->update(['status' => RecurringTaskStatus::PLAYING->value]);
+
+        // ✅ Étape 2: PLAYING → FINISHED (end_at <= now)
+        $playingToFinished = $this->model->newQuery()
+            ->where('status', RecurringTaskStatus::PLAYING->value)
+            ->where('end_at', '<=', $formattedNow)
+            ->update(['status' => RecurringTaskStatus::FINISHED->value, 'finished_at' => $formattedNow]);
+
+        return new FreshStateResultRecord(
+            waiting_to_playing: new CounterVO($waitingToPlaying),
+            playing_to_finished: new CounterVO($playingToFinished),
+        );
+    }
+
     // ==================== FINDERS ====================
 
     public function findWaiting(?int $limit = null): Collection
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::WAITING);
 
         return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
@@ -97,6 +141,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function findPlaying(?int $limit = null): Collection
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::PLAYING);
 
         return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
@@ -104,6 +149,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function findPaused(?int $limit = null): Collection
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::PAUSED);
 
         return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
@@ -111,6 +157,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function findFinished(?int $limit = null): Collection
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::FINISHED);
 
         return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
@@ -118,53 +165,45 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function findCanceled(?int $limit = null): Collection
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::CANCELED);
 
         return $this->findBy(new FindByRecord(filters: $filters, limit: $limit));
     }
 
-    public function findReadyToRun(string $now, ?int $limit = null): Collection
+    public function findReadyToRun(?string $now = null, ?int $limit = null): RecurringTaskReadyToRunResultRecord
     {
-        $dateTime = new \DateTime($now);
-        $dateTime->setTimezone(new \DateTimeZone('UTC'));
-        $formattedNow = $dateTime->format('Y-m-d H:i:s');
+        $timestamp = $now ?? $this->getCurrentTimestamp();
 
-        $query = $this->model->newQuery();
-        $query->where('status', RecurringTaskStatus::WAITING->value);
-        $query->where('start_at', '<=', $formattedNow);
+        // ✅ freshState retourne les statistiques
+        $freshStateResult = $this->freshState($timestamp);
 
-        if ($limit !== null) {
-            $query->limit($limit);
-        }
-
-        /** @var Collection<int, RecurringTask> $result */
-        $result = $query->get();
-
-        return $result;
-    }
-
-    public function findExpired(string $now, ?int $limit = null): Collection
-    {
-        $dateTime = new \DateTime($now);
-        $dateTime->setTimezone(new \DateTimeZone('UTC'));
-        $formattedNow = $dateTime->format('Y-m-d H:i:s');
-
+        // ✅ Récupérer les tâches en PLAYING
         $query = $this->model->newQuery();
         $query->where('status', RecurringTaskStatus::PLAYING->value);
-        $query->where('end_at', '<=', $formattedNow);
 
         if ($limit !== null) {
             $query->limit($limit);
         }
 
-        /** @var Collection<int, RecurringTask> $result */
-        $result = $query->get();
+        /** @var Collection<int, RecurringTask> $models */
+        $models = $query->get();
 
-        return $result;
+        // ✅ Convertir en RecurringTaskRecordCollection
+        $records = new RecurringTaskRecordCollection;
+        foreach ($models as $model) {
+            $records->add($this->modelToRecord($model));
+        }
+
+        return new RecurringTaskReadyToRunResultRecord(
+            tasks: $records,
+            fresh_state: $freshStateResult,
+        );
     }
 
     public function findByAlias(string $alias): ?RecurringTask
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(alias: new TaskSignatureVO($alias));
         $results = $this->findBy(new FindByRecord(filters: $filters));
 
@@ -305,6 +344,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function countWaiting(): int
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::WAITING);
 
         return $this->count($filters);
@@ -312,6 +352,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function countPlaying(): int
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::PLAYING);
 
         return $this->count($filters);
@@ -319,6 +360,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function countPaused(): int
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::PAUSED);
 
         return $this->count($filters);
@@ -326,6 +368,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function countFinished(): int
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::FINISHED);
 
         return $this->count($filters);
@@ -333,9 +376,29 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     public function countCanceled(): int
     {
+        $this->freshState();
         $filters = new RecurringTaskFiltersRecord(status: RecurringTaskStatus::CANCELED);
 
         return $this->count($filters);
+    }
+
+    /**
+     * Convertit un modèle Eloquent RecurringTask en RecurringTaskRecord.
+     */
+    private function modelToRecord(RecurringTask $model): RecurringTaskRecord
+    {
+        return RecurringTaskRecord::from([
+            'alias' => $model->getAlias(),
+            'fqcn' => $model->getFqcn(),
+            'payload' => $model->getPayload(),
+            'interval_seconds' => $model->getIntervalSeconds(),
+            'start_at' => $model->getStartAt(),
+            'end_at' => $model->getEndAtVO(),
+            'status' => $model->getStatus(),
+            'last_run_at' => $model->getLastRunAt(),
+            'finished_at' => $model->getFinishedAt(),
+            'cancelled_at' => $model->getCancelledAt(),
+        ]);
     }
 
     /**

@@ -13,7 +13,6 @@ use AndyDefer\Task\Models\UniqueTask;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
 final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
@@ -52,7 +51,8 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
                 $this->repository->moveToFailed($taskRecord);
                 $failed++;
                 $errors->add(new TaskErrorRecord(
-                    identifier: $taskRecord->id->value,
+                    alias: $taskRecord->alias->value,
+                    fqcn: $taskRecord->fqcn,
                     error: 'Validation failed: '.$errorMessage,
                     context: 'scheduled_at: '.$taskRecord->scheduled_at->value.', attempts: '.$taskRecord->attempts->value,
                 ));
@@ -84,21 +84,22 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
                 $this->repository->moveToFailed($taskRecord);
                 $failed++;
                 $errors->add(new TaskErrorRecord(
-                    identifier: $taskRecord->id->value,
+                    alias: $taskRecord->alias->value,
+                    fqcn: $taskRecord->fqcn,
                     error: 'Task expired',
                     context: 'scheduled_at: '.$taskRecord->scheduled_at->value.', grace_period: '.$taskRecord->grace_period_seconds,
                 ));
             }
         }
 
-        return new ProcessResultRecord(
-            started_at: $startedAt,
-            ended_at: new Iso8601DateTimeVO,
-            success: new CounterVO($success),
-            failed: new CounterVO($failed),
-            finished: new CounterVO(0),
-            errors: $errors,
-        );
+        return ProcessResultRecord::from([
+            'started_at' => $startedAt,
+            'ended_at' => new Iso8601DateTimeVO,
+            'success' => $success,
+            'failed' => $failed,
+            'finished' => 0,
+            'errors' => $errors,
+        ]);
     }
 
     /**

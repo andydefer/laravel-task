@@ -9,13 +9,16 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Abstract\AbstractRecurringTask;
+use AndyDefer\Task\Collections\TaskErrorRecordCollection;
 use AndyDefer\Task\Contexts\RecurringTaskContext;
 use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\Models\RecurringTask as ModelsRecurringTask;
+use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
+use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Foundation\Application;
@@ -93,27 +96,81 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
-    public function process(?int $limit = null): array
+    public function process(?int $limit = null): ProcessResultRecord
     {
-        $results = ['success' => 0, 'failed' => 0, 'finished' => 0];
-        $tasks = $this->repository->findReadyToRun(date('c'));
+        $startedAt = new Iso8601DateTimeVO;
+        $success = 0;
+        $failed = 0;
+        $finished = 0;
+        $errors = new TaskErrorRecordCollection;
 
-        if ($limit !== null) {
-            $tasks = $tasks->take($limit);
-        }
+        // ✅ Récupérer les tâches prêtes et les statistiques
+        $result = $this->repository->findReadyToRun(date('c'), $limit);
 
-        foreach ($tasks as $task) {
-            $record = $this->modelToRecord($task);
-            $success = $this->run($record->alias);
+        // ✅ Le repository nous donne le nombre de tâches terminées
+        $finished += $result->fresh_state->playing_to_finished->value;
 
-            if ($success) {
-                $results['success']++;
-            } else {
-                $results['failed']++;
+        foreach ($result->tasks as $record) {
+            if (! $this->shouldRunAgain($record)) {
+                continue;
+            }
+
+            try {
+                $runResult = $this->run($record->alias);
+                if ($runResult) {
+                    $success++;
+                } else {
+                    $failed++;
+                    $errors->add(new TaskErrorRecord(
+                        alias: $record->alias->value,
+                        fqcn: $record->fqcn,
+                        error: 'Task execution failed',
+                        context: 'end_at: '.($record->end_at?->value ?? 'null'),
+                    ));
+                }
+            } catch (\Throwable $e) {
+                $failed++;
+                $errors->add(new TaskErrorRecord(
+                    alias: $record->alias->value,
+                    fqcn: $record->fqcn,
+                    error: $e->getMessage(),
+                    context: 'Exception during execution',
+                ));
             }
         }
 
-        return $results;
+        return ProcessResultRecord::from([
+            'started_at' => $startedAt,
+            'ended_at' => new Iso8601DateTimeVO,
+            'success' => $success,
+            'failed' => $failed,
+            'finished' => $finished,
+            'errors' => $errors,
+        ]);
+    }
+
+    /**
+     * Vérifie si une tâche en PLAYING doit être exécutée à nouveau
+     * selon son intervalle.
+     */
+    private function shouldRunAgain(RecurringTaskRecord $record): bool
+    {
+        // Si la tâche n'est pas en PLAYING, elle ne doit pas être ré-exécutée
+        if ($record->status !== RecurringTaskStatus::PLAYING) {
+            return false;
+        }
+
+        // Si elle n'a jamais été exécutée, on l'exécute
+        if ($record->last_run_at === null) {
+            return true;
+        }
+
+        // Vérifier si l'intervalle est dépassé
+        $now = strtotime(date('c'));
+        $lastRun = strtotime($record->last_run_at->value);
+        $interval = $record->interval_seconds->value;
+
+        return ($now - $lastRun) >= $interval;
     }
 
     public function pause(TaskSignatureVO $alias): void
@@ -145,7 +202,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             throw new \RuntimeException("Task '{$alias->value}' is not in PAUSED state");
         }
 
-        $this->repository->moveToWaiting($record);
+        $this->repository->moveToPlaying($record);
     }
 
     public function finish(TaskSignatureVO $alias): void
@@ -157,7 +214,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
         $record = $this->modelToRecord($model);
 
-        // Vérifier si la tâche est déjà annulée
         if ($record->status === RecurringTaskStatus::CANCELED) {
             throw new \RuntimeException("Task '{$alias->value}' is already canceled");
         }
@@ -195,7 +251,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
         $record = $this->modelToRecord($model);
 
-        // Vérifier si la tâche est déjà annulée
         if ($record->status === RecurringTaskStatus::CANCELED) {
             throw new \RuntimeException("Task '{$alias->value}' is already canceled");
         }
@@ -220,7 +275,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
         $record = $this->modelToRecord($model);
 
-        // Vérifier si la tâche est déjà annulée
         if ($record->status === RecurringTaskStatus::CANCELED) {
             throw new \RuntimeException("Task '{$alias->value}' is already canceled");
         }
@@ -240,7 +294,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
         $record = $this->modelToRecord($model);
 
-        // Vérifier si la tâche est déjà annulée
         if ($record->status === RecurringTaskStatus::CANCELED) {
             throw new \RuntimeException("Task '{$alias->value}' is already canceled");
         }

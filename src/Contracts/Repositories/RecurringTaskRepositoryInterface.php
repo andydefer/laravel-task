@@ -6,6 +6,7 @@ namespace AndyDefer\Task\Contracts\Repositories;
 
 use AndyDefer\Repository\AbstractRepositoryInterface;
 use AndyDefer\Task\Models\RecurringTask;
+use AndyDefer\Task\Records\RecurringTaskReadyToRunResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use Illuminate\Support\Collection;
 
@@ -23,9 +24,7 @@ interface RecurringTaskRepositoryInterface extends AbstractRepositoryInterface
 
     public function findCanceled(?int $limit = null): Collection;
 
-    public function findReadyToRun(string $now, ?int $limit = null): Collection;
-
-    public function findExpired(string $now, ?int $limit = null): Collection;
+    public function findReadyToRun(string $now, ?int $limit = null): RecurringTaskReadyToRunResultRecord;
 
     public function findByAlias(string $alias): ?RecurringTask;
 

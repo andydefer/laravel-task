@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\Task\Records;
+namespace AndyDefer\Task\Structs;
 
-use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\PhpClient\Abstracts\HydratableStructure;
 
-final class TaskErrorRecord extends AbstractRecord
+final class TaskErrorStruct extends HydratableStructure
 {
     public function __construct(
         public readonly string $alias,

@@ -33,7 +33,6 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->runDatabaseMigrations();
 
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new UniqueTaskRepository($this->debugRepository);

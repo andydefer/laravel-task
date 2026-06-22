@@ -6,6 +6,7 @@ namespace AndyDefer\Task\Contracts\Services;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
+use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
@@ -45,9 +46,9 @@ interface RecurringTaskServiceInterface
      * Exécute toutes les tâches récurrentes prêtes.
      *
      * @param  int|null  $limit  Nombre maximum de tâches à exécuter
-     * @return array{success: int, failed: int, finished: int} Résultats de l'exécution
+     * @return ProcessResultRecord Résultats de l'exécution
      */
-    public function process(?int $limit = null): array;
+    public function process(?int $limit = null): ProcessResultRecord;
 
     // ==================== GESTION D'ÉTAT ====================
 

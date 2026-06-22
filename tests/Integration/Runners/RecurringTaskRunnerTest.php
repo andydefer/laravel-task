@@ -39,8 +39,6 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->runDatabaseMigrations();
-
         // Repository
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new RecurringTaskRepository($this->debugRepository);
@@ -130,7 +128,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals('test-run-waiting', $result->error->identifier);
+        $this->assertEquals('test-run-waiting', $result->error->alias);
         $this->assertStringContainsString('Validation failed', $result->error->error);
 
         // Vérifier que last_run_at n'a pas été mis à jour

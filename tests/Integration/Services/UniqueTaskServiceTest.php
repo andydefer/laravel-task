@@ -10,6 +10,7 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Configs\UniqueTaskConfig;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
+use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
@@ -40,8 +41,6 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->runDatabaseMigrations();
 
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new UniqueTaskRepository($this->debugRepository);
@@ -442,10 +441,11 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
             $task->update(['scheduled_at' => now()->subHours(2)->toDateTimeString()]);
         }
 
-        $results = $this->service->process();
+        /** @var ProcessResultRecord $result */
+        $result = $this->service->process();
 
-        $this->assertEquals(3, $results['success']);
-        $this->assertEquals(0, $results['failed']);
+        $this->assertEquals(3, $result->success->value);
+        $this->assertEquals(0, $result->failed->value);
     }
 
     public function test_process_respects_limit(): void
@@ -460,10 +460,11 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
             $task->update(['scheduled_at' => now()->subHours(2)->toDateTimeString()]);
         }
 
-        $results = $this->service->process(2);
+        /** @var ProcessResultRecord $result */
+        $result = $this->service->process(2);
 
-        $this->assertEquals(2, $results['success']);
-        $this->assertEquals(0, $results['failed']);
+        $this->assertEquals(2, $result->success->value);
+        $this->assertEquals(0, $result->failed->value);
     }
 
     // ==================== TESTS FIND ====================

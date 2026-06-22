@@ -48,6 +48,36 @@ final class CounterVO extends AbstractValueObject
         return new self($new_value);
     }
 
+    /**
+     * Add another CounterVO to this one
+     *
+     * @param  CounterVO  $other  The counter to add
+     * @return self New CounterVO with the sum of both values
+     */
+    public function add(CounterVO $other): self
+    {
+        return new self($this->value + $other->value);
+    }
+
+    /**
+     * Subtract another CounterVO from this one
+     *
+     * @param  CounterVO  $other  The counter to subtract
+     * @return self New CounterVO with the difference
+     *
+     * @throws InvalidArgumentException If result would be negative
+     */
+    public function subtract(CounterVO $other): self
+    {
+        $new_value = $this->value - $other->value;
+
+        if ($new_value < 0) {
+            throw new InvalidArgumentException('Counter cannot go below zero');
+        }
+
+        return new self($new_value);
+    }
+
     public function isZero(): bool
     {
         return $this->value === 0;

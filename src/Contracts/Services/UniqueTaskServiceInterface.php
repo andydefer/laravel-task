@@ -6,6 +6,7 @@ namespace AndyDefer\Task\Contracts\Services;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
+use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
@@ -44,9 +45,9 @@ interface UniqueTaskServiceInterface
      * Exécute toutes les tâches prêtes.
      *
      * @param  int|null  $limit  Nombre maximum de tâches à exécuter
-     * @return array{success: int, failed: int} Résultats de l'exécution
+     * @return ProcessResultRecord Résultats de l'exécution
      */
-    public function process(?int $limit = null): array;
+    public function process(?int $limit = null): ProcessResultRecord;
 
     // ==================== GESTION DES TÂCHES ====================
 

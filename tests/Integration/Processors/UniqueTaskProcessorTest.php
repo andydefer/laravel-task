@@ -44,8 +44,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->runDatabaseMigrations();
-
         // Repository
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new UniqueTaskRepository($this->debugRepository);
@@ -452,7 +450,7 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
 
         // Tâche qui échoue
         $id = (string) Uuid::uuid4();
-        $this->createFailingTask(
+        $record = $this->createFailingTask(
             'error-task',
             $id,  // ✅ Passer l'ID explicitement
             UniqueTaskStatus::PENDING,
@@ -465,8 +463,7 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
 
         $error = $result->errors->first();
         $this->assertEquals('Test exception', $error->error);
-        // ✅ Vérifier l'ID, pas l'alias
-        $this->assertEquals($id, $error->identifier);
+        $this->assertEquals($record->alias->getValue(), $error->alias);
     }
 
     public function test_process_does_not_execute_tasks_not_in_pending_status(): void

@@ -9,12 +9,15 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Abstract\AbstractUniqueTask;
+use AndyDefer\Task\Collections\TaskErrorRecordCollection;
 use AndyDefer\Task\Contexts\UniqueTaskContext;
 use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask as ModelsUniqueTask;
+use AndyDefer\Task\Records\ProcessResultRecord;
+use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
@@ -98,9 +101,13 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         }
     }
 
-    public function process(?int $limit = null): array
+    public function process(?int $limit = null): ProcessResultRecord
     {
-        $results = ['success' => 0, 'failed' => 0];
+        $startedAt = new Iso8601DateTimeVO;
+        $success = 0;
+        $failed = 0;
+        $errors = new TaskErrorRecordCollection;
+
         $tasks = $this->repository->findReadyToRun(date('c'));
 
         if ($limit !== null) {
@@ -109,11 +116,53 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
         foreach ($tasks as $task) {
             $record = $this->modelToRecord($task);
-            $success = $this->run($record->id);
-            $results[$success ? 'success' : 'failed']++;
+
+            try {
+                $result = $this->run($record->id);
+                if ($result) {
+                    $success++;
+                } else {
+                    $failed++;
+                    $errors->add(new TaskErrorRecord(
+                        alias: $record->alias->value,
+                        fqcn: $record->fqcn,
+                        error: 'Task execution failed',
+                        context: 'attempts: '.$record->attempts->value.'/'.$record->max_attempts->value,
+                    ));
+                }
+            } catch (\Throwable $e) {
+                $failed++;
+                $errors->add(new TaskErrorRecord(
+                    alias: $record->alias->value,
+                    fqcn: $record->fqcn,
+                    error: $e->getMessage(),
+                    context: 'Exception during execution',
+                ));
+            }
         }
 
-        return $results;
+        // Traiter les tâches expirées
+        $expiredTasks = $this->repository->findExpired(date('c'));
+        foreach ($expiredTasks as $task) {
+            $taskRecord = $this->modelToRecord($task);
+            $this->repository->moveToFailed($taskRecord);
+            $failed++;
+            $errors->add(new TaskErrorRecord(
+                alias: $taskRecord->alias->value,
+                fqcn: $taskRecord->fqcn,
+                error: 'Task expired',
+                context: 'scheduled_at: '.$taskRecord->scheduled_at->value.', grace_period: '.$taskRecord->grace_period_seconds,
+            ));
+        }
+
+        return ProcessResultRecord::from([
+            'started_at' => $startedAt,
+            'ended_at' => new Iso8601DateTimeVO,
+            'success' => $success,
+            'failed' => $failed,
+            'finished' => 0,
+            'errors' => $errors,
+        ]);
     }
 
     public function cancel(TaskIdVO $taskId, ?string $reason = null): void

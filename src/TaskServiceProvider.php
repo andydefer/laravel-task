@@ -24,10 +24,12 @@ use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Runners\RecurringTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
+use AndyDefer\Task\Contracts\Services\TasksWatchServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
+use AndyDefer\Task\Directives\TasksWatchDirective;
 use AndyDefer\Task\Loggers\RecurringTaskLogger;
 use AndyDefer\Task\Loggers\UniqueTaskLogger;
 use AndyDefer\Task\Processors\RecurringTaskProcessor;
@@ -38,6 +40,7 @@ use AndyDefer\Task\Repositories\UniqueTaskRepository;
 use AndyDefer\Task\Runners\RecurringTaskRunner;
 use AndyDefer\Task\Runners\UniqueTaskRunner;
 use AndyDefer\Task\Services\RecurringTaskService;
+use AndyDefer\Task\Services\TasksWatchService;
 use AndyDefer\Task\Services\UniqueTaskService;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
@@ -228,11 +231,31 @@ final class TaskServiceProvider extends ServiceProvider
         );
         $this->app->alias(RecurringTaskServiceInterface::class, RecurringTaskService::class);
 
+        // ✅ TASKS WATCH SERVICE
+        $this->app->singleton(
+            abstract: TasksWatchServiceInterface::class,
+            concrete: function () {
+                return new TasksWatchService;
+            }
+        );
+        $this->app->alias(TasksWatchServiceInterface::class, TasksWatchService::class);
+
         // ✅ DIRECTIVES
         $this->app->singleton(
             abstract: ProcessTasksDirective::class,
             concrete: function (Application $app) {
                 return new ProcessTasksDirective(
+                    context: $app->make(DirectiveContext::class),
+                    interaction: $app->make(DirectiveInteractionService::class)
+                );
+            }
+        );
+
+        // ✅ TASKS WATCH DIRECTIVE
+        $this->app->singleton(
+            abstract: TasksWatchDirective::class,
+            concrete: function (Application $app) {
+                return new TasksWatchDirective(
                     context: $app->make(DirectiveContext::class),
                     interaction: $app->make(DirectiveInteractionService::class)
                 );

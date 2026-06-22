@@ -43,8 +43,6 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->runDatabaseMigrations();
-
         // Repository
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new UniqueTaskRepository($this->debugRepository);
@@ -150,7 +148,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals($record->id->value, $result->error->identifier);
+        $this->assertEquals($record->alias->value, $result->error->alias);
         $this->assertStringContainsString('Validation failed', $result->error->error);
         $this->assertStringContainsString('Task is not in PENDING state', $result->error->error);
     }
@@ -169,7 +167,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals($record->id->value, $result->error->identifier);
+        $this->assertEquals($record->alias->value, $result->error->alias);
         $this->assertStringContainsString('Validation failed', $result->error->error);
         $this->assertStringContainsString('Task is not ready to run', $result->error->error);
     }
@@ -191,7 +189,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals($record->id->value, $result->error->identifier);
+        $this->assertEquals($record->alias->value, $result->error->alias);
         $this->assertStringContainsString('Validation failed', $result->error->error);
         $this->assertStringContainsString('Maximum attempts reached', $result->error->error);
     }
@@ -211,7 +209,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals($record->id->value, $result->error->identifier);
+        $this->assertEquals($record->alias->value, $result->error->alias);
         $this->assertStringContainsString('Validation failed', $result->error->error);
         $this->assertStringContainsString('Task has expired', $result->error->error);
     }

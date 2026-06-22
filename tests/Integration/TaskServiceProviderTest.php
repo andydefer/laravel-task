@@ -46,7 +46,6 @@ final class TaskServiceProviderTest extends IntegrationTestCase
         parent::setUp();
 
         $this->app->register(TaskServiceProvider::class);
-        $this->runDatabaseMigrations();
     }
 
     protected function tearDown(): void

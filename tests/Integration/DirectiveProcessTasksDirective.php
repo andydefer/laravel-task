@@ -42,8 +42,6 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->runDatabaseMigrations();
-
         // Créer le service de test avec Laravel
         $this->service = new DirectiveTestingService($this->app);
 

@@ -26,7 +26,6 @@ abstract class IntegrationTestCase extends Orchestra
     protected function setUp(): void
     {
         parent::setUp();
-        $this->runDatabaseMigrations();
 
     }
 

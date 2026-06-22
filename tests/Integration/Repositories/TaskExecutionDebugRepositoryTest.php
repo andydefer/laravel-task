@@ -23,8 +23,6 @@ final class TaskExecutionDebugRepositoryTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->runDatabaseMigrations();
-
         $this->repository = new TaskExecutionDebugRepository;
     }
 

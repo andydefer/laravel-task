@@ -39,7 +39,8 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
             return new ExecutionResultRecord(
                 success: false,
                 error: new TaskErrorRecord(
-                    identifier: $record->id->value,
+                    alias: $record->alias->value,
+                    fqcn: $record->fqcn,
                     error: 'Validation failed: '.$errors->join(', '),
                 ),
             );
@@ -81,7 +82,8 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
         return new ExecutionResultRecord(
             success: $success,
             error: $error ? new TaskErrorRecord(
-                identifier: $record->id->value,
+                alias: $record->alias->value,
+                fqcn: $record->fqcn,
                 error: $error,
             ) : null,
             execution_time: $this->calculateDuration($startTime),
