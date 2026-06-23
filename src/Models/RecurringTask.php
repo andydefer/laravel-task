@@ -8,6 +8,7 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -27,6 +28,8 @@ final class RecurringTask extends Model
         'end_at',
         'status',
         'last_run_at',
+        'failed_attempts',
+        'max_failed_attempts',
         'finished_at',
         'cancelled_at',
     ];
@@ -38,6 +41,8 @@ final class RecurringTask extends Model
         'finished_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'interval_seconds' => 'integer',
+        'failed_attempts' => 'integer',
+        'max_failed_attempts' => 'integer',
         'status' => RecurringTaskStatus::class,
         'payload' => 'array',
     ];
@@ -55,6 +60,16 @@ final class RecurringTask extends Model
     public function getIntervalSeconds(): CounterVO
     {
         return new CounterVO($this->interval_seconds);
+    }
+
+    public function getFailedAttempts(): CounterVO
+    {
+        return new CounterVO($this->failed_attempts ?? 0);
+    }
+
+    public function getMaxFailedAttempts(): MaxFailedAttemptsVO
+    {
+        return new MaxFailedAttemptsVO($this->max_failed_attempts ?? 3);
     }
 
     public function getStartAt(): ?Iso8601DateTimeVO

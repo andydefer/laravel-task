@@ -18,6 +18,8 @@ return new class extends Migration
             $table->timestamp('end_at')->nullable();
             $table->string('status')->default('waiting');
             $table->timestamp('last_run_at')->nullable();
+            $table->integer('failed_attempts')->default(0);
+            $table->integer('max_failed_attempts')->default(3);
             $table->json('debug')->nullable();
             $table->timestamp('finished_at')->nullable();
             $table->timestamp('cancelled_at')->nullable();

@@ -86,6 +86,14 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             $query->where('cancelled_at', '<=', $this->formatDateForDatabase($filters->cancelled_at_to));
         }
 
+        if ($filters->failed_attempts !== null) {
+            $query->where('failed_attempts', $filters->failed_attempts);
+        }
+
+        if ($filters->max_failed_attempts !== null) {
+            $query->where('max_failed_attempts', $filters->max_failed_attempts);
+        }
+
         if ($filters->include_deleted === true) {
             $query->withTrashed();
         }
@@ -103,6 +111,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
      * Rafraîchit les états des tâches et retourne les statistiques.
      * - Les tâches WAITING dont start_at est atteint passent en PLAYING
      * - Les tâches PLAYING dont end_at est dépassé passent en FINISHED
+     * - Les tâches PLAYING dont failed_attempts >= max_failed_attempts passent en CANCELED
      */
     private function freshState(?string $now = null): FreshStateResultRecord
     {
@@ -123,9 +132,16 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ->where('end_at', '<=', $formattedNow)
             ->update(['status' => RecurringTaskStatus::FINISHED->value, 'finished_at' => $formattedNow]);
 
+        // ✅ Étape 3: PLAYING → CANCELED (max_failed_attempts atteint)
+        $playingToCanceled = $this->model->newQuery()
+            ->where('status', RecurringTaskStatus::PLAYING->value)
+            ->whereRaw('failed_attempts >= max_failed_attempts')
+            ->update(['status' => RecurringTaskStatus::CANCELED->value, 'cancelled_at' => $formattedNow]);
+
         return new FreshStateResultRecord(
             waiting_to_playing: new CounterVO($waitingToPlaying),
             playing_to_finished: new CounterVO($playingToFinished),
+            playing_to_canceled: new CounterVO($playingToCanceled),
         );
     }
 
@@ -228,6 +244,8 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             end_at: $task->end_at,
             status: RecurringTaskStatus::PLAYING,
             last_run_at: $task->last_run_at,
+            failed_attempts: $task->failed_attempts ?? new CounterVO(0),
+            max_failed_attempts: $task->max_failed_attempts ?? new CounterVO(3),
         ));
     }
 
@@ -247,6 +265,8 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             end_at: $task->end_at,
             status: RecurringTaskStatus::PAUSED,
             last_run_at: $task->last_run_at,
+            failed_attempts: $task->failed_attempts ?? new CounterVO(0),
+            max_failed_attempts: $task->max_failed_attempts ?? new CounterVO(3),
         ));
     }
 
@@ -266,6 +286,8 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             end_at: $task->end_at,
             status: RecurringTaskStatus::WAITING,
             last_run_at: $task->last_run_at,
+            failed_attempts: $task->failed_attempts ?? new CounterVO(0),
+            max_failed_attempts: $task->max_failed_attempts ?? new CounterVO(3),
         ));
     }
 
@@ -286,6 +308,8 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             status: RecurringTaskStatus::FINISHED,
             last_run_at: $task->last_run_at,
             finished_at: new Iso8601DateTimeVO,
+            failed_attempts: $task->failed_attempts ?? new CounterVO(0),
+            max_failed_attempts: $task->max_failed_attempts ?? new CounterVO(3),
         ));
     }
 
@@ -307,6 +331,8 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             last_run_at: $task->last_run_at,
             finished_at: new Iso8601DateTimeVO,
             cancelled_at: new Iso8601DateTimeVO,
+            failed_attempts: $task->failed_attempts ?? new CounterVO(0),
+            max_failed_attempts: $task->max_failed_attempts ?? new CounterVO(3),
         ));
     }
 
@@ -321,13 +347,17 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             throw new \RuntimeException("Task not found: {$task->alias->value}");
         }
 
-        $this->debugRepository->addDebug(
-            taskType: 'recurring',
-            taskIdentifier: $task->alias->value,
-            status: $success ? 'succeeded' : 'failed',
-            info: $success ? 'Recurring task executed successfully' : ($error ?? 'Recurring task execution failed'),
-        );
+        // ✅ Calculer les nouvelles valeurs
+        $currentFailedAttempts = $existingTask->getFailedAttempts()->value;
+        $maxFailedAttempts = $existingTask->getMaxFailedAttempts()->value;
 
+        if ($success) {
+            $newFailedAttempts = 0;
+        } else {
+            $newFailedAttempts = $currentFailedAttempts + 1;
+        }
+
+        // ✅ Mettre à jour via le repository
         $this->update($existingTask->getId(), new RecurringTaskRecord(
             alias: $task->alias,
             fqcn: $task->fqcn,
@@ -337,7 +367,16 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             end_at: $task->end_at,
             status: RecurringTaskStatus::PLAYING,
             last_run_at: $now,
+            failed_attempts: new CounterVO($newFailedAttempts),
+            max_failed_attempts: new CounterVO($maxFailedAttempts),
         ));
+
+        $this->debugRepository->addDebug(
+            taskType: 'recurring',
+            taskIdentifier: $task->alias->value,
+            status: $success ? 'succeeded' : 'failed',
+            info: $success ? 'Recurring task executed successfully' : ($error ?? 'Recurring task execution failed'),
+        );
     }
 
     // ==================== COUNTS ====================
@@ -382,6 +421,8 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         return $this->count($filters);
     }
 
+    // ==================== PRIVATE METHODS ====================
+
     /**
      * Convertit un modèle Eloquent RecurringTask en RecurringTaskRecord.
      */
@@ -398,6 +439,8 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             'last_run_at' => $model->getLastRunAt(),
             'finished_at' => $model->getFinishedAt(),
             'cancelled_at' => $model->getCancelledAt(),
+            'failed_attempts' => $model->getFailedAttempts(),
+            'max_failed_attempts' => $model->getMaxFailedAttempts(),
         ]);
     }
 

@@ -42,7 +42,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        Carbon::setTestNow();
+        Carbon::setTestNow(null);
     }
 
     // ==================== HELPERS ====================
@@ -59,10 +59,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         ?\DateTimeInterface $endAt = null,
         int $intervalSeconds = 3600,
         ?\DateTimeInterface $lastRunAt = null,
-        string $fqcn = 'TestRecurringTask'
+        string $fqcn = 'TestRecurringTask',
+        int $failedAttempts = 0,
+        int $maxFailedAttempts = 3
     ): RecurringTaskRecord {
-        $startAt = $startAt ?? now()->addHours(2);
-        $endAt = $endAt ?? now()->addDays(7);
+        $startAt = $startAt ?? Carbon::now()->addHours(2);
+        $endAt = $endAt ?? Carbon::now()->addDays(7);
 
         $task = new RecurringTaskRecord(
             alias: new TaskSignatureVO($alias),
@@ -73,6 +75,8 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             end_at: new Iso8601DateTimeVO($this->formatDate($endAt)),
             status: $status,
             last_run_at: $lastRunAt ? new Iso8601DateTimeVO($this->formatDate($lastRunAt)) : null,
+            failed_attempts: new CounterVO($failedAttempts),
+            max_failed_attempts: new CounterVO($maxFailedAttempts),
         );
 
         $this->repository->create($task);
@@ -84,7 +88,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
     {
         $task = $this->createAndSaveTask($alias, RecurringTaskStatus::CANCELED);
         $model = $this->repository->findByAlias($alias);
-        $model->update(['cancelled_at' => now()->toDateTimeString()]);
+        $model->update(['cancelled_at' => Carbon::now()->toDateTimeString()]);
 
         return $task;
     }
@@ -106,7 +110,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertEquals('test-find-by-alias', $found->getAlias()->getValue());
             $this->assertEquals(RecurringTaskStatus::WAITING, $found->getStatus());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -129,7 +133,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $found = $this->repository->findByAlias('delete-test');
             $this->assertNull($found);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -155,7 +159,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $this->assertEquals(RecurringTaskStatus::WAITING, $task->getStatus());
             }
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -174,7 +178,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $waiting);
             $this->assertCount(2, $waiting);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -190,7 +194,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $waiting);
             $this->assertCount(0, $waiting);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -214,7 +218,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $this->assertEquals(RecurringTaskStatus::PLAYING, $task->getStatus());
             }
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -233,7 +237,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $playing);
             $this->assertCount(2, $playing);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -249,7 +253,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $playing);
             $this->assertCount(0, $playing);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -273,7 +277,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $this->assertEquals(RecurringTaskStatus::PAUSED, $task->getStatus());
             }
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -292,7 +296,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $paused);
             $this->assertCount(2, $paused);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -308,7 +312,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $paused);
             $this->assertCount(0, $paused);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -332,7 +336,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $this->assertEquals(RecurringTaskStatus::FINISHED, $task->getStatus());
             }
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -351,7 +355,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $finished);
             $this->assertCount(2, $finished);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -367,7 +371,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $finished);
             $this->assertCount(0, $finished);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -394,7 +398,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $this->assertEquals(RecurringTaskStatus::CANCELED, $task->getStatus());
             }
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -413,7 +417,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $canceled);
             $this->assertCount(2, $canceled);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -429,7 +433,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertInstanceOf(Collection::class, $canceled);
             $this->assertCount(0, $canceled);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -448,19 +452,16 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $result = $this->repository->findReadyToRun($this->formatDate($frozenNow));
 
-            // ✅ Vérifier que le résultat contient les tâches et les statistiques
             $this->assertInstanceOf(RecurringTaskReadyToRunResultRecord::class, $result);
             $this->assertInstanceOf(RecurringTaskRecordCollection::class, $result->tasks);
             $this->assertInstanceOf(FreshStateResultRecord::class, $result->fresh_state);
 
-            // ✅ Vérifier les tâches prêtes
             $this->assertCount(3, $result->tasks);
 
-            // ✅ Vérifier les statistiques de freshState
-            $this->assertEquals(2, $result->fresh_state->waiting_to_playing->value); // ready-1, ready-2
+            $this->assertEquals(2, $result->fresh_state->waiting_to_playing->value);
             $this->assertEquals(0, $result->fresh_state->playing_to_finished->value);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -483,7 +484,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertCount(3, $result->tasks);
             $this->assertEquals(5, $result->fresh_state->waiting_to_playing->value);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -501,7 +502,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertCount(0, $result->tasks);
             $this->assertEquals(0, $result->fresh_state->waiting_to_playing->value);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -511,7 +512,6 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         Carbon::setTestNow($frozenNow);
 
         try {
-            // ✅ Tâche qui va expirer
             $this->createAndSaveTask(
                 'expired-task',
                 RecurringTaskStatus::PLAYING,
@@ -519,7 +519,6 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->subHours(1)
             );
 
-            // ✅ Tâche qui va démarrer
             $this->createAndSaveTask(
                 'start-task',
                 RecurringTaskStatus::WAITING,
@@ -528,17 +527,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $result = $this->repository->findReadyToRun($this->formatDate($frozenNow));
 
-            // ✅ Une tâche expirée → playing_to_finished = 1
             $this->assertEquals(1, $result->fresh_state->playing_to_finished->value);
-
-            // ✅ Une tâche qui démarre → waiting_to_playing = 1
             $this->assertEquals(1, $result->fresh_state->waiting_to_playing->value);
-
-            // ✅ Une tâche en PLAYING (la tâche qui a démarré)
             $this->assertCount(1, $result->tasks);
             $this->assertEquals('start-task', $result->tasks->first()->alias->value);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -555,7 +549,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $this->assertEquals(0, $this->repository->countCanceled());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -571,7 +565,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $this->assertEquals(2, $this->repository->countCanceled());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -592,7 +586,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertContains('finished-1', $aliases);
             $this->assertNotContains('cancelled-1', $aliases);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -612,7 +606,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertNotNull($found);
             $this->assertEquals(RecurringTaskStatus::PLAYING, $found->getStatus());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -645,7 +639,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertNotNull($found);
             $this->assertEquals(RecurringTaskStatus::PAUSED, $found->getStatus());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -678,7 +672,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertNotNull($found);
             $this->assertEquals(RecurringTaskStatus::WAITING, $found->getStatus());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -712,7 +706,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertEquals(RecurringTaskStatus::FINISHED, $found->getStatus());
             $this->assertNotNull($found->getFinishedAt());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -749,7 +743,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertNotNull($found->getFinishedAt());
             $this->assertNotNull($found->getCancelledAt());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -792,7 +786,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertEquals('succeeded', $debugData->status);
             $this->assertEquals('Recurring task executed successfully', $debugData->info);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -819,7 +813,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertEquals('failed', $debugData->status);
             $this->assertEquals($errorMessage, $debugData->info);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -852,7 +846,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $this->assertEquals(2, $this->repository->countWaiting());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -868,7 +862,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $this->assertEquals(2, $this->repository->countPlaying());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -884,7 +878,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $this->assertEquals(2, $this->repository->countPaused());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -900,7 +894,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $this->assertEquals(2, $this->repository->countFinished());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -916,7 +910,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
             $this->assertEquals(2, $this->repository->countCanceled());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -950,7 +944,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertEquals(7200, $found->getIntervalSeconds()->value);
             $this->assertEquals(RecurringTaskStatus::WAITING, $found->getStatus());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -986,7 +980,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertEquals(RecurringTaskStatus::PLAYING, $found->getStatus());
             $this->assertNotNull($found->getLastRunAt());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -1011,7 +1005,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertNotNull($withTrashed);
             $this->assertNotNull($withTrashed->deleted_at);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -1037,7 +1031,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertCount(1, $results);
             $this->assertEquals('filter-alias-1', $results->first()->getAlias()->getValue());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -1061,7 +1055,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertCount(1, $results);
             $this->assertEquals(RecurringTaskStatus::WAITING, $results->first()->getStatus());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -1085,7 +1079,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertCount(1, $results);
             $this->assertEquals(RecurringTaskStatus::CANCELED, $results->first()->getStatus());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -1117,7 +1111,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertContains('cancelled-2', $aliases);
             $this->assertNotContains('not-cancelled', $aliases);
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -1152,7 +1146,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertEquals('fresh-test-2', $waiting->first()->getAlias()->value);
             $this->assertEquals(RecurringTaskStatus::WAITING, $waiting->first()->getStatus());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
         }
     }
 
@@ -1189,7 +1183,386 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $this->assertEquals(RecurringTaskStatus::FINISHED, $finished->first()->getStatus());
             $this->assertNotNull($finished->first()->getFinishedAt());
         } finally {
-            Carbon::setTestNow();
+            Carbon::setTestNow(null);
+        }
+    }
+
+    // ==================== NOUVEAUX TESTS: FAILED ATTEMPTS ====================
+
+    public function test_create_task_with_failed_attempts(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'failed-attempts-test',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                2,
+                5
+            );
+
+            $found = $this->repository->findByAlias('failed-attempts-test');
+            $this->assertNotNull($found);
+            $this->assertEquals(2, $found->getFailedAttempts()->value);
+            $this->assertEquals(5, $found->getMaxFailedAttempts()->value);
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_update_after_run_success_resets_failed_attempts(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'reset-failed-test',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                3,
+                5
+            );
+
+            $task = $this->repository->findByAlias('reset-failed-test');
+            $this->assertEquals(3, $task->getFailedAttempts()->value);
+
+            $taskRecord = new RecurringTaskRecord(
+                alias: new TaskSignatureVO('reset-failed-test'),
+                fqcn: 'TestTask',
+                payload: StrictDataObject::from(['test' => 'recurring']),
+                interval_seconds: new CounterVO(3600),
+                start_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->subHours(2))),
+                end_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->addDays(7))),
+                status: RecurringTaskStatus::PLAYING,
+            );
+
+            $this->repository->updateAfterRun($taskRecord, true);
+
+            $found = $this->repository->findByAlias('reset-failed-test');
+            $this->assertNotNull($found);
+            $this->assertEquals(0, $found->getFailedAttempts()->value);
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_update_after_run_failure_increments_failed_attempts(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'increment-failed-test',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                1,
+                5
+            );
+
+            $task = $this->repository->findByAlias('increment-failed-test');
+            $this->assertEquals(1, $task->getFailedAttempts()->value);
+
+            $taskRecord = new RecurringTaskRecord(
+                alias: new TaskSignatureVO('increment-failed-test'),
+                fqcn: 'TestTask',
+                payload: StrictDataObject::from(['test' => 'recurring']),
+                interval_seconds: new CounterVO(3600),
+                start_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->subHours(2))),
+                end_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->addDays(7))),
+                status: RecurringTaskStatus::PLAYING,
+            );
+
+            $this->repository->updateAfterRun($taskRecord, false, 'Test error');
+
+            $found = $this->repository->findByAlias('increment-failed-test');
+            $this->assertNotNull($found);
+            $this->assertEquals(2, $found->getFailedAttempts()->value);
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_fresh_state_moves_playing_to_canceled_when_max_failed_attempts_reached(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'canceled-by-failures',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                3,
+                3
+            );
+
+            $this->createAndSaveTask(
+                'not-canceled',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                1,
+                3
+            );
+
+            $result = $this->repository->findReadyToRun($this->formatDate($frozenNow));
+
+            $this->assertEquals(1, $result->fresh_state->playing_to_canceled->value);
+            $this->assertCount(1, $result->tasks);
+            $this->assertEquals('not-canceled', $result->tasks->first()->alias->value);
+
+            $canceledTask = $this->repository->findByAlias('canceled-by-failures');
+            $this->assertNotNull($canceledTask);
+            $this->assertEquals(RecurringTaskStatus::CANCELED, $canceledTask->getStatus());
+            $this->assertNotNull($canceledTask->getCancelledAt());
+
+            $notCanceledTask = $this->repository->findByAlias('not-canceled');
+            $this->assertNotNull($notCanceledTask);
+            $this->assertEquals(RecurringTaskStatus::PLAYING, $notCanceledTask->getStatus());
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_fresh_state_does_not_cancel_when_failed_attempts_below_max(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'should-not-cancel',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                2,
+                3
+            );
+
+            $result = $this->repository->findReadyToRun($this->formatDate($frozenNow));
+
+            $this->assertEquals(0, $result->fresh_state->playing_to_canceled->value);
+            $this->assertCount(1, $result->tasks);
+            $this->assertEquals('should-not-cancel', $result->tasks->first()->alias->value);
+
+            $task = $this->repository->findByAlias('should-not-cancel');
+            $this->assertNotNull($task);
+            $this->assertEquals(RecurringTaskStatus::PLAYING, $task->getStatus());
+            $this->assertNull($task->getCancelledAt());
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_find_canceled_returns_tasks_canceled_by_max_failed_attempts(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'canceled-by-failures-1',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                3,
+                3
+            );
+
+            $this->createCancelledTask('canceled-manual-1');
+
+            $this->repository->findReadyToRun($this->formatDate($frozenNow));
+
+            $canceled = $this->repository->findCanceled();
+
+            $this->assertCount(2, $canceled);
+
+            $aliases = $canceled->map(fn ($task) => $task->getAlias()->getValue())->toArray();
+            $this->assertContains('canceled-by-failures-1', $aliases);
+            $this->assertContains('canceled-manual-1', $aliases);
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_apply_filters_with_failed_attempts(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'failed-1',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                1,
+                3
+            );
+
+            $this->createAndSaveTask(
+                'failed-2',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                2,
+                3
+            );
+
+            $filters = new RecurringTaskFiltersRecord(
+                failed_attempts: 2
+            );
+
+            $results = $this->repository->findBy(
+                new FindByRecord(filters: $filters)
+            );
+
+            $this->assertCount(1, $results);
+            $this->assertEquals('failed-2', $results->first()->getAlias()->value);
+            $this->assertEquals(2, $results->first()->getFailedAttempts()->value);
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_apply_filters_with_max_failed_attempts(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'max-3',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                0,
+                3
+            );
+
+            $this->createAndSaveTask(
+                'max-5',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                0,
+                5
+            );
+
+            $filters = new RecurringTaskFiltersRecord(
+                max_failed_attempts: 5
+            );
+
+            $results = $this->repository->findBy(
+                new FindByRecord(filters: $filters)
+            );
+
+            $this->assertCount(1, $results);
+            $this->assertEquals('max-5', $results->first()->getAlias()->value);
+            $this->assertEquals(5, $results->first()->getMaxFailedAttempts()->value);
+        } finally {
+            Carbon::setTestNow(null);
+        }
+    }
+
+    public function test_apply_filters_with_both_failed_attempts_and_max_failed_attempts(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        try {
+            $this->createAndSaveTask(
+                'target',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                2,
+                5
+            );
+
+            $this->createAndSaveTask(
+                'other-1',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                1,
+                5
+            );
+
+            $this->createAndSaveTask(
+                'other-2',
+                RecurringTaskStatus::PLAYING,
+                $frozenNow->copy()->subHours(2),
+                $frozenNow->copy()->addDays(7),
+                3600,
+                null,
+                'TestTask',
+                2,
+                3
+            );
+
+            $filters = new RecurringTaskFiltersRecord(
+                failed_attempts: 2,
+                max_failed_attempts: 5
+            );
+
+            $results = $this->repository->findBy(
+                new FindByRecord(filters: $filters)
+            );
+
+            $this->assertCount(1, $results);
+            $this->assertEquals('target', $results->first()->getAlias()->value);
+            $this->assertEquals(2, $results->first()->getFailedAttempts()->value);
+            $this->assertEquals(5, $results->first()->getMaxFailedAttempts()->value);
+        } finally {
+            Carbon::setTestNow(null);
         }
     }
 }

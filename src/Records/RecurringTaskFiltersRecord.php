@@ -23,6 +23,8 @@ final class RecurringTaskFiltersRecord extends AbstractRecord
         public readonly ?Iso8601DateTimeVO $last_run_at_to = null,
         public readonly ?Iso8601DateTimeVO $cancelled_at_from = null,
         public readonly ?Iso8601DateTimeVO $cancelled_at_to = null,
+        public readonly ?int $failed_attempts = null,
+        public readonly ?int $max_failed_attempts = null,
         public readonly ?bool $include_deleted = false,
     ) {}
 }
