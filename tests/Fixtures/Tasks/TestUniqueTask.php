@@ -10,6 +10,7 @@ use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use Illuminate\Support\Carbon;
 
 final class TestUniqueTask extends AbstractUniqueTask
 {
@@ -22,7 +23,7 @@ final class TestUniqueTask extends AbstractUniqueTask
         return new UniqueTaskConfig(
             alias: new TaskSignatureVO('test-unique'),
             description: 'Test unique task',
-            scheduled_at: new Iso8601DateTimeVO(now()->addMinutes(5)->toIso8601String()),
+            scheduled_at: new Iso8601DateTimeVO(Carbon::now()->addMinutes(5)->toIso8601String()),
             max_attempts: new CounterVO(3),
         );
     }
@@ -40,7 +41,7 @@ final class TestUniqueTask extends AbstractUniqueTask
     protected function process(): void
     {
         $this->executionLog[] = [
-            'time' => date('c'),
+            'time' => Carbon::now()->toIso8601String(),
             'payload' => $this->context->getPayload()->toArray(),
         ];
 

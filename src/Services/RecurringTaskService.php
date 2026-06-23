@@ -22,6 +22,7 @@ use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Carbon;
 
 final class RecurringTaskService implements RecurringTaskServiceInterface
 {
@@ -45,7 +46,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             throw new \RuntimeException("Recurring task '{$alias->value}' already exists");
         }
 
-        $now = date('c');
+        $now = Carbon::now()->toIso8601String();
         $start_at = $config->getStartAt()?->value ?? $now;
 
         $record = new RecurringTaskRecord(
@@ -76,7 +77,8 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             return false;
         }
 
-        if ($record->end_at !== null && $record->end_at->value <= date('c')) {
+        $now = Carbon::now()->toIso8601String();
+        if ($record->end_at !== null && $record->end_at->value <= $now) {
             $this->repository->moveToFinished($record);
 
             return false;
@@ -104,8 +106,10 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $finished = 0;
         $errors = new TaskErrorRecordCollection;
 
+        $now = Carbon::now()->toIso8601String();
+
         // ✅ Récupérer les tâches prêtes et les statistiques
-        $result = $this->repository->findReadyToRun(date('c'), $limit);
+        $result = $this->repository->findReadyToRun($now, $limit);
 
         // ✅ Le repository nous donne le nombre de tâches terminées
         $finished += $result->fresh_state->playing_to_finished->value;
@@ -165,12 +169,11 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             return true;
         }
 
-        // Vérifier si l'intervalle est dépassé
-        $now = strtotime(date('c'));
-        $lastRun = strtotime($record->last_run_at->value);
+        $now = Carbon::now();
+        $lastRun = Carbon::parse($record->last_run_at->value);
         $interval = $record->interval_seconds->value;
 
-        return ($now - $lastRun) >= $interval;
+        return $now->diffInSeconds($lastRun) >= $interval;
     }
 
     public function pause(TaskSignatureVO $alias): void
@@ -231,7 +234,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $record = $this->modelToRecord($model);
         $this->repository->moveToCanceled($record);
 
-        $model->update(['cancelled_at' => now()->toDateTimeString()]);
+        $model->update(['cancelled_at' => Carbon::now()->toDateTimeString()]);
 
         $this->logger->warning(new LogDataRecord(
             type: 'recurring_task_cancelled',

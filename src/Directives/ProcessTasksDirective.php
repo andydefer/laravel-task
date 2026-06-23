@@ -108,6 +108,7 @@ final class ProcessTasksDirective extends AbstractDirective
         }
 
         return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
+
     }
 
     private function getUniqueTaskService(): UniqueTaskServiceInterface
@@ -213,7 +214,6 @@ final class ProcessTasksDirective extends AbstractDirective
         $total = $record->success->value + $record->failed->value;
         $duration = $this->getDurationMilliseconds($record->started_at);
 
-        // ✅ Conversion de TaskErrorRecord en TaskErrorStruct avec contexte explicite
         $errorsCollection = new TaskErrorStructCollection;
         foreach ($record->errors as $error) {
             $errorsCollection->add(new TaskErrorStruct(
@@ -287,7 +287,6 @@ final class ProcessTasksDirective extends AbstractDirective
         $total = $record->success->value + $record->failed->value;
         $duration = $this->getDurationMilliseconds($record->started_at);
 
-        // ✅ Conversion de TaskErrorRecord en TaskErrorStruct avec contexte explicite
         $errorsCollection = new TaskErrorStructCollection;
         foreach ($record->errors as $error) {
             $errorsCollection->add(new TaskErrorStruct(
@@ -379,7 +378,6 @@ final class ProcessTasksDirective extends AbstractDirective
         $endedAt = new Iso8601DateTimeVO;
         $duration = $this->getDurationMilliseconds($record->started_at);
 
-        // ✅ Conversion de TaskErrorRecord en TaskErrorStruct avec contexte explicite
         $uniqueErrors = new TaskErrorStructCollection;
         foreach ($record->unique_errors as $error) {
             $uniqueErrors->add(new TaskErrorStruct(

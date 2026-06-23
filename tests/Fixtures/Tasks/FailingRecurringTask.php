@@ -10,6 +10,7 @@ use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use Illuminate\Support\Carbon;
 
 final class FailingRecurringTask extends AbstractRecurringTask
 {
@@ -23,7 +24,7 @@ final class FailingRecurringTask extends AbstractRecurringTask
             alias: new TaskSignatureVO('test-recurring-failing'),
             description: 'Test recurring task that can fail',
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->toIso8601String()),
             max_attempts: new CounterVO(3),
         );
     }
@@ -47,7 +48,7 @@ final class FailingRecurringTask extends AbstractRecurringTask
         $failMessage = $data['fail_message'] ?? 'Task failed';
 
         $this->executionLog[] = [
-            'time' => date('c'),
+            'time' => Carbon::now()->toIso8601String(),
             'payload' => $data,
         ];
 

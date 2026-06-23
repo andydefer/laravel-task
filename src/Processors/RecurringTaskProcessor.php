@@ -13,6 +13,7 @@ use AndyDefer\Task\Models\RecurringTask;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use Illuminate\Support\Carbon;
 
 final class RecurringTaskProcessor implements RecurringTaskProcessorInterface
 {
@@ -30,8 +31,10 @@ final class RecurringTaskProcessor implements RecurringTaskProcessorInterface
         $finished = 0;
         $errors = new TaskErrorRecordCollection;
 
+        $now = Carbon::now()->toIso8601String();
+
         // ✅ Récupérer les tâches prêtes et les statistiques
-        $result = $this->repository->findReadyToRun(date('c'), $limit);
+        $result = $this->repository->findReadyToRun($now, $limit);
 
         // ✅ Le repository nous donne le nombre de tâches terminées
         $finished += $result->fresh_state->playing_to_finished->value;

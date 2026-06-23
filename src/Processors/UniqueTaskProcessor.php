@@ -14,6 +14,7 @@ use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use Illuminate\Support\Carbon;
 
 final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
 {
@@ -30,8 +31,10 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
         $failed = 0;
         $errors = new TaskErrorRecordCollection;
 
+        $now = Carbon::now()->toIso8601String();
+
         // ✅ 1. Récupérer les tâches prêtes (Collection de modèles Eloquent)
-        $tasks = $this->repository->findReadyToRun(date('c'));
+        $tasks = $this->repository->findReadyToRun($now);
 
         if ($limit !== null) {
             $tasks = $tasks->take($limit);
@@ -74,7 +77,7 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
         }
 
         // ✅ 3. Traiter les tâches expirées (via le validator)
-        $expiredTasks = $this->repository->findExpired(date('c'));
+        $expiredTasks = $this->repository->findExpired($now);
         foreach ($expiredTasks as $task) {
             // ✅ Convertir le modèle en Record
             $taskRecord = $this->modelToRecord($task);

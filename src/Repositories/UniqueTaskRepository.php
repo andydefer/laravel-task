@@ -113,6 +113,7 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
     public function findReadyToRun(string $now, ?int $limit = null): Collection
     {
+
         $dateTime = new \DateTime($now);
         $dateTime->setTimezone(new \DateTimeZone('UTC'));
         $formattedNow = $dateTime->format('Y-m-d H:i:s');
@@ -127,6 +128,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
         /** @var Collection<int, UniqueTask> $result */
         $result = $query->get();
+
+        foreach ($result as $task) {
+        }
 
         return $result;
     }

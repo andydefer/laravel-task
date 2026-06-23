@@ -20,6 +20,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Support\Carbon;
 
 final class UniqueTaskTest extends IntegrationTestCase
 {
@@ -37,10 +38,8 @@ final class UniqueTaskTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // ✅ CRÉER LA CONFIGURATION DU LOGGER
         $config = new LoggerConfig($this->app->make(ConfigRepository::class));
 
-        // ✅ RÉCUPÉRER LE CHEMIN RÉEL DES LOGS
         $this->logPath = $config->basePath();
         $fs = new FileSystemService;
 
@@ -48,13 +47,9 @@ final class UniqueTaskTest extends IntegrationTestCase
             $fs->makeDirectory($this->logPath, PermissionMode::DIRECTORY, true);
         }
 
-        // ✅ STRATEGIE DE CHEMIN
         $pathStrategy = new TemporalPathStrategy($this->logPath);
-
-        // ✅ CONTEXTE JSONL
         $jsonlContext = new JsonlContext;
 
-        // ✅ SERVICE JSONL
         $jsonlService = new JsonlService(
             pathStrategy: $pathStrategy,
             fileSystem: $fs,
@@ -62,23 +57,19 @@ final class UniqueTaskTest extends IntegrationTestCase
             defaultBufferSize: $config->bufferSize(),
         );
 
-        // ✅ HYDRATION SERVICE
         $this->hydration = new HydrationService;
 
-        // ✅ LOGGER SERVICE
         $this->logger = new LoggerService(
             jsonlService: $jsonlService,
             hydrationService: $this->hydration,
         );
 
-        // ✅ CONTEXTE DE LA TÂCHE
         $this->context = new UniqueTaskContext;
         $this->context->setTaskId(new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'));
         $this->context->setAlias(new TaskSignatureVO('test-unique'));
-        $this->context->setScheduledAt(new Iso8601DateTimeVO(now()->addMinutes(5)->toIso8601String()));
+        $this->context->setScheduledAt(new Iso8601DateTimeVO(Carbon::now()->addMinutes(5)->toIso8601String()));
         $this->context->setLaravelApp($this->app);
 
-        // ✅ TÂCHE
         $this->task = new TestUniqueTask(
             $this->context,
             $this->logger,
@@ -134,18 +125,15 @@ final class UniqueTaskTest extends IntegrationTestCase
 
     public function test_logs_info_messages(): void
     {
-        // ✅ Vider le buffer pour écrire immédiatement
         $this->logger->flush();
 
         $this->task->info('Test info message');
 
-        // ✅ Forcer l'écriture
         $this->logger->flush();
 
         $fs = new FileSystemService;
 
-        // ✅ Chercher dans le bon chemin
-        $today = date('Y-m-d');
+        $today = Carbon::now()->format('Y-m-d');
         $logFiles = $fs->glob($this->logPath.'/'.$today.'/*.jsonl');
 
         $this->assertNotEmpty($logFiles, "No log files found in {$this->logPath}/{$today}/");
@@ -159,18 +147,15 @@ final class UniqueTaskTest extends IntegrationTestCase
 
     public function test_logs_error_messages(): void
     {
-        // ✅ Vider le buffer pour écrire immédiatement
         $this->logger->flush();
 
         $this->task->error('Test error message');
 
-        // ✅ Forcer l'écriture
         $this->logger->flush();
 
         $fs = new FileSystemService;
 
-        // ✅ Chercher dans le bon chemin
-        $today = date('Y-m-d');
+        $today = Carbon::now()->format('Y-m-d');
         $logFiles = $fs->glob($this->logPath.'/'.$today.'/*.jsonl');
 
         $this->assertNotEmpty($logFiles, "No log files found in {$this->logPath}/{$today}/");

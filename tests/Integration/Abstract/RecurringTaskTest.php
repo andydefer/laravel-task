@@ -20,6 +20,7 @@ use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
+use Illuminate\Support\Carbon;
 
 final class RecurringTaskTest extends IntegrationTestCase
 {
@@ -37,10 +38,8 @@ final class RecurringTaskTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // ✅ CRÉER LA CONFIGURATION DU LOGGER
         $config = new LoggerConfig($this->app->make(ConfigRepository::class));
 
-        // ✅ RÉCUPÉRER LE CHEMIN RÉEL DES LOGS
         $this->logPath = $config->basePath();
         $fs = new FileSystemService;
 
@@ -48,13 +47,9 @@ final class RecurringTaskTest extends IntegrationTestCase
             $fs->makeDirectory($this->logPath, PermissionMode::DIRECTORY, true);
         }
 
-        // ✅ STRATEGIE DE CHEMIN
         $pathStrategy = new TemporalPathStrategy($this->logPath);
-
-        // ✅ CONTEXTE JSONL
         $jsonlContext = new JsonlContext;
 
-        // ✅ SERVICE JSONL
         $jsonlService = new JsonlService(
             pathStrategy: $pathStrategy,
             fileSystem: $fs,
@@ -62,24 +57,20 @@ final class RecurringTaskTest extends IntegrationTestCase
             defaultBufferSize: $config->bufferSize(),
         );
 
-        // ✅ HYDRATION SERVICE
         $this->hydration = new HydrationService;
 
-        // ✅ LOGGER SERVICE
         $this->logger = new LoggerService(
             jsonlService: $jsonlService,
             hydrationService: $this->hydration,
         );
 
-        // ✅ CONTEXTE DE LA TÂCHE
         $this->context = new RecurringTaskContext;
         $this->context->setAlias(new TaskSignatureVO('test-recurring'));
         $this->context->setIntervalSeconds(new CounterVO(3600));
-        $this->context->setStartAt(new Iso8601DateTimeVO(now()->toIso8601String()));
-        $this->context->setNextRunAt(new Iso8601DateTimeVO(now()->addSeconds(3600)->toIso8601String()));
+        $this->context->setStartAt(new Iso8601DateTimeVO(Carbon::now()->toIso8601String()));
+        $this->context->setNextRunAt(new Iso8601DateTimeVO(Carbon::now()->addSeconds(3600)->toIso8601String()));
         $this->context->setLaravelApp($this->app);
 
-        // ✅ TÂCHE
         $this->task = new TestRecurringTask(
             $this->context,
             $this->logger,
@@ -119,10 +110,9 @@ final class RecurringTaskTest extends IntegrationTestCase
         $this->assertCount(1, $log);
         $this->assertEquals('recurring_success', $log[0]['payload']['test_data']);
 
-        // ✅ Vérifier les logs sur le disque
         $this->logger->flush();
         $fs = new FileSystemService;
-        $today = date('Y-m-d');
+        $today = Carbon::now()->format('Y-m-d');
         $logFiles = $fs->glob($this->logPath.'/'.$today.'/*.jsonl');
         $this->assertNotEmpty($logFiles);
     }
@@ -141,10 +131,9 @@ final class RecurringTaskTest extends IntegrationTestCase
         try {
             $this->task->execute($payload);
         } catch (\Throwable $e) {
-            // ✅ Vérifier les logs d'erreur sur le disque
             $this->logger->flush();
             $fs = new FileSystemService;
-            $today = date('Y-m-d');
+            $today = Carbon::now()->format('Y-m-d');
             $logFiles = $fs->glob($this->logPath.'/'.$today.'/*.jsonl');
             $this->assertNotEmpty($logFiles);
 
@@ -171,7 +160,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_handles_end_at_context(): void
     {
-        $endAt = new Iso8601DateTimeVO(now()->addDays(7)->toIso8601String());
+        $endAt = new Iso8601DateTimeVO(Carbon::now()->addDays(7)->toIso8601String());
         $this->context->setEndAt($endAt);
 
         $this->assertEquals($endAt->value, $this->context->getEndAt()->value);
@@ -179,7 +168,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_handles_last_run_at_context(): void
     {
-        $lastRunAt = new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String());
+        $lastRunAt = new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String());
         $this->context->setLastRunAt($lastRunAt);
 
         $this->assertEquals($lastRunAt->value, $this->context->getLastRunAt()->value);
@@ -187,7 +176,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_handles_start_at_context(): void
     {
-        $startAt = new Iso8601DateTimeVO(now()->addHours(3)->toIso8601String());
+        $startAt = new Iso8601DateTimeVO(Carbon::now()->addHours(3)->toIso8601String());
         $this->context->setStartAt($startAt);
 
         $this->assertEquals($startAt->value, $this->context->getStartAt()->value);
@@ -195,7 +184,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_handles_next_run_at_context(): void
     {
-        $nextRunAt = new Iso8601DateTimeVO(now()->addHours(5)->toIso8601String());
+        $nextRunAt = new Iso8601DateTimeVO(Carbon::now()->addHours(5)->toIso8601String());
         $this->context->setNextRunAt($nextRunAt);
 
         $this->assertEquals($nextRunAt->value, $this->context->getNextRunAt()->value);
@@ -220,7 +209,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $this->logger->flush();
         $fs = new FileSystemService;
-        $today = date('Y-m-d');
+        $today = Carbon::now()->format('Y-m-d');
         $logFiles = $fs->glob($this->logPath.'/'.$today.'/*.jsonl');
         $this->assertNotEmpty($logFiles);
 
@@ -239,7 +228,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $this->logger->flush();
         $fs = new FileSystemService;
-        $today = date('Y-m-d');
+        $today = Carbon::now()->format('Y-m-d');
         $logFiles = $fs->glob($this->logPath.'/'.$today.'/*.jsonl');
         $this->assertNotEmpty($logFiles);
 

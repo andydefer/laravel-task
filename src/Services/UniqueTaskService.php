@@ -22,6 +22,7 @@ use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Support\Carbon;
 use Ramsey\Uuid\UuidFactoryInterface;
 
 final class UniqueTaskService implements UniqueTaskServiceInterface
@@ -64,15 +65,27 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
     public function run(TaskIdVO $taskId): bool
     {
+
         $model = $this->repository->findById($taskId->value);
         if ($model === null) {
+
             return false;
         }
 
         $taskRecord = $this->modelToRecord($model);
 
         if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
+
             return false;
+        }
+
+        // ✅ Vérifier que la tâche est prête à être exécutée (scheduled_at <= maintenant)
+        $now = Carbon::now();
+        $scheduledAt = Carbon::parse($taskRecord->scheduled_at->value);
+
+        if ($scheduledAt->gt($now)) {
+
+            return false; // La tâche est dans le futur, ne pas exécuter
         }
 
         if ($taskRecord->attempts->value >= $taskRecord->max_attempts->value) {
@@ -108,7 +121,9 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         $failed = 0;
         $errors = new TaskErrorRecordCollection;
 
-        $tasks = $this->repository->findReadyToRun(date('c'));
+        $now = Carbon::now()->toIso8601String();
+
+        $tasks = $this->repository->findReadyToRun($now);
 
         if ($limit !== null) {
             $tasks = $tasks->take($limit);
@@ -142,7 +157,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         }
 
         // Traiter les tâches expirées
-        $expiredTasks = $this->repository->findExpired(date('c'));
+        $expiredTasks = $this->repository->findExpired($now);
         foreach ($expiredTasks as $task) {
             $taskRecord = $this->modelToRecord($task);
             $this->repository->moveToFailed($taskRecord);

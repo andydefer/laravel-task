@@ -9,12 +9,12 @@ use AndyDefer\Task\Abstract\AbstractUniqueTask;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Records\UniqueTaskRecord;
+use Illuminate\Support\Carbon;
 
 final class UniqueTaskValidator implements UniqueTaskValidatorInterface
 {
     public function canRun(UniqueTaskRecord $record): bool
     {
-        // ✅ Vérifier que la classe de la tâche existe et est valide
         if (! $this->isValidTaskClass($record)) {
             return false;
         }
@@ -24,7 +24,6 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
 
     public function isReadyToRun(UniqueTaskRecord $record): bool
     {
-        // ✅ Vérifier que la classe de la tâche existe et est valide
         if (! $this->isValidTaskClass($record)) {
             return false;
         }
@@ -33,24 +32,23 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
             return false;
         }
 
-        $now = strtotime(date('c'));
-        $scheduledAt = strtotime($record->scheduled_at->value);
+        $now = Carbon::now();
+        $scheduledAt = Carbon::parse($record->scheduled_at->value);
 
-        return $scheduledAt <= $now;
+        return $scheduledAt->lte($now);
     }
 
     public function isExpired(UniqueTaskRecord $record): bool
     {
-        // ✅ Vérifier que la classe de la tâche existe et est valide
         if (! $this->isValidTaskClass($record)) {
             return false;
         }
 
-        $now = strtotime(date('c'));
-        $scheduledAt = strtotime($record->scheduled_at->value);
-        $graceEnd = $scheduledAt + $record->grace_period_seconds;
+        $now = Carbon::now();
+        $scheduledAt = Carbon::parse($record->scheduled_at->value);
+        $graceEnd = $scheduledAt->copy()->addSeconds($record->grace_period_seconds);
 
-        return $now > $graceEnd;
+        return $now->gt($graceEnd);
     }
 
     public function hasReachedMaxAttempts(UniqueTaskRecord $record): bool
@@ -62,7 +60,6 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
     {
         $errors = new StringTypedCollection;
 
-        // ✅ Validation de la classe
         if (! $this->isValidTaskClass($record)) {
             $errors->add('Invalid task class: '.$record->fqcn.' does not exist or does not extend AbstractUniqueTask');
         }
@@ -86,17 +83,12 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
         return $errors;
     }
 
-    /**
-     * Vérifie que la classe de la tâche existe et étend AbstractUniqueTask.
-     */
     private function isValidTaskClass(UniqueTaskRecord $record): bool
     {
-        // ✅ Vérifier que la classe existe
         if (! class_exists($record->fqcn)) {
             return false;
         }
 
-        // ✅ Vérifier que la classe étend AbstractUniqueTask
         if (! is_subclass_of($record->fqcn, AbstractUniqueTask::class)) {
             return false;
         }

@@ -6,7 +6,6 @@ namespace AndyDefer\Task\Tests\Integration\Validators;
 
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Task\Abstract\AbstractRecurringTask;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
@@ -16,6 +15,7 @@ use AndyDefer\Task\Validators\RecurringTaskValidator;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use Illuminate\Support\Carbon;
 
 final class RecurringTaskValidatorTest extends IntegrationTestCase
 {
@@ -25,6 +25,16 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
     {
         parent::setUp();
         $this->validator = new RecurringTaskValidator;
+
+        // ✅ Freezer le temps pour tous les tests
+        $frozenNow = Carbon::create(2026, 6, 23, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow(null);
+        parent::tearDown();
     }
 
     // ==================== TESTS canRun ====================
@@ -36,9 +46,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -52,9 +62,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::WAITING,
         );
 
@@ -68,9 +78,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PAUSED,
         );
 
@@ -84,9 +94,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::FINISHED,
         );
 
@@ -100,9 +110,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(48)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->subHours(24)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(48)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->subHours(24)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -117,9 +127,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: 'NonExistentClass',
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -128,15 +138,14 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_can_run_returns_false_when_class_does_not_extend_recurring_task(): void
     {
-        // Utiliser une classe qui n'étend pas AbstractRecurringTask
         $record = new RecurringTaskRecord(
             alias: new TaskSignatureVO('test'),
             fqcn: TestUniqueTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -152,7 +161,7 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::WAITING,
         );
 
@@ -166,7 +175,7 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->addHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->addHours(2)->toIso8601String()),
             status: RecurringTaskStatus::WAITING,
         );
 
@@ -194,7 +203,7 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -208,7 +217,7 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: 'NonExistentClass',
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::WAITING,
         );
 
@@ -224,8 +233,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subDays(7)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->subHours(24)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subDays(7)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->subHours(24)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -239,8 +248,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -254,7 +263,7 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             end_at: null,
             status: RecurringTaskStatus::PLAYING,
         );
@@ -271,8 +280,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subDays(7)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->subHours(24)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subDays(7)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->subHours(24)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -286,8 +295,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -303,9 +312,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subDays(1)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(7)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subDays(1)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -319,9 +328,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subDays(1)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(7)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subMinutes(30)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subDays(1)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subMinutes(30)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -335,8 +344,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subDays(1)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(7)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subDays(1)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->toIso8601String()),
             last_run_at: null,
             status: RecurringTaskStatus::PLAYING,
         );
@@ -351,9 +360,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subDays(1)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(7)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subDays(1)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::WAITING,
         );
 
@@ -367,9 +376,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subDays(7)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->subHours(24)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subDays(7)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->subHours(24)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -384,9 +393,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: 'NonExistentClass',
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subDays(1)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(7)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subDays(1)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -402,9 +411,9 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-            last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
+            last_run_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -420,8 +429,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
             status: RecurringTaskStatus::WAITING,
         );
 
@@ -436,8 +445,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
             status: RecurringTaskStatus::PAUSED,
         );
 
@@ -452,8 +461,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
             status: RecurringTaskStatus::FINISHED,
         );
 
@@ -468,8 +477,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(48)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->subHours(24)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(48)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->subHours(24)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -484,7 +493,7 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->addHours(2)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->addHours(2)->toIso8601String()),
             status: RecurringTaskStatus::WAITING,
         );
 
@@ -499,8 +508,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestRecurringTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->addHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->subHours(24)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->addHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->subHours(24)->toIso8601String()),
             status: RecurringTaskStatus::WAITING,
         );
 
@@ -518,8 +527,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: 'NonExistentClass',
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
@@ -534,8 +543,8 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
             fqcn: TestUniqueTask::class,
             payload: StrictDataObject::from([]),
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(1)->toIso8601String()),
             status: RecurringTaskStatus::PLAYING,
         );
 
