@@ -16,6 +16,8 @@ use InvalidArgumentException;
  */
 final class CounterVO extends AbstractValueObject
 {
+    private int $value;
+
     public function __construct(int $value = 0)
     {
         if ($value < 0) {
@@ -24,8 +26,6 @@ final class CounterVO extends AbstractValueObject
 
         $this->value = $value;
     }
-
-    public readonly int $value;
 
     public function getValue(): int
     {
@@ -39,13 +39,13 @@ final class CounterVO extends AbstractValueObject
 
     public function decrement(int $by = 1): self
     {
-        $new_value = $this->value - $by;
+        $newValue = $this->value - $by;
 
-        if ($new_value < 0) {
+        if ($newValue < 0) {
             throw new InvalidArgumentException('Counter cannot go below zero');
         }
 
-        return new self($new_value);
+        return new self($newValue);
     }
 
     /**
@@ -69,13 +69,13 @@ final class CounterVO extends AbstractValueObject
      */
     public function subtract(CounterVO $other): self
     {
-        $new_value = $this->value - $other->value;
+        $newValue = $this->value - $other->value;
 
-        if ($new_value < 0) {
+        if ($newValue < 0) {
             throw new InvalidArgumentException('Counter cannot go below zero');
         }
 
-        return new self($new_value);
+        return new self($newValue);
     }
 
     public function isZero(): bool

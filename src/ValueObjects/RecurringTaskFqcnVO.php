@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\ValueObjects;
 
-use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use AndyDefer\Task\Abstract\AbstractRecurringTask;
 
-final class RecurringTaskFqcnVO extends AbstractValueObject
+final class RecurringTaskFqcnVO extends TaskFqcnVO
 {
     public readonly string $value;
 

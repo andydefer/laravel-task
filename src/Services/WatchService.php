@@ -9,19 +9,19 @@ use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Task\Contracts\Services\WatchServiceInterface;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
 use AndyDefer\Task\Records\CycleResultRecord;
-use AndyDefer\Task\Structs\BatchResultStruct;
+use AndyDefer\Task\Records\FullBatchJsonResultRecord;
+use AndyDefer\Task\Records\TaskExecutionJsonResultRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
 use Symfony\Component\Process\Process;
 
-class WatchService implements WatchServiceInterface
+final class WatchService implements WatchServiceInterface
 {
     private ?DirectiveTestingService $testingService = null;
 
     private bool $testingMode = false;
-
-    public function __construct(
-        private readonly DurationFormatterService $formatter,
-    ) {}
 
     public function enableTestingMode(DirectiveTestingService $testingService): void
     {
@@ -43,7 +43,7 @@ class WatchService implements WatchServiceInterface
     public function buildArguments(
         bool $uniqueOnly,
         bool $recurringOnly,
-        ?int $limit,
+        ?LimitVO $limit,
         bool $verbose
     ): StringTypedCollection {
         $arguments = new StringTypedCollection;
@@ -57,7 +57,7 @@ class WatchService implements WatchServiceInterface
         }
 
         if ($limit !== null) {
-            $arguments->add("--limit={$limit}");
+            $arguments->add("--limit={$limit->getValue()}");
         }
 
         if ($verbose) {
@@ -68,29 +68,44 @@ class WatchService implements WatchServiceInterface
     }
 
     public function executeCycle(
-        int $cycleNumber,
+        CounterVO $cycleNumber,
         StringTypedCollection $arguments,
         Iso8601DateTimeVO $cycleStartedAt
     ): CycleResultRecord {
         try {
             $jsonArguments = $arguments->merge(StringTypedCollection::from(['--format=json']));
             $output = $this->callProcessTasks($jsonArguments);
-            $result = $this->parseJsonStructOutput($output);
 
-            return new CycleResultRecord(
-                success: $result->success,
-                failed: $result->failed,
-                errors: $result->errors->count(),
-                hasErrors: $result->has_failures,
-            );
+            $data = json_decode($output, true);
+
+            if ($this->isFullBatchResponse($data)) {
+                $result = FullBatchJsonResultRecord::fromJson($output);
+                $success = $result->total_success;
+                $failed = $result->total_failed;
+                $errors = $result->errors->count();
+                $hasErrors = $result->has_failures;
+            } else {
+                $result = TaskExecutionJsonResultRecord::fromJson($output);
+                $success = $result->success;
+                $failed = $result->failed;
+                $errors = $result->errors->count();
+                $hasErrors = $result->has_failures;
+            }
+
+            return CycleResultRecord::from([
+                'success' => $success,
+                'failed' => $failed,
+                'errors' => new CounterVO($errors),
+                'hasErrors' => $hasErrors,
+            ]);
         } catch (\Throwable $e) {
-            return new CycleResultRecord(
-                success: 0,
-                failed: 0,
-                errors: 1,
-                hasErrors: true,
-                message: $e->getMessage(),
-            );
+            return CycleResultRecord::from([
+                'success' => new CounterVO(0),
+                'failed' => new CounterVO(0),
+                'errors' => new CounterVO(1),
+                'hasErrors' => true,
+                'message' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -125,14 +140,14 @@ class WatchService implements WatchServiceInterface
         return $process->getOutput();
     }
 
-    private function parseJsonStructOutput(string $output): BatchResultStruct
+    private function isFullBatchResponse(array $data): bool
     {
-        return BatchResultStruct::fromJson($output);
+        return isset($data['unique']) && isset($data['recurring']);
     }
 
     public function shouldContinue(
         bool $shouldStop,
-        ?int $duration,
+        ?DurationVO $duration,
         ?Iso8601DateTimeVO $startedAt
     ): bool {
         if ($shouldStop) {
@@ -143,14 +158,16 @@ class WatchService implements WatchServiceInterface
             return true;
         }
 
-        $elapsed = $this->formatter->calculateElapsedSeconds($startedAt);
+        $elapsed = $startedAt !== null ? $startedAt->elapsed()->seconds : 0;
 
-        return $elapsed < $duration;
+        return $elapsed < $duration->seconds;
     }
 
-    public function waitForInterval(int $interval, callable $shouldContinueCallback): void
+    public function waitForInterval(DurationVO $interval, callable $shouldContinueCallback): void
     {
-        for ($i = 0; $i < $interval; $i++) {
+        $intervalSeconds = (int) $interval->seconds;
+
+        for ($i = 0; $i < $intervalSeconds; $i++) {
             if (! $shouldContinueCallback()) {
                 break;
             }
@@ -161,11 +178,15 @@ class WatchService implements WatchServiceInterface
 
     public function calculateElapsedSeconds(?Iso8601DateTimeVO $start): float
     {
-        return $this->formatter->calculateElapsedSeconds($start);
+        if ($start === null) {
+            return 0.0;
+        }
+
+        return $start->elapsed()->seconds;
     }
 
-    public function formatDuration(int $seconds): string
+    public function formatDuration(DurationVO $duration): string
     {
-        return $this->formatter->formatDuration($seconds);
+        return $duration->format();
     }
 }

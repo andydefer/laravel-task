@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
 
 /**
  * Internal DTO for cycle execution results.
@@ -12,10 +14,10 @@ use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 final class CycleResultRecord extends AbstractRecord
 {
     public function __construct(
-        public readonly int $success,
-        public readonly int $failed,
-        public readonly int $errors,
+        public readonly CounterVO $success,
+        public readonly CounterVO $failed,
+        public readonly CounterVO $errors,
         public readonly bool $hasErrors,
-        public readonly ?string $message = null,
+        public readonly ?DescriptionVO $message = null,
     ) {}
 }

@@ -9,10 +9,10 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Contexts\RecurringTaskContext;
-use AndyDefer\Task\Contracts\Abstract\RecurringTaskInterface;
-use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
+use AndyDefer\Task\Contracts\Abstract\TaskInterface;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
 
-abstract class AbstractRecurringTask implements RecurringTaskInterface
+abstract class AbstractRecurringTask implements TaskInterface
 {
     protected RecurringTaskContext $context;
 
@@ -30,13 +30,11 @@ abstract class AbstractRecurringTask implements RecurringTaskInterface
         $this->hydration = $hydration;
     }
 
-    abstract public function getConfig(): RecurringTaskConfigInterface;
-
     abstract protected function process(): void;
 
     protected function before(): void {}
 
-    protected function after(bool $success, ?string $error = null): void {}
+    protected function after(bool $success, ?DescriptionVO $error = null): void {}
 
     final public function execute(StrictDataObject $payload): void
     {
@@ -46,9 +44,9 @@ abstract class AbstractRecurringTask implements RecurringTaskInterface
             type: 'recurring_task',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'task_started',
-                'alias' => $this->context->getAlias()->value,
-                'interval_seconds' => $this->context->getIntervalSeconds()->value,
-                'next_run_at' => $this->context->getNextRunAt()?->value,
+                'alias' => $this->context->getAlias(),
+                'interval_seconds' => $this->context->getIntervalSeconds(),
+                'next_run_at' => $this->context->getNextRunAt(),
             ])
         ));
 
@@ -67,7 +65,7 @@ abstract class AbstractRecurringTask implements RecurringTaskInterface
                 ])
             ));
         } catch (\Throwable $e) {
-            $this->after(false, $e->getMessage());
+            $this->after(false, DescriptionVO::from($e->getMessage()));
 
             $this->logger->error(new LogDataRecord(
                 type: 'recurring_task',
@@ -83,24 +81,24 @@ abstract class AbstractRecurringTask implements RecurringTaskInterface
         }
     }
 
-    public function info(string $message): void
+    public function info(DescriptionVO $message): void
     {
         $this->logger->info(new LogDataRecord(
             type: 'recurring_task_output',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'info',
-                'message' => $message,
+                'message' => $message->getValue(),
             ])
         ));
     }
 
-    public function error(string $message): void
+    public function error(DescriptionVO $message): void
     {
         $this->logger->error(new LogDataRecord(
             type: 'recurring_task_output',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'error',
-                'message' => $message,
+                'message' => $message->getValue(),
             ])
         ));
     }

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Contracts\Contexts;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use Illuminate\Contracts\Foundation\Application;
 
 interface RecurringTaskContextInterface
@@ -16,13 +16,13 @@ interface RecurringTaskContextInterface
 
     public function getPayload(): StrictDataObject;
 
-    public function setAlias(TaskSignatureVO $alias): void;
+    public function setAlias(TaskAliasVO $alias): void;
 
-    public function getAlias(): TaskSignatureVO;
+    public function getAlias(): TaskAliasVO;
 
-    public function setIntervalSeconds(CounterVO $intervalSeconds): void;
+    public function setIntervalSeconds(DurationVO $intervalSeconds): void;
 
-    public function getIntervalSeconds(): CounterVO;
+    public function getIntervalSeconds(): DurationVO;
 
     public function setStartAt(?Iso8601DateTimeVO $startAt): void;
 

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('unique_tasks', function (Blueprint $table) {
             $table->uuid('id')->primary();
-            $table->string('alias');
+            $table->string('alias')->unique();
             $table->string('fqcn');
             $table->json('payload');
             $table->timestamp('scheduled_at');

@@ -12,6 +12,6 @@ final class FreshStateResultRecord extends AbstractRecord
     public function __construct(
         public readonly CounterVO $waiting_to_playing,
         public readonly CounterVO $playing_to_finished,
-        public readonly CounterVO $playing_to_canceled = new CounterVO(0),
+        public readonly CounterVO $playing_to_canceled,
     ) {}
 }

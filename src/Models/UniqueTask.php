@@ -8,8 +8,9 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -54,9 +55,14 @@ final class UniqueTask extends Model
         return new TaskIdVO((string) $this->id);
     }
 
-    public function getAlias(): TaskSignatureVO
+    public function getAlias(): TaskAliasVO
     {
-        return new TaskSignatureVO($this->alias);
+        [$type, $uuid] = explode('@', $this->alias, 2);
+
+        return new TaskAliasVO(
+            type: new TaskTypeVO($type),
+            uuid: $uuid
+        );
     }
 
     public function getFqcn(): UniqueTaskFqcnVO

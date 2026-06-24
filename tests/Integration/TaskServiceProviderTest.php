@@ -7,8 +7,8 @@ namespace AndyDefer\Task\Tests\Integration;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
-use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
-use AndyDefer\Task\Contracts\Processors\UniqueTaskProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\ProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\ProcessorInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskExecutionDebugRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
@@ -155,17 +155,17 @@ final class TaskServiceProviderTest extends IntegrationTestCase
 
     public function test_unique_task_processor_is_bound(): void
     {
-        $this->assertTrue($this->app->bound(UniqueTaskProcessorInterface::class));
+        $this->assertTrue($this->app->bound(ProcessorInterface::class));
 
-        $instance = $this->app->make(UniqueTaskProcessorInterface::class);
+        $instance = $this->app->make(ProcessorInterface::class);
         $this->assertInstanceOf(UniqueTaskProcessor::class, $instance);
     }
 
     public function test_recurring_task_processor_is_bound(): void
     {
-        $this->assertTrue($this->app->bound(RecurringTaskProcessorInterface::class));
+        $this->assertTrue($this->app->bound(ProcessorInterface::class));
 
-        $instance = $this->app->make(RecurringTaskProcessorInterface::class);
+        $instance = $this->app->make(ProcessorInterface::class);
         $this->assertInstanceOf(RecurringTaskProcessor::class, $instance);
     }
 

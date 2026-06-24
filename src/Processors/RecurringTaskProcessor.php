@@ -5,17 +5,19 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Processors;
 
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
-use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\ProcessorInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Runners\RecurringTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
 use AndyDefer\Task\Models\RecurringTask;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
 use Illuminate\Support\Carbon;
 
-final class RecurringTaskProcessor implements RecurringTaskProcessorInterface
+final class RecurringTaskProcessor implements ProcessorInterface
 {
     public function __construct(
         private readonly RecurringTaskRepositoryInterface $repository,
@@ -23,7 +25,7 @@ final class RecurringTaskProcessor implements RecurringTaskProcessorInterface
         private readonly RecurringTaskValidatorInterface $validator,
     ) {}
 
-    public function process(?int $limit = null): ProcessResultRecord
+    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord
     {
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
@@ -31,17 +33,13 @@ final class RecurringTaskProcessor implements RecurringTaskProcessorInterface
         $finished = 0;
         $errors = new TaskErrorRecordCollection;
 
-        $now = Carbon::now()->toIso8601String();
+        $now = new Iso8601DateTimeVO(Carbon::now()->toIso8601String());
 
-        // ✅ Récupérer les tâches prêtes et les statistiques
         $result = $this->repository->findReadyToRun($now, $limit);
 
-        // ✅ Le repository nous donne le nombre de tâches terminées
         $finished += $result->fresh_state->playing_to_finished->value;
 
-        // ✅ Exécuter les tâches
         foreach ($result->tasks as $record) {
-            // ✅ Vérifier si la tâche doit être exécutée (intervalle)
             if (! $this->validator->shouldRunAgain($record)) {
                 continue;
             }
@@ -57,7 +55,6 @@ final class RecurringTaskProcessor implements RecurringTaskProcessorInterface
                 }
             }
 
-            // ✅ Vérifier si la tâche doit être terminée après exécution
             $finalModel = $this->repository->findByAlias($record->alias->value);
             if ($finalModel !== null) {
                 $finalRecord = $this->modelToRecord($finalModel);
@@ -71,9 +68,9 @@ final class RecurringTaskProcessor implements RecurringTaskProcessorInterface
         return ProcessResultRecord::from([
             'started_at' => $startedAt,
             'ended_at' => new Iso8601DateTimeVO,
-            'success' => $success,
-            'failed' => $failed,
-            'finished' => $finished,
+            'success' => new CounterVO($success),
+            'failed' => new CounterVO($failed),
+            'finished' => new CounterVO($finished),
             'errors' => $errors,
         ]);
     }

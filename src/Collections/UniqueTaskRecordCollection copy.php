@@ -13,16 +13,4 @@ final class UniqueTaskRecordCollection extends AbstractTypedCollection
     {
         parent::__construct(UniqueTaskRecord::class);
     }
-
-    public function filterByStatus(string $status): self
-    {
-        $filtered = new self;
-        foreach ($this as $task) {
-            if ($task->status->value === $status) {
-                $filtered->add($task);
-            }
-        }
-
-        return $filtered;
-    }
 }

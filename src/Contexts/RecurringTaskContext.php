@@ -6,18 +6,18 @@ namespace AndyDefer\Task\Contexts;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Contracts\Contexts\RecurringTaskContextInterface;
-use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use Illuminate\Contracts\Foundation\Application;
 
 final class RecurringTaskContext implements RecurringTaskContextInterface
 {
     private StrictDataObject $payload;
 
-    private TaskSignatureVO $alias;
+    private TaskAliasVO $alias;
 
-    private CounterVO $intervalSeconds;
+    private DurationVO $intervalSeconds;
 
     private ?Iso8601DateTimeVO $startAt = null;
 
@@ -39,22 +39,22 @@ final class RecurringTaskContext implements RecurringTaskContextInterface
         return $this->payload;
     }
 
-    public function setAlias(TaskSignatureVO $alias): void
+    public function setAlias(TaskAliasVO $alias): void
     {
         $this->alias = $alias;
     }
 
-    public function getAlias(): TaskSignatureVO
+    public function getAlias(): TaskAliasVO
     {
         return $this->alias;
     }
 
-    public function setIntervalSeconds(CounterVO $intervalSeconds): void
+    public function setIntervalSeconds(DurationVO $intervalSeconds): void
     {
         $this->intervalSeconds = $intervalSeconds;
     }
 
-    public function getIntervalSeconds(): CounterVO
+    public function getIntervalSeconds(): DurationVO
     {
         return $this->intervalSeconds;
     }

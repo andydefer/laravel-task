@@ -16,8 +16,7 @@ use AndyDefer\Logger\LoggerService;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
-use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
-use AndyDefer\Task\Contracts\Processors\UniqueTaskProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\ProcessorInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskExecutionDebugRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
@@ -182,7 +181,7 @@ final class TaskServiceProvider extends ServiceProvider
 
         // ✅ PROCESSORS
         $this->app->singleton(
-            abstract: UniqueTaskProcessorInterface::class,
+            abstract: ProcessorInterface::class,
             concrete: function (Application $app) {
                 return new UniqueTaskProcessor(
                     repository: $app->make(UniqueTaskRepositoryInterface::class),
@@ -191,10 +190,10 @@ final class TaskServiceProvider extends ServiceProvider
                 );
             }
         );
-        $this->app->alias(UniqueTaskProcessorInterface::class, UniqueTaskProcessor::class);
+        $this->app->alias(ProcessorInterface::class, UniqueTaskProcessor::class);
 
         $this->app->singleton(
-            abstract: RecurringTaskProcessorInterface::class,
+            abstract: ProcessorInterface::class,
             concrete: function (Application $app) {
                 return new RecurringTaskProcessor(
                     repository: $app->make(RecurringTaskRepositoryInterface::class),
@@ -203,7 +202,7 @@ final class TaskServiceProvider extends ServiceProvider
                 );
             }
         );
-        $this->app->alias(RecurringTaskProcessorInterface::class, RecurringTaskProcessor::class);
+        $this->app->alias(ProcessorInterface::class, RecurringTaskProcessor::class);
 
         // ✅ SERVICES
 
@@ -215,7 +214,6 @@ final class TaskServiceProvider extends ServiceProvider
                     repository: $app->make(UniqueTaskRepositoryInterface::class),
                     logger: $app->make(LoggerInterface::class),
                     hydration: $app->make(HydrationService::class),
-                    uuidFactory: $app->make(UuidFactoryInterface::class),
                     app: $app,
                 );
             }

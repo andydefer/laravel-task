@@ -6,8 +6,8 @@ namespace AndyDefer\Task\Contracts\Contexts;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Contracts\Foundation\Application;
 
 interface UniqueTaskContextInterface
@@ -20,9 +20,9 @@ interface UniqueTaskContextInterface
 
     public function getTaskId(): TaskIdVO;
 
-    public function setAlias(TaskSignatureVO $alias): void;
+    public function setAlias(TaskAliasVO $alias): void;
 
-    public function getAlias(): TaskSignatureVO;
+    public function getAlias(): TaskAliasVO;
 
     public function setScheduledAt(Iso8601DateTimeVO $scheduledAt): void;
 

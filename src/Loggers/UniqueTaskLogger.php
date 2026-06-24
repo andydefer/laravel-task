@@ -10,6 +10,8 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
 use AndyDefer\Task\Records\UniqueTaskRecord;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\MillisecondsVO;
 
 final class UniqueTaskLogger implements UniqueTaskLoggerInterface
 {
@@ -32,7 +34,7 @@ final class UniqueTaskLogger implements UniqueTaskLoggerInterface
         $this->logger->info(new LogDataRecord(type: 'unique_task', payload: $payload));
     }
 
-    public function logSuccess(UniqueTaskRecord $record, float $executionTime): void
+    public function logSuccess(UniqueTaskRecord $record, MillisecondsVO $executionTime): void
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'unique_task_completed',
@@ -44,7 +46,7 @@ final class UniqueTaskLogger implements UniqueTaskLoggerInterface
         $this->logger->info(new LogDataRecord(type: 'unique_task', payload: $payload));
     }
 
-    public function logFailure(UniqueTaskRecord $record, string $error): void
+    public function logFailure(UniqueTaskRecord $record, DescriptionVO $error): void
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'unique_task_failed',

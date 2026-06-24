@@ -2,33 +2,30 @@
 
 declare(strict_types=1);
 
-namespace AndyDefer\Task\Configs;
+namespace AndyDefer\Task\ValueObjects;
 
-use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
-final class RecurringTaskConfig implements RecurringTaskConfigInterface
+final class RecurringTaskConfigVO extends AbstractValueObject
 {
     public function __construct(
-        public readonly TaskSignatureVO $alias,
-        public readonly string $description,
+        public readonly TaskTypeVO $type,
+        public readonly DescriptionVO $description,
         public readonly CounterVO $interval_seconds,
         public readonly ?Iso8601DateTimeVO $start_at = null,
         public readonly ?Iso8601DateTimeVO $end_at = null,
         public readonly MaxFailedAttemptsVO $max_attempts = new MaxFailedAttemptsVO(3),
     ) {}
 
-    public function getAlias(): TaskSignatureVO
+    public function getType(): string
     {
-        return $this->alias;
+        return $this->type->getValue();
     }
 
     public function getDescription(): string
     {
-        return $this->description;
+        return $this->description->getValue();
     }
 
     public function getIntervalSeconds(): CounterVO
@@ -51,15 +48,25 @@ final class RecurringTaskConfig implements RecurringTaskConfigInterface
         return $this->max_attempts;
     }
 
+    public function getValue(): StrictDataObject
+    {
+        return new StrictDataObject($this->toArray());
+    }
+
     public function toArray(): array
     {
         return [
-            'alias' => $this->alias->value,
-            'description' => $this->description,
+            'type' => $this->type->getValue(),
+            'description' => $this->description->getValue(),
             'interval_seconds' => $this->interval_seconds->value,
             'start_at' => $this->start_at?->value,
             'end_at' => $this->end_at?->value,
             'max_attempts' => $this->max_attempts->value,
         ];
+    }
+
+    public function __toString(): string
+    {
+        return json_encode($this->toArray());
     }
 }

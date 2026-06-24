@@ -9,9 +9,9 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Abstract\AbstractRecurringTask;
+use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
 use AndyDefer\Task\Contexts\RecurringTaskContext;
-use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
@@ -19,10 +19,18 @@ use AndyDefer\Task\Models\RecurringTask as ModelsRecurringTask;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
+use AndyDefer\Task\Records\TaskRunResultRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
+use AndyDefer\Task\ValueObjects\RecurringTaskConfigVO;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Carbon;
+use Ramsey\Uuid\Uuid;
 
 final class RecurringTaskService implements RecurringTaskServiceInterface
 {
@@ -34,71 +42,100 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
     ) {}
 
     public function register(
-        string $taskClass,
+        RecurringTaskFqcnVO $fqcn,
         StrictDataObject $payload,
-        RecurringTaskConfigInterface $config
-    ): TaskSignatureVO {
-        $this->validateTaskClass($taskClass);
+        RecurringTaskConfigVO $config
+    ): TaskAliasVO {
+        $uuid = (string) Uuid::uuid4();
 
-        $alias = $config->getAlias();
+        $alias = new TaskAliasVO(
+            type: $config->type,
+            uuid: $uuid
+        );
 
-        if ($this->repository->findByAlias($alias->value) !== null) {
-            throw new \RuntimeException("Recurring task '{$alias->value}' already exists");
-        }
-
-        $now = Carbon::now()->toIso8601String();
-        $start_at = $config->getStartAt()?->value ?? $now;
+        $now = new Iso8601DateTimeVO;
+        $startAt = $config->getStartAt() ?? $now;
 
         $record = RecurringTaskRecord::from([
             'alias' => $alias,
-            'fqcn' => $taskClass,
+            'fqcn' => $fqcn,
             'payload' => $payload,
             'interval_seconds' => $config->getIntervalSeconds(),
-            'start_at' => $start_at,
+            'start_at' => $startAt,
             'end_at' => $config->getEndAt(),
             'status' => RecurringTaskStatus::WAITING,
+            'max_failed_attempts' => $config->getMaxAttempts(),
         ]);
 
-        $this->repository->create($record);
+        $model = $this->repository->create($record);
 
-        return $alias;
+        return $model->getAlias();
     }
 
-    public function run(TaskSignatureVO $alias): bool
+    public function run(TaskAliasVO $alias): TaskRunResultRecord
     {
-        $model = $this->repository->findByAlias($alias->value);
+        $startTime = new Iso8601DateTimeVO;
+
+        $model = $this->repository->findByAlias($alias);
         if ($model === null) {
-            return false;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => 'Task not found',
+                'execution_time' => new DurationVO(0.0),
+            ]);
         }
 
         $record = $this->modelToRecord($model);
 
         if ($record->status !== RecurringTaskStatus::PLAYING) {
-            return false;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => sprintf(
+                    'Task is not in PLAYING state (current: %s)',
+                    $record->status->value
+                ),
+                'execution_time' => new DurationVO(0.0),
+            ]);
         }
 
-        $now = Carbon::now()->toIso8601String();
-        if ($record->end_at !== null && $record->end_at->value <= $now) {
+        $now = new Iso8601DateTimeVO;
+        if ($record->end_at !== null && $record->end_at->isBefore($now)) {
             $this->repository->moveToFinished($record);
 
-            return false;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => 'Task has expired (end_at reached)',
+                'execution_time' => new DurationVO(0.0),
+            ]);
         }
 
-        $task = $this->instantiateTask($record->fqcn->getValue(), $record);
+        $task = $this->instantiateTask($record->fqcn, $record);
 
         try {
             $task->execute($record->payload);
             $this->repository->updateAfterRun($record, true);
 
-            return true;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => true,
+                'execution_time' => $startTime->elapsed(),
+            ]);
         } catch (\Throwable $e) {
-            $this->repository->updateAfterRun($record, false, $e->getMessage());
+            $this->repository->updateAfterRun($record, false, new DescriptionVO($e->getMessage()));
 
-            return false;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => $e->getMessage(),
+                'execution_time' => $startTime->elapsed(),
+            ]);
         }
     }
 
-    public function process(?int $limit = null): ProcessResultRecord
+    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord
     {
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
@@ -106,12 +143,10 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $finished = 0;
         $errors = new TaskErrorRecordCollection;
 
-        $now = Carbon::now()->toIso8601String();
+        $now = new Iso8601DateTimeVO;
 
-        // ✅ Récupérer les tâches prêtes et les statistiques
         $result = $this->repository->findReadyToRun($now, $limit);
 
-        // ✅ Le repository nous donne le nombre de tâches terminées
         $finished += $result->fresh_state->playing_to_finished->value;
 
         foreach ($result->tasks as $record) {
@@ -121,21 +156,24 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
             try {
                 $runResult = $this->run($record->alias);
-                if ($runResult) {
+                if ($runResult->success) {
                     $success++;
                 } else {
                     $failed++;
                     $errors->add(TaskErrorRecord::from([
-                        'alias' => $record->alias->value,
+                        'alias' => $runResult->alias->getValue(),
                         'fqcn' => $record->fqcn,
-                        'error' => 'Task execution failed',
-                        'context' => 'end_at: '.($record->end_at?->value ?? 'null'),
+                        'error' => $runResult->error ?? 'Task execution failed',
+                        'context' => sprintf(
+                            'end_at: %s',
+                            $record->end_at?->value ?? 'null'
+                        ),
                     ]));
                 }
             } catch (\Throwable $e) {
                 $failed++;
                 $errors->add(TaskErrorRecord::from([
-                    'alias' => $record->alias->value,
+                    'alias' => $record->alias->getValue(),
                     'fqcn' => $record->fqcn,
                     'error' => $e->getMessage(),
                     'context' => 'Exception during execution',
@@ -146,170 +184,206 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return ProcessResultRecord::from([
             'started_at' => $startedAt,
             'ended_at' => new Iso8601DateTimeVO,
-            'success' => $success,
-            'failed' => $failed,
-            'finished' => $finished,
+            'success' => new CounterVO($success),
+            'failed' => new CounterVO($failed),
+            'finished' => new CounterVO($finished),
             'errors' => $errors,
         ]);
     }
 
-    /**
-     * Vérifie si une tâche en PLAYING doit être exécutée à nouveau
-     * selon son intervalle.
-     */
     private function shouldRunAgain(RecurringTaskRecord $record): bool
     {
-        // Si la tâche n'est pas en PLAYING, elle ne doit pas être ré-exécutée
         if ($record->status !== RecurringTaskStatus::PLAYING) {
             return false;
         }
 
-        // Si elle n'a jamais été exécutée, on l'exécute
         if ($record->last_run_at === null) {
             return true;
         }
 
-        $now = Carbon::now();
-        $lastRun = Carbon::parse($record->last_run_at->value);
-        $interval = $record->interval_seconds->value;
+        $now = new Iso8601DateTimeVO;
+        $lastRun = $record->last_run_at;
+        $interval = $record->interval_seconds;
 
-        return $now->diffInSeconds($lastRun) >= $interval;
+        return $now->diffInSeconds($lastRun)->seconds >= $interval->seconds;
     }
 
-    public function pause(TaskSignatureVO $alias): void
+    public function pause(TaskAliasVO $alias): bool
     {
-        $model = $this->repository->findByAlias($alias->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$alias->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $record = $this->modelToRecord($model);
+
+            if ($record->status !== RecurringTaskStatus::PLAYING) {
+                return false;
+            }
+
+            $this->repository->moveToPaused($record);
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $record = $this->modelToRecord($model);
-
-        if ($record->status !== RecurringTaskStatus::PLAYING) {
-            throw new \RuntimeException("Task '{$alias->value}' is not in PLAYING state");
-        }
-
-        $this->repository->moveToPaused($record);
     }
 
-    public function resume(TaskSignatureVO $alias): void
+    public function resume(TaskAliasVO $alias): bool
     {
-        $model = $this->repository->findByAlias($alias->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$alias->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $record = $this->modelToRecord($model);
+
+            if ($record->status !== RecurringTaskStatus::PAUSED) {
+                return false;
+            }
+
+            $this->repository->moveToPlaying($record);
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $record = $this->modelToRecord($model);
-
-        if ($record->status !== RecurringTaskStatus::PAUSED) {
-            throw new \RuntimeException("Task '{$alias->value}' is not in PAUSED state");
-        }
-
-        $this->repository->moveToPlaying($record);
     }
 
-    public function finish(TaskSignatureVO $alias): void
+    public function finish(TaskAliasVO $alias): bool
     {
-        $model = $this->repository->findByAlias($alias->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$alias->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $record = $this->modelToRecord($model);
+
+            if ($record->status === RecurringTaskStatus::CANCELED) {
+                return false;
+            }
+
+            $this->repository->moveToFinished($record);
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $record = $this->modelToRecord($model);
-
-        if ($record->status === RecurringTaskStatus::CANCELED) {
-            throw new \RuntimeException("Task '{$alias->value}' is already canceled");
-        }
-
-        $this->repository->moveToFinished($record);
     }
 
-    public function cancel(TaskSignatureVO $alias, ?string $reason = null): void
+    public function cancel(TaskAliasVO $alias, ?DescriptionVO $reason = null): bool
     {
-        $model = $this->repository->findByAlias($alias->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$alias->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $record = $this->modelToRecord($model);
+            $this->repository->moveToCanceled($record);
+
+            $model->update(['cancelled_at' => Carbon::now()->toDateTimeString()]);
+
+            $this->logger->warning(LogDataRecord::from([
+                'type' => 'recurring_task_cancelled',
+                'payload' => $this->hydration->hydrate(StrictDataObject::class, [
+                    'alias' => $alias->getValue(),
+                    'reason' => $reason?->getValue() ?? 'Cancelled by user',
+                ]),
+            ]));
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $record = $this->modelToRecord($model);
-        $this->repository->moveToCanceled($record);
-
-        $model->update(['cancelled_at' => Carbon::now()->toDateTimeString()]);
-
-        $this->logger->warning(new LogDataRecord(
-            type: 'recurring_task_cancelled',
-            payload: $this->hydration->hydrate(StrictDataObject::class, [
-                'alias' => $alias->value,
-                'reason' => $reason ?? 'Cancelled by user',
-            ])
-        ));
     }
 
-    public function advanceStartAt(TaskSignatureVO $alias, Iso8601DateTimeVO $newStartAt): void
+    public function advanceStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool
     {
-        $model = $this->repository->findByAlias($alias->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$alias->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $record = $this->modelToRecord($model);
+
+            if ($record->status === RecurringTaskStatus::CANCELED) {
+                return false;
+            }
+
+            $this->repository->updateRaw(
+                $model->getId(),
+                ['start_at' => $newStartAt->forDatabase()]
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $record = $this->modelToRecord($model);
-
-        if ($record->status === RecurringTaskStatus::CANCELED) {
-            throw new \RuntimeException("Task '{$alias->value}' is already canceled");
-        }
-
-        $this->repository->updateRaw(
-            $model->getId(),
-            ['start_at' => $newStartAt->toDateTime()->format('Y-m-d H:i:s')]
-        );
     }
 
-    public function postponeStartAt(TaskSignatureVO $alias, Iso8601DateTimeVO $newStartAt): void
+    public function postponeStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool
     {
-        $this->advanceStartAt($alias, $newStartAt);
+        return $this->advanceStartAt($alias, $newStartAt);
     }
 
-    public function changeInterval(TaskSignatureVO $alias, int $intervalSeconds): void
+    public function changeInterval(TaskAliasVO $alias, DurationVO $intervalSeconds): bool
     {
-        $model = $this->repository->findByAlias($alias->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$alias->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $record = $this->modelToRecord($model);
+
+            if ($record->status === RecurringTaskStatus::CANCELED) {
+                return false;
+            }
+
+            $this->repository->updateRaw(
+                $model->getId(),
+                ['interval_seconds' => $intervalSeconds->getValue()]
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $record = $this->modelToRecord($model);
-
-        if ($record->status === RecurringTaskStatus::CANCELED) {
-            throw new \RuntimeException("Task '{$alias->value}' is already canceled");
-        }
-
-        $this->repository->updateRaw(
-            $model->getId(),
-            ['interval_seconds' => $intervalSeconds]
-        );
     }
 
-    public function extendEndAt(TaskSignatureVO $alias, Iso8601DateTimeVO $newEndAt): void
+    public function extendEndAt(TaskAliasVO $alias, Iso8601DateTimeVO $newEndAt): bool
     {
-        $model = $this->repository->findByAlias($alias->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$alias->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $record = $this->modelToRecord($model);
+
+            if ($record->status === RecurringTaskStatus::CANCELED) {
+                return false;
+            }
+
+            $this->repository->updateRaw(
+                $model->getId(),
+                ['end_at' => $newEndAt->forDatabase()]
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $record = $this->modelToRecord($model);
-
-        if ($record->status === RecurringTaskStatus::CANCELED) {
-            throw new \RuntimeException("Task '{$alias->value}' is already canceled");
-        }
-
-        $this->repository->updateRaw(
-            $model->getId(),
-            ['end_at' => $newEndAt->toDateTime()->format('Y-m-d H:i:s')]
-        );
     }
 
-    public function find(TaskSignatureVO $alias): ?RecurringTaskRecord
+    public function find(TaskAliasVO $alias): ?RecurringTaskRecord
     {
-        $model = $this->repository->findByAlias($alias->value);
+        $model = $this->repository->findByAlias($alias);
         if ($model === null) {
             return null;
         }
@@ -317,93 +391,117 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $this->modelToRecord($model);
     }
 
-    public function findWaiting(?int $limit = null): array
+    public function findWaiting(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findWaiting($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
+        $collection = new RecurringTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
+        }
+
+        return $collection;
     }
 
-    public function findPlaying(?int $limit = null): array
+    public function findPlaying(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findPlaying($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
+        $collection = new RecurringTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
+        }
+
+        return $collection;
     }
 
-    public function findPaused(?int $limit = null): array
+    public function findPaused(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findPaused($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
+        $collection = new RecurringTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
+        }
+
+        return $collection;
     }
 
-    public function findFinished(?int $limit = null): array
+    public function findFinished(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findFinished($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
+        $collection = new RecurringTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
+        }
+
+        return $collection;
     }
 
-    public function findCanceled(?int $limit = null): array
+    public function findCanceled(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findCanceled($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
-    }
-
-    public function exists(TaskSignatureVO $alias): bool
-    {
-        return $this->repository->findByAlias($alias->value) !== null;
-    }
-
-    public function delete(TaskSignatureVO $alias): void
-    {
-        $model = $this->repository->findByAlias($alias->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$alias->value}");
+        $collection = new RecurringTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
         }
-        $this->repository->delete($model->getId());
+
+        return $collection;
     }
 
-    public function count(): int
+    public function exists(TaskAliasVO $alias): bool
     {
-        return $this->repository->count();
+        return $this->repository->findByAlias($alias) !== null;
     }
 
-    public function countWaiting(): int
+    public function delete(TaskAliasVO $alias): bool
+    {
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+            $this->repository->delete($model->getId());
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    public function count(): CounterVO
+    {
+        return new CounterVO($this->repository->count());
+    }
+
+    public function countWaiting(): CounterVO
     {
         return $this->repository->countWaiting();
     }
 
-    public function countPlaying(): int
+    public function countPlaying(): CounterVO
     {
         return $this->repository->countPlaying();
     }
 
-    public function countPaused(): int
+    public function countPaused(): CounterVO
     {
         return $this->repository->countPaused();
     }
 
-    public function countFinished(): int
+    public function countFinished(): CounterVO
     {
         return $this->repository->countFinished();
     }
 
-    public function countCanceled(): int
+    public function countCanceled(): CounterVO
     {
         return $this->repository->countCanceled();
     }
 
-    private function validateTaskClass(string $taskClass): void
-    {
-        if (! is_subclass_of($taskClass, AbstractRecurringTask::class)) {
-            throw new \InvalidArgumentException('Task must extend AbstractRecurringTask');
-        }
-    }
-
-    private function instantiateTask(string $fqcn, RecurringTaskRecord $record): AbstractRecurringTask
+    private function instantiateTask(RecurringTaskFqcnVO $fqcn, RecurringTaskRecord $record): AbstractRecurringTask
     {
         $context = new RecurringTaskContext;
         $context->setAlias($record->alias);
@@ -413,7 +511,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $context->setLastRunAt($record->last_run_at);
         $context->setLaravelApp($this->app);
 
-        return new $fqcn($context, $this->logger, $this->hydration);
+        $className = $fqcn->getValue();
+
+        return new $className($context, $this->logger, $this->hydration);
     }
 
     private function modelToRecord(ModelsRecurringTask $model): RecurringTaskRecord

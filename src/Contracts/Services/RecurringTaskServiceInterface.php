@@ -5,229 +5,130 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Contracts\Services;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
+use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
+use AndyDefer\Task\Records\TaskRunResultRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
+use AndyDefer\Task\ValueObjects\RecurringTaskConfigVO;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
 
 interface RecurringTaskServiceInterface
 {
     // ==================== ENREGISTREMENT ====================
 
-    /**
-     * Enregistre une nouvelle tâche récurrente.
-     *
-     * @param  string  $taskClass  Classe de la tâche (doit étendre RecurringTask)
-     * @param  StrictDataObject  $payload  Données de la tâche
-     * @param  RecurringTaskConfigInterface  $config  Configuration
-     * @return TaskSignatureVO Signature de la tâche créée
-     *
-     * @throws \InvalidArgumentException Si la classe est invalide
-     * @throws \RuntimeException Si une tâche avec le même alias existe déjà
-     */
     public function register(
-        string $taskClass,
+        RecurringTaskFqcnVO $fqcn,
         StrictDataObject $payload,
-        RecurringTaskConfigInterface $config
-    ): TaskSignatureVO;
+        RecurringTaskConfigVO $config
+    ): TaskAliasVO;
 
     // ==================== EXÉCUTION ====================
 
-    /**
-     * Exécute une tâche récurrente.
-     *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     * @return bool Succès de l'exécution
-     */
-    public function run(TaskSignatureVO $alias): bool;
+    public function run(TaskAliasVO $alias): TaskRunResultRecord;
 
-    /**
-     * Exécute toutes les tâches récurrentes prêtes.
-     *
-     * @param  int|null  $limit  Nombre maximum de tâches à exécuter
-     * @return ProcessResultRecord Résultats de l'exécution
-     */
-    public function process(?int $limit = null): ProcessResultRecord;
+    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord;
 
     // ==================== GESTION D'ÉTAT ====================
 
     /**
      * Met une tâche en pause.
      *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas ou n'est pas en PLAYING
+     * @return bool True si la pause a été effectuée, false sinon
      */
-    public function pause(TaskSignatureVO $alias): void;
+    public function pause(TaskAliasVO $alias): bool;
 
     /**
      * Reprend une tâche en pause.
      *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas ou n'est pas en PAUSED
+     * @return bool True si la reprise a été effectuée, false sinon
      */
-    public function resume(TaskSignatureVO $alias): void;
+    public function resume(TaskAliasVO $alias): bool;
 
     /**
      * Termine une tâche prématurément.
      *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas
+     * @return bool True si la tâche a été terminée, false sinon
      */
-    public function finish(TaskSignatureVO $alias): void;
+    public function finish(TaskAliasVO $alias): bool;
 
     /**
      * Annule une tâche récurrente.
-     * La tâche est marquée comme CANCELED avec le message d'annulation.
      *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     * @param  string|null  $reason  Raison de l'annulation
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @param  DescriptionVO|null  $reason  Raison de l'annulation
+     * @return bool True si la tâche a été annulée, false sinon
      */
-    public function cancel(TaskSignatureVO $alias, ?string $reason = null): void;
+    public function cancel(TaskAliasVO $alias, ?DescriptionVO $reason = null): bool;
 
     // ==================== MODIFICATION ====================
 
     /**
      * Avance la date de début d'une tâche.
      *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     * @param  Iso8601DateTimeVO  $newStartAt  Nouvelle date de début
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas
+     * @return bool True si la date a été avancée, false sinon
      */
-    public function advanceStartAt(TaskSignatureVO $alias, Iso8601DateTimeVO $newStartAt): void;
+    public function advanceStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool;
 
     /**
      * Repousse la date de début d'une tâche.
      *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     * @param  Iso8601DateTimeVO  $newStartAt  Nouvelle date de début
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas
+     * @return bool True si la date a été repoussée, false sinon
      */
-    public function postponeStartAt(TaskSignatureVO $alias, Iso8601DateTimeVO $newStartAt): void;
+    public function postponeStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool;
 
     /**
      * Modifie l'intervalle d'une tâche.
      *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     * @param  int  $intervalSeconds  Nouvel intervalle en secondes
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @param  DurationVO  $intervalSeconds  Nouvel intervalle en secondes
+     * @return bool True si l'intervalle a été modifié, false sinon
      */
-    public function changeInterval(TaskSignatureVO $alias, int $intervalSeconds): void;
+    public function changeInterval(TaskAliasVO $alias, DurationVO $intervalSeconds): bool;
 
     /**
      * Prolonge la date de fin d'une tâche.
      *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     * @param  Iso8601DateTimeVO  $newEndAt  Nouvelle date de fin
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas
+     * @return bool True si la date de fin a été prolongée, false sinon
      */
-    public function extendEndAt(TaskSignatureVO $alias, Iso8601DateTimeVO $newEndAt): void;
+    public function extendEndAt(TaskAliasVO $alias, Iso8601DateTimeVO $newEndAt): bool;
 
     // ==================== RECHERCHE ====================
 
-    /**
-     * Trouve une tâche par son alias.
-     *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     */
-    public function find(TaskSignatureVO $alias): ?RecurringTaskRecord;
+    public function find(TaskAliasVO $alias): ?RecurringTaskRecord;
 
-    /**
-     * Récupère toutes les tâches en attente.
-     *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<RecurringTaskRecord>
-     */
-    public function findWaiting(?int $limit = null): array;
+    public function findWaiting(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
-    /**
-     * Récupère toutes les tâches en cours d'exécution.
-     *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<RecurringTaskRecord>
-     */
-    public function findPlaying(?int $limit = null): array;
+    public function findPlaying(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
-    /**
-     * Récupère toutes les tâches en pause.
-     *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<RecurringTaskRecord>
-     */
-    public function findPaused(?int $limit = null): array;
+    public function findPaused(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
-    /**
-     * Récupère toutes les tâches terminées.
-     *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<RecurringTaskRecord>
-     */
-    public function findFinished(?int $limit = null): array;
+    public function findFinished(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
-    /**
-     * Récupère toutes les tâches annulées.
-     *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<RecurringTaskRecord>
-     */
-    public function findCanceled(?int $limit = null): array;
+    public function findCanceled(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
-    /**
-     * Vérifie si une tâche existe.
-     *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     */
-    public function exists(TaskSignatureVO $alias): bool;
+    public function exists(TaskAliasVO $alias): bool;
 
     // ==================== SUPPRESSION ====================
 
-    /**
-     * Supprime une tâche récurrente.
-     *
-     * @param  TaskSignatureVO  $alias  Alias de la tâche
-     *
-     * @throws \RuntimeException Si la tâche n'existe pas
-     */
-    public function delete(TaskSignatureVO $alias): void;
+    public function delete(TaskAliasVO $alias): bool;
 
     // ==================== COMPTAGE ====================
 
-    /**
-     * Compte le nombre total de tâches récurrentes.
-     */
-    public function count(): int;
+    public function count(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches en attente.
-     */
-    public function countWaiting(): int;
+    public function countWaiting(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches en cours d'exécution.
-     */
-    public function countPlaying(): int;
+    public function countPlaying(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches en pause.
-     */
-    public function countPaused(): int;
+    public function countPaused(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches terminées.
-     */
-    public function countFinished(): int;
+    public function countFinished(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches annulées.
-     */
-    public function countCanceled(): int;
+    public function countCanceled(): CounterVO;
 }

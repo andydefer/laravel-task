@@ -9,20 +9,15 @@ use AndyDefer\Directive\Contexts\DirectiveContext;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
-use AndyDefer\Task\Collections\RecurringResultCollection;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
-use AndyDefer\Task\Collections\TaskErrorStructCollection;
-use AndyDefer\Task\Collections\UniqueResultCollection;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Records\BatchResultRecord;
-use AndyDefer\Task\Records\RecurringBatchResultRecord;
-use AndyDefer\Task\Records\UniqueBatchResultRecord;
-use AndyDefer\Task\Structs\BatchResultStruct;
-use AndyDefer\Task\Structs\RecurringBatchResultStruct;
-use AndyDefer\Task\Structs\TaskErrorStruct;
-use AndyDefer\Task\Structs\UniqueBatchResultStruct;
+use AndyDefer\Task\Records\FullBatchJsonResultRecord;
+use AndyDefer\Task\Records\ProcessResultRecord;
+use AndyDefer\Task\Records\TaskExecutionJsonResultRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\StyledTextVO;
 
 final class ProcessTasksDirective extends AbstractDirective
 {
@@ -69,46 +64,45 @@ final class ProcessTasksDirective extends AbstractDirective
         $uniqueService = $this->getUniqueTaskService();
         $recurringService = $this->getRecurringTaskService();
 
-        $startedAt = new Iso8601DateTimeVO;
         $hasFailures = false;
 
         if ($uniqueOnly) {
-            $record = $this->processUniqueOnly($uniqueService, $startedAt, $limit);
-            $hasFailures = $record->failed->value > 0;
+            $result = $this->processUniqueOnly($uniqueService, $limit);
+            $hasFailures = $result->failed->isPositive();
 
             if ($format === 'json') {
-                $this->outputUniqueJsonStruct($record);
+                $this->outputUniqueJson($result);
             } else {
                 $this->displayProcessingStart($limit);
-                $this->displayUniqueResults($record);
-                $this->displayUniqueErrorsIfVerbose($verbose, $record->errors);
+                $this->displayUniqueResults($result);
+                $this->displayErrorsIfVerbose($verbose, $result->errors, 'Unique');
             }
         } elseif ($recurringOnly) {
-            $record = $this->processRecurringOnly($recurringService, $startedAt, $limit);
-            $hasFailures = $record->failed->value > 0;
+            $result = $this->processRecurringOnly($recurringService, $limit);
+            $hasFailures = $result->failed->isPositive();
 
             if ($format === 'json') {
-                $this->outputRecurringJsonStruct($record);
+                $this->outputRecurringJson($result);
             } else {
                 $this->displayProcessingStart($limit);
-                $this->displayRecurringResults($record);
-                $this->displayRecurringErrorsIfVerbose($verbose, $record->errors);
+                $this->displayRecurringResults($result);
+                $this->displayErrorsIfVerbose($verbose, $result->errors, 'Recurring');
             }
         } else {
-            $record = $this->processFull($uniqueService, $recurringService, $startedAt, $limit);
-            $hasFailures = $record->unique_failed->value > 0 || $record->recurring_failed->value > 0;
+            $uniqueResult = $this->processUniqueOnly($uniqueService, $limit);
+            $recurringResult = $this->processRecurringOnly($recurringService, $limit);
+            $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
 
             if ($format === 'json') {
-                $this->outputFullJsonStruct($record);
+                $this->outputFullJson($uniqueResult, $recurringResult);
             } else {
                 $this->displayProcessingStart($limit);
-                $this->displayFullResults($record);
-                $this->displayFullErrorsIfVerbose($verbose, $record);
+                $this->displayFullResults($uniqueResult, $recurringResult);
+                $this->displayFullErrorsIfVerbose($verbose, $uniqueResult, $recurringResult);
             }
         }
 
         return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
-
     }
 
     private function getUniqueTaskService(): UniqueTaskServiceInterface
@@ -172,299 +166,281 @@ final class ProcessTasksDirective extends AbstractDirective
 
     private function displayProcessingStart(?int $limit): void
     {
-        $this->info('Processing tasks...');
+        $text = StyledTextVO::empty()
+            ->append('Processing tasks...')
+            ->newLine();
 
         if ($limit !== null) {
-            $this->info("Limit: {$limit} tasks");
+            $text = $text->append('Limit: ')
+                ->yellow()
+                ->append((string) $limit)
+                ->reset()
+                ->append(' tasks');
         }
+
+        $this->info($text->value);
     }
 
     // ==================== UNIQUE TASKS ====================
 
     private function processUniqueOnly(
         UniqueTaskServiceInterface $service,
-        Iso8601DateTimeVO $startedAt,
         ?int $limit
-    ): UniqueBatchResultRecord {
-        $result = $service->process($limit);
-
-        return new UniqueBatchResultRecord(
-            started_at: $startedAt,
-            success: $result->success,
-            failed: $result->failed,
-            results: $result->results ?? new UniqueResultCollection,
-            errors: $result->errors ?? new TaskErrorRecordCollection,
-        );
+    ): ProcessResultRecord {
+        return $service->process($limit);
     }
 
-    private function displayUniqueResults(UniqueBatchResultRecord $record): void
+    private function displayUniqueResults(ProcessResultRecord $result): void
     {
-        $total = $record->success->value + $record->failed->value;
+        $total = $result->success->getValue() + $result->failed->getValue();
 
-        $this->newLine();
-        $this->info('<fg=cyan>=== Unique Batch Results ===</>');
-        $this->info(sprintf('  Success: %d', $record->success->value));
-        $this->info(sprintf('  Failed: %d', $record->failed->value));
-        $this->info(sprintf('  Total: %d', $total));
+        $text = StyledTextVO::empty()
+            ->newLine()
+            ->cyan()->append('=== Unique Batch Results ===')->reset()
+            ->newLine()
+            ->append('  Success: ')
+            ->cyan()->append((string) $result->success->getValue())->reset()
+            ->newLine()
+            ->append('  Failed: ')
+            ->red()->append((string) $result->failed->getValue())->reset()
+            ->newLine()
+            ->append('  Total: ')
+            ->yellow()->append((string) $total)->reset();
+
+        $this->info($text->value);
     }
 
-    private function outputUniqueJsonStruct(UniqueBatchResultRecord $record): void
+    private function outputUniqueJson(ProcessResultRecord $result): void
     {
         $endedAt = new Iso8601DateTimeVO;
-        $total = $record->success->value + $record->failed->value;
-        $duration = $this->getDurationMilliseconds($record->started_at);
+        $duration = $this->getDurationMilliseconds($result->started_at);
+        $total = $result->success->getValue() + $result->failed->getValue();
 
-        $errorsCollection = new TaskErrorStructCollection;
-        foreach ($record->errors as $error) {
-            $errorsCollection->add(new TaskErrorStruct(
-                alias: $error->alias,
-                fqcn: $error->fqcn,
-                error: $error->error,
-                context: sprintf('Unique task execution failed after %d attempt(s)', $error->context ?? 'multiple'),
-            ));
-        }
+        $jsonResult = TaskExecutionJsonResultRecord::from([
+            'started_at' => $result->started_at,
+            'ended_at' => $endedAt,
+            'duration_ms' => $duration,
+            'success' => $result->success->getValue(),
+            'failed' => $result->failed->getValue(),
+            'total' => $total,
+            'errors' => $result->errors,
+            'has_failures' => $result->failed->isPositive(),
+            'type' => 'unique',
+        ]);
 
-        $struct = new UniqueBatchResultStruct(
-            started_at: $record->started_at->value,
-            ended_at: $endedAt->value,
-            duration_ms: $duration,
-            success: $record->success->value,
-            failed: $record->failed->value,
-            total: $total,
-            errors: $errorsCollection,
-            has_failures: $record->failed->value > 0,
-        );
-
-        $this->line((string) $struct);
-    }
-
-    private function displayUniqueErrorsIfVerbose(bool $verbose, TaskErrorRecordCollection $errors): void
-    {
-        if (! $verbose || $errors->isEmpty()) {
-            return;
-        }
-
-        $this->newLine();
-        $this->info('<fg=red>=== Failed Unique Tasks ===</>');
-        foreach ($errors as $error) {
-            $displayName = $error->alias ?? $error->identifier;
-            $this->info(sprintf('    ❌ %s: %s', $displayName, $error->error));
-        }
+        $this->line((string) $jsonResult);
     }
 
     // ==================== RECURRING TASKS ====================
 
     private function processRecurringOnly(
         RecurringTaskServiceInterface $service,
-        Iso8601DateTimeVO $startedAt,
         ?int $limit
-    ): RecurringBatchResultRecord {
-        $result = $service->process($limit);
-
-        return new RecurringBatchResultRecord(
-            started_at: $startedAt,
-            success: $result->success,
-            failed: $result->failed,
-            results: $result->results ?? new RecurringResultCollection,
-            errors: $result->errors ?? new TaskErrorRecordCollection,
-        );
+    ): ProcessResultRecord {
+        return $service->process($limit);
     }
 
-    private function displayRecurringResults(RecurringBatchResultRecord $record): void
+    private function displayRecurringResults(ProcessResultRecord $result): void
     {
-        $total = $record->success->value + $record->failed->value;
+        $total = $result->success->getValue() + $result->failed->getValue();
 
-        $this->newLine();
-        $this->info('<fg=cyan>=== Recurring Batch Results ===</>');
-        $this->info(sprintf('  Success: %d', $record->success->value));
-        $this->info(sprintf('  Failed: %d', $record->failed->value));
-        $this->info(sprintf('  Total: %d', $total));
+        $text = StyledTextVO::empty()
+            ->newLine()
+            ->cyan()->append('=== Recurring Batch Results ===')->reset()
+            ->newLine()
+            ->append('  Success: ')
+            ->cyan()->append((string) $result->success->getValue())->reset()
+            ->newLine()
+            ->append('  Failed: ')
+            ->red()->append((string) $result->failed->getValue())->reset()
+            ->newLine()
+            ->append('  Total: ')
+            ->yellow()->append((string) $total)->reset();
+
+        $this->info($text->value);
     }
 
-    private function outputRecurringJsonStruct(RecurringBatchResultRecord $record): void
+    private function outputRecurringJson(ProcessResultRecord $result): void
     {
         $endedAt = new Iso8601DateTimeVO;
-        $total = $record->success->value + $record->failed->value;
-        $duration = $this->getDurationMilliseconds($record->started_at);
+        $duration = $this->getDurationMilliseconds($result->started_at);
+        $total = $result->success->getValue() + $result->failed->getValue();
 
-        $errorsCollection = new TaskErrorStructCollection;
-        foreach ($record->errors as $error) {
-            $errorsCollection->add(new TaskErrorStruct(
-                alias: $error->alias,
-                fqcn: $error->fqcn,
-                error: $error->error,
-                context: 'Recurring task execution failed',
-            ));
-        }
+        $jsonResult = TaskExecutionJsonResultRecord::from([
+            'started_at' => $result->started_at,
+            'ended_at' => $endedAt,
+            'duration_ms' => $duration,
+            'success' => $result->success->getValue(),
+            'failed' => $result->failed->getValue(),
+            'total' => $total,
+            'errors' => $result->errors,
+            'has_failures' => $result->failed->isPositive(),
+            'type' => 'recurring',
+        ]);
 
-        $struct = new RecurringBatchResultStruct(
-            started_at: $record->started_at->value,
-            ended_at: $endedAt->value,
-            duration_ms: $duration,
-            success: $record->success->value,
-            failed: $record->failed->value,
-            total: $total,
-            errors: $errorsCollection,
-            has_failures: $record->failed->value > 0,
-        );
-
-        $this->line((string) $struct);
-    }
-
-    private function displayRecurringErrorsIfVerbose(bool $verbose, TaskErrorRecordCollection $errors): void
-    {
-        if (! $verbose || $errors->isEmpty()) {
-            return;
-        }
-
-        $this->newLine();
-        $this->info('<fg=red>=== Failed Recurring Tasks ===</>');
-        foreach ($errors as $error) {
-            $displayName = $error->alias ?? $error->identifier;
-            $this->info(sprintf('    ❌ %s: %s', $displayName, $error->error));
-        }
+        $this->line((string) $jsonResult);
     }
 
     // ==================== FULL (BOTH) ====================
 
-    private function processFull(
-        UniqueTaskServiceInterface $uniqueService,
-        RecurringTaskServiceInterface $recurringService,
-        Iso8601DateTimeVO $startedAt,
-        ?int $limit
-    ): BatchResultRecord {
-        $uniqueResult = $uniqueService->process($limit);
-        $recurringResult = $recurringService->process($limit);
-
-        return new BatchResultRecord(
-            started_at: $startedAt,
-            unique_success: $uniqueResult->success,
-            unique_failed: $uniqueResult->failed,
-            recurring_success: $recurringResult->success,
-            recurring_failed: $recurringResult->failed,
-            unique_errors: $uniqueResult->errors ?? new TaskErrorRecordCollection,
-            recurring_errors: $recurringResult->errors ?? new TaskErrorRecordCollection,
-        );
-    }
-
-    private function displayFullResults(BatchResultRecord $record): void
-    {
-        $this->newLine();
-        $this->info('<fg=cyan>=== Batch Results ===</>');
-        $this->info(sprintf('  Unique:    ✅ %d, ❌ %d',
-            $record->unique_success->value,
-            $record->unique_failed->value
-        ));
-        $this->info(sprintf('  Recurring: ✅ %d, ❌ %d',
-            $record->recurring_success->value,
-            $record->recurring_failed->value
-        ));
-
-        $totalSuccess = $record->unique_success->value + $record->recurring_success->value;
-        $totalFailed = $record->unique_failed->value + $record->recurring_failed->value;
+    private function displayFullResults(
+        ProcessResultRecord $uniqueResult,
+        ProcessResultRecord $recurringResult
+    ): void {
+        $totalSuccess = $uniqueResult->success->getValue() + $recurringResult->success->getValue();
+        $totalFailed = $uniqueResult->failed->getValue() + $recurringResult->failed->getValue();
         $totalProcessed = $totalSuccess + $totalFailed;
-        $hasFailures = $record->unique_failed->value > 0 || $record->recurring_failed->value > 0;
+        $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
 
-        $this->info(sprintf('  Total:     ✅ %d, ❌ %d, 📦 %d',
-            $totalSuccess,
-            $totalFailed,
-            $totalProcessed
-        ));
-        $this->info(sprintf('  Has failures: %s', $hasFailures ? 'Yes' : 'No'));
+        $text = StyledTextVO::empty()
+            ->newLine()
+            ->cyan()->append('=== Batch Results ===')->reset()
+            ->newLine()
+            ->append('  Unique:    ')
+            ->green()->append('✅ ')->append((string) $uniqueResult->success->getValue())->reset()
+            ->append(', ')
+            ->red()->append('❌ ')->append((string) $uniqueResult->failed->getValue())->reset()
+            ->newLine()
+            ->append('  Recurring: ')
+            ->green()->append('✅ ')->append((string) $recurringResult->success->getValue())->reset()
+            ->append(', ')
+            ->red()->append('❌ ')->append((string) $recurringResult->failed->getValue())->reset()
+            ->newLine()
+            ->append('  Total:     ')
+            ->green()->append('✅ ')->append((string) $totalSuccess)->reset()
+            ->append(', ')
+            ->red()->append('❌ ')->append((string) $totalFailed)->reset()
+            ->append(', ')
+            ->blue()->append('📦 ')->append((string) $totalProcessed)->reset()
+            ->newLine()
+            ->append('  Has failures: ')
+            ->append($hasFailures ? 'Yes' : 'No');
+
+        $this->info($text->value);
     }
 
-    private function outputFullJsonStruct(BatchResultRecord $record): void
-    {
+    private function outputFullJson(
+        ProcessResultRecord $uniqueResult,
+        ProcessResultRecord $recurringResult
+    ): void {
         $endedAt = new Iso8601DateTimeVO;
-        $duration = $this->getDurationMilliseconds($record->started_at);
+        $duration = $this->getDurationMilliseconds($uniqueResult->started_at);
 
-        $uniqueErrors = new TaskErrorStructCollection;
-        foreach ($record->unique_errors as $error) {
-            $uniqueErrors->add(new TaskErrorStruct(
-                alias: $error->alias,
-                fqcn: $error->fqcn,
-                error: $error->error,
-                context: sprintf('Unique task failed (attempts: %s)', $error->context ?? 'unknown'),
-            ));
-        }
-
-        $recurringErrors = new TaskErrorStructCollection;
-        foreach ($record->recurring_errors as $error) {
-            $recurringErrors->add(new TaskErrorStruct(
-                alias: $error->alias,
-                fqcn: $error->fqcn,
-                error: $error->error,
-                context: 'Recurring task failed',
-            ));
-        }
-
-        $totalSuccess = $record->unique_success->value + $record->recurring_success->value;
-        $totalFailed = $record->unique_failed->value + $record->recurring_failed->value;
+        $totalSuccess = $uniqueResult->success->getValue() + $recurringResult->success->getValue();
+        $totalFailed = $uniqueResult->failed->getValue() + $recurringResult->failed->getValue();
         $totalProcessed = $totalSuccess + $totalFailed;
-        $hasFailures = $record->unique_failed->value > 0 || $record->recurring_failed->value > 0;
+        $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
 
-        $struct = new BatchResultStruct(
-            started_at: $record->started_at->value,
-            ended_at: $endedAt->value,
-            duration_ms: $duration,
-            success: $totalSuccess,
-            failed: $totalFailed,
-            total: $totalProcessed,
-            errors: $this->mergeErrors($uniqueErrors, $recurringErrors),
-            has_failures: $hasFailures,
-        );
+        $uniqueBatch = BatchResultRecord::from([
+            'success' => $uniqueResult->success->getValue(),
+            'failed' => $uniqueResult->failed->getValue(),
+            'errors' => $uniqueResult->errors,
+        ]);
 
-        $this->line((string) $struct);
-    }
+        $recurringBatch = BatchResultRecord::from([
+            'success' => $recurringResult->success->getValue(),
+            'failed' => $recurringResult->failed->getValue(),
+            'errors' => $recurringResult->errors,
+        ]);
 
-    private function mergeErrors(
-        TaskErrorStructCollection $uniqueErrors,
-        TaskErrorStructCollection $recurringErrors
-    ): TaskErrorStructCollection {
-        $merged = new TaskErrorStructCollection;
-
-        foreach ($uniqueErrors as $error) {
-            $merged->add($error);
+        $allErrors = new TaskErrorRecordCollection;
+        foreach ($uniqueResult->errors as $error) {
+            $allErrors->add($error);
+        }
+        foreach ($recurringResult->errors as $error) {
+            $allErrors->add($error);
         }
 
-        foreach ($recurringErrors as $error) {
-            $merged->add($error);
-        }
+        $fullResult = FullBatchJsonResultRecord::from([
+            'started_at' => $uniqueResult->started_at,
+            'ended_at' => $endedAt,
+            'duration_ms' => $duration,
+            'total_success' => $totalSuccess,
+            'total_failed' => $totalFailed,
+            'total' => $totalProcessed,
+            'errors' => $allErrors,
+            'has_failures' => $hasFailures,
+            'unique' => $uniqueBatch,
+            'recurring' => $recurringBatch,
+        ]);
 
-        return $merged;
+        $this->line((string) $fullResult);
     }
 
-    private function displayFullErrorsIfVerbose(bool $verbose, BatchResultRecord $record): void
-    {
+    // ==================== ERRORS ====================
+
+    private function displayErrorsIfVerbose(
+        bool $verbose,
+        iterable $errors,
+        string $type
+    ): void {
         if (! $verbose) {
             return;
         }
 
-        $hasUniqueErrors = ! $record->unique_errors->isEmpty();
-        $hasRecurringErrors = ! $record->recurring_errors->isEmpty();
+        $errorsArray = iterator_to_array($errors);
+        if (empty($errorsArray)) {
+            return;
+        }
+
+        $text = StyledTextVO::empty()
+            ->newLine()
+            ->red()->append('=== Failed ')->append($type)->append(' Tasks ===')->reset();
+
+        foreach ($errorsArray as $error) {
+            $displayName = $error->alias ?? $error->identifier;
+            $text = $text
+                ->newLine()
+                ->append('    ')
+                ->red()->append('❌ ')->append($displayName)->append(': ')->append($error->error)->reset();
+        }
+
+        $this->info($text->value);
+    }
+
+    private function displayFullErrorsIfVerbose(
+        bool $verbose,
+        ProcessResultRecord $uniqueResult,
+        ProcessResultRecord $recurringResult
+    ): void {
+        if (! $verbose) {
+            return;
+        }
+
+        $hasUniqueErrors = ! $uniqueResult->errors->isEmpty();
+        $hasRecurringErrors = ! $recurringResult->errors->isEmpty();
 
         if (! $hasUniqueErrors && ! $hasRecurringErrors) {
             return;
         }
 
-        $this->newLine();
-        $this->info('<fg=red>=== Failed Tasks ===</>');
+        $text = StyledTextVO::empty()
+            ->newLine()
+            ->red()->append('=== Failed Tasks ===')->reset();
 
         if ($hasUniqueErrors) {
-            $this->info('  Unique tasks:');
-            foreach ($record->unique_errors as $error) {
+            $text = $text->newLine()->append('  Unique tasks:');
+            foreach ($uniqueResult->errors as $error) {
                 $displayName = $error->alias ?? $error->identifier;
-                $this->info(sprintf('    ❌ %s: %s', $displayName, $error->error));
+                $text = $text
+                    ->newLine()
+                    ->append('    ')
+                    ->red()->append('❌ ')->append($displayName)->append(': ')->append($error->error)->reset();
             }
         }
 
         if ($hasRecurringErrors) {
-            $this->info('  Recurring tasks:');
-            foreach ($record->recurring_errors as $error) {
+            $text = $text->newLine()->append('  Recurring tasks:');
+            foreach ($recurringResult->errors as $error) {
                 $displayName = $error->alias ?? $error->identifier;
-                $this->info(sprintf('    ❌ %s: %s', $displayName, $error->error));
+                $text = $text
+                    ->newLine()
+                    ->append('    ')
+                    ->red()->append('❌ ')->append($displayName)->append(': ')->append($error->error)->reset();
             }
         }
+
+        $this->info($text->value);
     }
 
     private function getDurationMilliseconds(Iso8601DateTimeVO $start): int

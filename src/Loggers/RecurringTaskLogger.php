@@ -10,6 +10,7 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Records\RecurringTaskRecord;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
 
 final class RecurringTaskLogger implements RecurringTaskLoggerInterface
 {
@@ -41,12 +42,12 @@ final class RecurringTaskLogger implements RecurringTaskLoggerInterface
         $this->logger->info(new LogDataRecord(type: 'recurring_task', payload: $payload));
     }
 
-    public function logFailure(RecurringTaskRecord $record, string $error): void
+    public function logFailure(RecurringTaskRecord $record, DescriptionVO $error): void
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'recurring_task_failed',
             'alias' => $record->alias->value,
-            'error' => $error,
+            'error' => $error->getValue(),
         ]);
 
         $this->logger->error(new LogDataRecord(type: 'recurring_task', payload: $payload));

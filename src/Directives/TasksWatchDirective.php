@@ -12,9 +12,14 @@ use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Task\Contracts\Services\WatchRendererServiceInterface;
 use AndyDefer\Task\Contracts\Services\WatchServiceInterface;
+use AndyDefer\Task\Enums\SignalName;
 use AndyDefer\Task\Records\CycleResultRecord;
 use AndyDefer\Task\Services\WatchService;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
 
 final class TasksWatchDirective extends AbstractDirective
 {
@@ -22,13 +27,13 @@ final class TasksWatchDirective extends AbstractDirective
 
     private bool $shouldStop = false;
 
-    private int $cycleCount = 0;
+    private CounterVO $cycleCount;
 
-    private int $totalSuccess = 0;
+    private CounterVO $totalSuccess;
 
-    private int $totalFailed = 0;
+    private CounterVO $totalFailed;
 
-    private int $totalErrors = 0;
+    private CounterVO $totalErrors;
 
     private ?Iso8601DateTimeVO $startedAt = null;
 
@@ -41,6 +46,11 @@ final class TasksWatchDirective extends AbstractDirective
         DirectiveInteractionService $interaction,
     ) {
         parent::__construct($context, $interaction);
+
+        $this->cycleCount = new CounterVO(0);
+        $this->totalSuccess = new CounterVO(0);
+        $this->totalFailed = new CounterVO(0);
+        $this->totalErrors = new CounterVO(0);
     }
 
     public function getSignature(): string
@@ -77,20 +87,22 @@ final class TasksWatchDirective extends AbstractDirective
         $lastException = null;
 
         while ($this->shouldContinue()) {
-            $this->cycleCount++;
+            $this->cycleCount = $this->cycleCount->increment();
 
             $cycleResult = $this->executeCycle();
 
             if ($cycleResult !== null) {
                 $hasErrors = $hasErrors || $cycleResult->hasErrors;
-                $this->totalSuccess += $cycleResult->success;
-                $this->totalFailed += $cycleResult->failed;
-                $this->totalErrors += $cycleResult->errors;
+
+                $this->totalSuccess = $this->totalSuccess->add($cycleResult->success);
+                $this->totalFailed = $this->totalFailed->add($cycleResult->failed);
+                $this->totalErrors = $this->totalErrors->add($cycleResult->errors);
+
                 $lastException = $cycleResult->message;
             }
 
             if ($this->shouldStop) {
-                $this->renderer->renderInterruptSignal('SIGINT');
+                $this->renderer->renderInterruptSignal($this->getSignalName(SIGINT));
                 break;
             }
 
@@ -172,12 +184,12 @@ final class TasksWatchDirective extends AbstractDirective
     public function handleSignal(int $signal): void
     {
         $this->shouldStop = true;
-        $signalName = match ($signal) {
-            SIGINT => 'SIGINT (Ctrl+C)',
-            SIGTERM => 'SIGTERM',
-            default => 'signal',
-        };
-        $this->renderer->renderInterruptSignal($signalName);
+        $this->renderer->renderInterruptSignal($this->getSignalName($signal));
+    }
+
+    private function getSignalName(int $signal): SignalName
+    {
+        return SignalName::fromNumber($signal) ?? SignalName::SIGTERM;
     }
 
     private function dispatchSignals(): void
@@ -198,16 +210,24 @@ final class TasksWatchDirective extends AbstractDirective
         $cycleStartedAt = new Iso8601DateTimeVO;
         $this->renderer->renderCycleStart($this->cycleCount, $cycleStartedAt);
 
+        $limit = $this->option('limit') !== null
+            ? new LimitVO((int) $this->option('limit'))
+            : null;
+
         $arguments = $this->service->buildArguments(
             uniqueOnly: $this->hasOption('unique-only'),
             recurringOnly: $this->hasOption('recurring-only'),
-            limit: $this->option('limit') !== null ? (int) $this->option('limit') : null,
+            limit: $limit,
             verbose: $this->hasOption('verbose')
         );
 
-        $result = $this->service->executeCycle($this->cycleCount, $arguments, $cycleStartedAt);
+        $result = $this->service->executeCycle(
+            $this->cycleCount,
+            $arguments,
+            $cycleStartedAt
+        );
 
-        $intervalSeconds = (int) ($this->option('interval') ?? 60);
+        $intervalSeconds = new DurationVO((float) ($this->option('interval') ?? 60));
         $this->renderer->renderCycleEnd($result, $cycleStartedAt, $intervalSeconds);
 
         return $result;
@@ -215,8 +235,11 @@ final class TasksWatchDirective extends AbstractDirective
 
     private function displayStartMessage(): void
     {
-        $duration = $this->option('duration');
-        $intervalSeconds = (int) ($this->option('interval') ?? 60);
+        $duration = $this->option('duration') !== null
+            ? new DurationVO((float) $this->option('duration'))
+            : null;
+
+        $intervalSeconds = new DurationVO((float) ($this->option('interval') ?? 60));
 
         $options = new StringTypedCollection;
 
@@ -237,17 +260,19 @@ final class TasksWatchDirective extends AbstractDirective
         }
 
         $this->renderer->renderStartMessage(
-            duration: $duration !== null ? (int) $duration : null,
+            duration: $duration,
             intervalSeconds: $intervalSeconds,
             options: $options,
             testingMode: $this->hasOption('testing')
         );
     }
 
-    private function renderSummary(?string $exception = null): void
+    private function renderSummary(?DescriptionVO $exception = null): void
     {
         $duration = $this->option('duration');
         $durationReached = $duration !== null;
+
+        $exceptionVO = $exception !== null ? $exception : null;
 
         $this->renderer->renderSummary(
             cycleCount: $this->cycleCount,
@@ -258,7 +283,7 @@ final class TasksWatchDirective extends AbstractDirective
             testingMode: $this->hasOption('testing'),
             stoppedBySignal: $this->shouldStop,
             durationReached: $durationReached,
-            exception: $exception
+            exception: $exceptionVO
         );
     }
 
@@ -266,18 +291,20 @@ final class TasksWatchDirective extends AbstractDirective
     {
         $this->dispatchSignals();
 
-        $duration = $this->option('duration');
+        $duration = $this->option('duration') !== null
+            ? new DurationVO((float) $this->option('duration'))
+            : null;
 
         return $this->service->shouldContinue(
             $this->shouldStop,
-            $duration !== null ? (int) $duration : null,
+            $duration,
             $this->startedAt
         );
     }
 
     private function waitForInterval(): void
     {
-        $intervalSeconds = (int) ($this->option('interval') ?? 60);
+        $intervalSeconds = new DurationVO((float) ($this->option('interval') ?? 60));
 
         $this->service->waitForInterval($intervalSeconds, function (): bool {
             return $this->shouldContinue();

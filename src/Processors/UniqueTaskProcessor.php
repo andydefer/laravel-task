@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Processors;
 
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
-use AndyDefer\Task\Contracts\Processors\UniqueTaskProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\ProcessorInterface;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
@@ -13,10 +13,12 @@ use AndyDefer\Task\Models\UniqueTask;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
 use Illuminate\Support\Carbon;
 
-final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
+final class UniqueTaskProcessor implements ProcessorInterface
 {
     public function __construct(
         private readonly UniqueTaskRepositoryInterface $repository,
@@ -24,19 +26,21 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
         private readonly UniqueTaskValidatorInterface $validator,
     ) {}
 
-    public function process(?int $limit = null): ProcessResultRecord
+    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord
     {
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
         $failed = 0;
         $errors = new TaskErrorRecordCollection;
 
-        $now = Carbon::now()->toIso8601String();
+        $now = new Iso8601DateTimeVO(Carbon::now()->toIso8601String());
 
         $tasks = $this->repository->findReadyToRun($now);
 
-        if ($limit !== null) {
-            $tasks = $tasks->take($limit);
+        $limitValue = $limit !== null ? $limit->getValue() : null;
+
+        if ($limitValue !== null) {
+            $tasks = $tasks->take($limitValue);
         }
 
         foreach ($tasks as $task) {
@@ -89,9 +93,9 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
         return ProcessResultRecord::from([
             'started_at' => $startedAt,
             'ended_at' => new Iso8601DateTimeVO,
-            'success' => $success,
-            'failed' => $failed,
-            'finished' => 0,
+            'success' => new CounterVO($success),
+            'failed' => new CounterVO($failed),
+            'finished' => new CounterVO(0),
             'errors' => $errors,
         ]);
     }

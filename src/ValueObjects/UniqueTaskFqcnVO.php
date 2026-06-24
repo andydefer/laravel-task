@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\ValueObjects;
 
-use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use AndyDefer\Task\Abstract\AbstractUniqueTask;
 
-final class UniqueTaskFqcnVO extends AbstractValueObject
+final class UniqueTaskFqcnVO extends TaskFqcnVO
 {
     public readonly string $value;
 

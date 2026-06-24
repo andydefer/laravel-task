@@ -4,77 +4,142 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Contracts\Services;
 
-use Illuminate\Support\Collection;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\Collections\TaskExecutionDebugRecordCollection;
+use AndyDefer\Task\Enums\ExecutionStatus;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\TaskFqcnVO;
 
 interface TaskExecutionDebugServiceInterface
 {
     /**
-     * Récupère tous les logs de debug pour une tâche spécifique.
+     * Récupère tous les logs de debug pour un alias spécifique.
      *
-     * @param  string  $taskType  Type de tâche (ex: 'recurring', 'unique')
-     * @param  string  $taskIdentifier  Identifiant de la tâche (alias ou UUID)
-     * @return Collection<int, object> Collection des entrées de debug
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @return TaskExecutionDebugRecordCollection Collection des enregistrements de debug
      */
-    public function findByTask(string $taskType, string $taskIdentifier): Collection;
+    public function findByAlias(TaskAliasVO $alias): TaskExecutionDebugRecordCollection;
 
     /**
-     * Ajoute une entrée de debug pour une tâche.
+     * Récupère tous les logs de debug pour un FQCN spécifique.
      *
-     * @param  string  $taskType  Type de tâche (ex: 'recurring', 'unique')
-     * @param  string  $taskIdentifier  Identifiant de la tâche (alias ou UUID)
-     * @param  string  $status  Statut de l'opération (ex: 'started', 'completed', 'failed')
-     * @param  string  $info  Informations supplémentaires sur l'opération
+     * @param  TaskFqcnVO  $fqcn  FQCN de la tâche
+     * @return TaskExecutionDebugRecordCollection Collection des enregistrements de debug
      */
-    public function addDebug(string $taskType, string $taskIdentifier, string $status, string $info): void;
+    public function findByFqcn(TaskFqcnVO $fqcn): TaskExecutionDebugRecordCollection;
 
     /**
      * Récupère les logs de debug pour une tâche récurrente.
      *
-     * @param  string  $alias  Alias de la tâche récurrente
-     * @return Collection<int, object> Collection des entrées de debug
+     * @param  TaskAliasVO  $alias  Alias de la tâche récurrente
+     * @return TaskExecutionDebugRecordCollection Collection des enregistrements de debug
      */
-    public function findByRecurringTask(string $alias): Collection;
+    public function findByRecurringTask(TaskAliasVO $alias): TaskExecutionDebugRecordCollection;
 
     /**
      * Récupère les logs de debug pour une tâche unique.
      *
-     * @param  string  $taskId  UUID de la tâche unique
-     * @return Collection<int, object> Collection des entrées de debug
+     * @param  TaskAliasVO  $alias  Alias de la tâche unique
+     * @return TaskExecutionDebugRecordCollection Collection des enregistrements de debug
      */
-    public function findByUniqueTask(string $taskId): Collection;
+    public function findByUniqueTask(TaskAliasVO $alias): TaskExecutionDebugRecordCollection;
+
+    /**
+     * Ajoute une entrée de debug pour une tâche.
+     *
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @param  TaskFqcnVO  $fqcn  FQCN de la tâche
+     * @param  ExecutionStatus  $status  Statut de l'opération
+     * @param  DescriptionVO  $info  Informations supplémentaires sur l'opération
+     * @param  StrictDataObject|null  $data  Données supplémentaires optionnelles
+     */
+    public function addDebug(
+        TaskAliasVO $alias,
+        TaskFqcnVO $fqcn,
+        ExecutionStatus $status,
+        DescriptionVO $info,
+        ?StrictDataObject $data = null
+    ): bool;
 
     /**
      * Ajoute une entrée de debug pour une tâche récurrente.
      *
-     * @param  string  $alias  Alias de la tâche récurrente
-     * @param  string  $status  Statut de l'opération
-     * @param  string  $info  Informations supplémentaires
+     * @param  TaskAliasVO  $alias  Alias de la tâche récurrente
+     * @param  TaskFqcnVO  $fqcn  FQCN de la tâche récurrente
+     * @param  ExecutionStatus  $status  Statut de l'opération
+     * @param  DescriptionVO  $info  Informations supplémentaires sur l'opération
+     * @param  StrictDataObject|null  $data  Données supplémentaires optionnelles
      */
-    public function addDebugForRecurringTask(string $alias, string $status, string $info): void;
+    public function addDebugForRecurringTask(
+        TaskAliasVO $alias,
+        TaskFqcnVO $fqcn,
+        ExecutionStatus $status,
+        DescriptionVO $info,
+        ?StrictDataObject $data = null
+    ): bool;
 
     /**
      * Ajoute une entrée de debug pour une tâche unique.
      *
-     * @param  string  $taskId  UUID de la tâche unique
-     * @param  string  $status  Statut de l'opération
-     * @param  string  $info  Informations supplémentaires
+     * @param  TaskAliasVO  $alias  Alias de la tâche unique
+     * @param  TaskFqcnVO  $fqcn  FQCN de la tâche unique
+     * @param  ExecutionStatus  $status  Statut de l'opération
+     * @param  DescriptionVO  $info  Informations supplémentaires sur l'opération
+     * @param  StrictDataObject|null  $data  Données supplémentaires optionnelles
      */
-    public function addDebugForUniqueTask(string $taskId, string $status, string $info): void;
+    public function addDebugForUniqueTask(
+        TaskAliasVO $alias,
+        TaskFqcnVO $fqcn,
+        ExecutionStatus $status,
+        DescriptionVO $info,
+        ?StrictDataObject $data = null
+    ): bool;
 
     /**
-     * Supprime tous les logs de debug pour une tâche spécifique.
+     * Supprime tous les logs de debug pour un alias spécifique.
      *
-     * @param  string  $taskType  Type de tâche (ex: 'recurring', 'unique')
-     * @param  string  $taskIdentifier  Identifiant de la tâche (alias ou UUID)
+     * @param  TaskAliasVO  $alias  Alias de la tâche
      */
-    public function clearTaskDebug(string $taskType, string $taskIdentifier): void;
+    public function clearTaskDebug(TaskAliasVO $alias): bool;
 
     /**
-     * Compte le nombre d'entrées de debug pour une tâche spécifique.
+     * Supprime tous les logs de debug pour un FQCN spécifique.
      *
-     * @param  string  $taskType  Type de tâche (ex: 'recurring', 'unique')
-     * @param  string  $taskIdentifier  Identifiant de la tâche (alias ou UUID)
-     * @return int Nombre d'entrées de debug
+     * @param  TaskFqcnVO  $fqcn  FQCN de la tâche
      */
-    public function countTaskDebug(string $taskType, string $taskIdentifier): int;
+    public function clearTaskDebugByFqcn(TaskFqcnVO $fqcn): bool;
+
+    /**
+     * Compte le nombre d'entrées de debug pour un alias spécifique.
+     *
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @return CounterVO Nombre d'entrées de debug
+     */
+    public function countTaskDebug(TaskAliasVO $alias): CounterVO;
+
+    /**
+     * Compte le nombre d'entrées de debug pour un FQCN spécifique.
+     *
+     * @param  TaskFqcnVO  $fqcn  FQCN de la tâche
+     * @return CounterVO Nombre d'entrées de debug
+     */
+    public function countTaskDebugByFqcn(TaskFqcnVO $fqcn): CounterVO;
+
+    /**
+     * Vérifie si un alias a des logs de debug.
+     *
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @return bool True si des logs existent, false sinon
+     */
+    public function hasDebug(TaskAliasVO $alias): bool;
+
+    /**
+     * Vérifie si un FQCN a des logs de debug.
+     *
+     * @param  TaskFqcnVO  $fqcn  FQCN de la tâche
+     * @return bool True si des logs existent, false sinon
+     */
+    public function hasDebugByFqcn(TaskFqcnVO $fqcn): bool;
 }

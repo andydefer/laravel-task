@@ -9,11 +9,21 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('task_execution_debugs', function (Blueprint $table) {
-            $table->id();
-            $table->string('task_type');
-            $table->string('task_identifier');
-            $table->json('data');
+            $table->uuid('id')->primary();
+            $table->string('alias');
+            $table->string('fqcn');
+            $table->string('status')->default('failed');
+            $table->timestamp('started_at')->nullable();
+            $table->timestamp('ended_at')->nullable();
+            $table->json('data')->nullable();
             $table->timestamps();
+            $table->softDeletes();
+
+            $table->index('alias');
+            $table->index('fqcn');
+            $table->index('status');
+            $table->index('started_at');
+            $table->index('ended_at');
         });
     }
 

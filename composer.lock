@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b0294a17a85df1e4cd42b12f6dcf67db",
+    "content-hash": "9b4401bb8634e84371d7b0621d4d2fd0",
     "packages": [
         {
             "name": "andydefer/domain-structures",
@@ -291,56 +291,6 @@
                 "source": "https://github.com/andydefer/laravel-repository/tree/v2.9.0"
             },
             "time": "2026-06-22T07:28:40+00:00"
-        },
-        {
-            "name": "andydefer/php-client",
-            "version": "v0.1.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/andydefer/php-client.git",
-                "reference": "a0f9c7b3519383818cec6e90c5307275a0d3991c"
-            },
-            "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/php-client/zipball/a0f9c7b3519383818cec6e90c5307275a0d3991c",
-                "reference": "a0f9c7b3519383818cec6e90c5307275a0d3991c",
-                "shasum": ""
-            },
-            "require": {
-                "andydefer/domain-structures": "^1.19.1",
-                "guzzlehttp/guzzle": "^7.11",
-                "php": "^8.2"
-            },
-            "require-dev": {
-                "larastan/larastan": "^3.8",
-                "laravel/pint": "^1.26",
-                "phpunit/phpunit": "^12.5",
-                "rector/rector": "*",
-                "symfony/var-dumper": "^7.0",
-                "vimeo/psalm": "^6.14"
-            },
-            "type": "library",
-            "autoload": {
-                "psr-4": {
-                    "AndyDefer\\PhpClient\\": "src/"
-                }
-            },
-            "notification-url": "https://packagist.org/downloads/",
-            "license": [
-                "MIT"
-            ],
-            "authors": [
-                {
-                    "name": "Andy Kani",
-                    "email": "andykanidimbu@gmail.com"
-                }
-            ],
-            "description": "PSR-7 compliant HTTP client with type-safe request/response handling and SOLID architecture",
-            "support": {
-                "issues": "https://github.com/andydefer/php-client/issues",
-                "source": "https://github.com/andydefer/php-client/tree/v0.1.1"
-            },
-            "time": "2026-06-17T12:42:42+00:00"
         },
         {
             "name": "andydefer/php-services",

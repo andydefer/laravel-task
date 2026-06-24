@@ -15,7 +15,10 @@ use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
 use AndyDefer\Task\Records\ExecutionResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use Illuminate\Contracts\Foundation\Application;
 
 final class RecurringTaskRunner implements RecurringTaskRunnerInterface
@@ -50,7 +53,7 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
             return ExecutionResultRecord::from([
                 'success' => true,
                 'error' => null,
-                'execution_time' => 0.0,
+                'execution_time' => new DurationVO(0.0),
             ]);
         }
 
@@ -64,13 +67,15 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
         try {
             $task->execute($record->payload);
             $success = true;
-            $this->logger->logSuccess($record, $this->calculateDuration($startTime));
+
+            $duration = $startTime->elapsed();
+            $this->logger->logSuccess($record, new MillisecondsVO((int) $duration->toMilliseconds()));
         } catch (\Throwable $e) {
             $error = $e->getMessage();
-            $this->logger->logFailure($record, $error);
+            $this->logger->logFailure($record, new DescriptionVO($error));
         }
 
-        $this->repository->updateAfterRun($record, $success, $error);
+        $this->repository->updateAfterRun($record, $success, $error !== null ? new DescriptionVO($error) : null);
 
         return ExecutionResultRecord::from([
             'success' => $success,
@@ -79,7 +84,7 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
                 'fqcn' => $record->fqcn->getValue(),
                 'error' => $error,
             ]) : null,
-            'execution_time' => $this->calculateDuration($startTime),
+            'execution_time' => $startTime->elapsed(),
         ]);
     }
 
@@ -96,12 +101,5 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
         $className = $record->fqcn->getValue();
 
         return new $className($context, $this->app->make(LoggerInterface::class), $this->hydration);
-    }
-
-    private function calculateDuration(Iso8601DateTimeVO $start): float
-    {
-        $end = new Iso8601DateTimeVO;
-
-        return strtotime($end->value) - strtotime($start->value);
     }
 }

@@ -10,21 +10,26 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Abstract\AbstractUniqueTask;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
+use AndyDefer\Task\Collections\UniqueTaskRecordCollection;
 use AndyDefer\Task\Contexts\UniqueTaskContext;
-use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask as ModelsUniqueTask;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
+use AndyDefer\Task\Records\TaskRunResultRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskConfigVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\Carbon;
-use Ramsey\Uuid\UuidFactoryInterface;
+use Ramsey\Uuid\Uuid;
 
 final class UniqueTaskService implements UniqueTaskServiceInterface
 {
@@ -32,62 +37,84 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         private readonly UniqueTaskRepositoryInterface $repository,
         private readonly LoggerInterface $logger,
         private readonly HydrationService $hydration,
-        private readonly UuidFactoryInterface $uuidFactory,
         private readonly Application $app,
     ) {}
 
     public function register(
-        string $taskClass,
+        UniqueTaskFqcnVO $fqcn,
         StrictDataObject $payload,
-        ?UniqueTaskConfigInterface $config = null
-    ): TaskIdVO {
-        $this->validateTaskClass($taskClass);
+        UniqueTaskConfigVO $config
+    ): TaskAliasVO {
+        $uuid = (string) Uuid::uuid4();
 
-        $task = $this->app->make($taskClass);
-        $baseConfig = $task->getConfig();
-        $finalConfig = $config ?? $baseConfig;
-
-        $taskId = new TaskIdVO((string) $this->uuidFactory->uuid4());
+        $alias = new TaskAliasVO(
+            type: $config->type,
+            uuid: $uuid
+        );
 
         $record = UniqueTaskRecord::from([
-            'id' => $taskId,
-            'alias' => $finalConfig->getAlias(),
-            'fqcn' => $taskClass,
+            'alias' => $alias,
+            'fqcn' => $fqcn,
             'payload' => $payload,
-            'scheduled_at' => $finalConfig->getScheduledAt(),
+            'scheduled_at' => $config->getScheduledAt(),
             'status' => UniqueTaskStatus::PENDING,
-            'max_attempts' => $finalConfig->getMaxAttempts(),
+            'max_attempts' => $config->getMaxAttempts(),
         ]);
 
-        $this->repository->create($record);
+        $model = $this->repository->create($record);
 
-        return $taskId;
+        return $model->getAlias();
     }
 
-    public function run(TaskIdVO $taskId): bool
+    public function run(TaskAliasVO $alias): TaskRunResultRecord
     {
-        $model = $this->repository->findById($taskId->value);
+        $startTime = new Iso8601DateTimeVO;
+
+        $model = $this->repository->findByAlias($alias);
         if ($model === null) {
-            return false;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => 'Task not found',
+                'execution_time' => new DurationVO(0.0),
+            ]);
         }
 
         $taskRecord = $this->modelToRecord($model);
 
         if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
-            return false;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => sprintf(
+                    'Task is not in PENDING state (current: %s)',
+                    $taskRecord->status->value
+                ),
+                'execution_time' => new DurationVO(0.0),
+            ]);
         }
 
-        $now = Carbon::now();
-        $scheduledAt = Carbon::parse($taskRecord->scheduled_at->value);
+        $now = new Iso8601DateTimeVO;
+        $scheduledAt = $taskRecord->scheduled_at;
 
-        if ($scheduledAt->gt($now)) {
-            return false;
+        if ($scheduledAt->isAfter($now)) {
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => 'Task is scheduled in the future',
+                'execution_time' => new DurationVO(0.0),
+            ]);
         }
 
         if ($taskRecord->attempts->value >= $taskRecord->max_attempts->value) {
             $this->repository->moveToFailed($taskRecord);
 
-            return false;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => 'Maximum attempts reached',
+                'execution_time' => new DurationVO(0.0),
+            ]);
         }
 
         $task = $this->instantiateTask($taskRecord->fqcn, $taskRecord);
@@ -96,7 +123,11 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             $task->execute($taskRecord->payload);
             $this->repository->moveToCompleted($taskRecord);
 
-            return true;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => true,
+                'execution_time' => $startTime->elapsed(),
+            ]);
         } catch (\Throwable $e) {
             $newAttempts = $taskRecord->attempts->increment();
 
@@ -106,45 +137,54 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 $model->update(['attempts' => $newAttempts->value]);
             }
 
-            return false;
+            return TaskRunResultRecord::from([
+                'alias' => $alias,
+                'success' => false,
+                'error' => $e->getMessage(),
+                'execution_time' => $startTime->elapsed(),
+            ]);
         }
     }
 
-    public function process(?int $limit = null): ProcessResultRecord
+    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord
     {
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
         $failed = 0;
         $errors = new TaskErrorRecordCollection;
 
-        $now = Carbon::now()->toIso8601String();
+        $now = new Iso8601DateTimeVO;
 
         $tasks = $this->repository->findReadyToRun($now);
 
         if ($limit !== null) {
-            $tasks = $tasks->take($limit);
+            $tasks = $tasks->take($limit->getValue());
         }
 
         foreach ($tasks as $task) {
             $record = $this->modelToRecord($task);
 
             try {
-                $result = $this->run($record->id);
-                if ($result) {
+                $result = $this->run($record->alias);
+                if ($result->success) {
                     $success++;
                 } else {
                     $failed++;
                     $errors->add(TaskErrorRecord::from([
-                        'alias' => $record->alias->value,
+                        'alias' => $result->alias->getValue(),
                         'fqcn' => $record->fqcn->getValue(),
-                        'error' => 'Task execution failed',
-                        'context' => 'attempts: '.$record->attempts->value.'/'.$record->max_attempts->value,
+                        'error' => $result->error ?? 'Task execution failed',
+                        'context' => sprintf(
+                            'attempts: %d/%d',
+                            $record->attempts->value,
+                            $record->max_attempts->value
+                        ),
                     ]));
                 }
             } catch (\Throwable $e) {
                 $failed++;
                 $errors->add(TaskErrorRecord::from([
-                    'alias' => $record->alias->value,
+                    'alias' => $record->alias->getValue(),
                     'fqcn' => $record->fqcn->getValue(),
                     'error' => $e->getMessage(),
                     'context' => 'Exception during execution',
@@ -158,104 +198,126 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             $this->repository->moveToFailed($taskRecord);
             $failed++;
             $errors->add(TaskErrorRecord::from([
-                'alias' => $taskRecord->alias->value,
+                'alias' => $taskRecord->alias->getValue(),
                 'fqcn' => $taskRecord->fqcn->getValue(),
                 'error' => 'Task expired',
-                'context' => 'scheduled_at: '.$taskRecord->scheduled_at->value.', grace_period: '.$taskRecord->grace_period_seconds,
+                'context' => sprintf(
+                    'scheduled_at: %s, grace_period: %d',
+                    $taskRecord->scheduled_at->value,
+                    $taskRecord->grace_period_seconds
+                ),
             ]));
         }
 
         return ProcessResultRecord::from([
             'started_at' => $startedAt,
             'ended_at' => new Iso8601DateTimeVO,
-            'success' => $success,
-            'failed' => $failed,
-            'finished' => 0,
+            'success' => new CounterVO($success),
+            'failed' => new CounterVO($failed),
+            'finished' => new CounterVO(0),
             'errors' => $errors,
         ]);
     }
 
-    public function cancel(TaskIdVO $taskId, ?string $reason = null): void
+    public function cancel(TaskAliasVO $alias, ?DescriptionVO $reason = null): bool
     {
-        $model = $this->repository->findById($taskId->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$taskId->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $taskRecord = $this->modelToRecord($model);
+
+            if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
+                return false;
+            }
+
+            $this->repository->moveToCanceled($taskRecord);
+
+            $this->logger->warning(LogDataRecord::from([
+                'type' => 'unique_task_cancelled',
+                'payload' => $this->hydration->hydrate(StrictDataObject::class, [
+                    'alias' => $alias->getValue(),
+                    'reason' => $reason?->getValue() ?? 'Cancelled by user',
+                ]),
+            ]));
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $taskRecord = $this->modelToRecord($model);
-
-        if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
-            throw new \RuntimeException("Task '{$taskId->value}' is not in PENDING state");
-        }
-
-        $this->repository->moveToCanceled($taskRecord);
-
-        $this->logger->warning(new LogDataRecord(
-            type: 'unique_task_cancelled',
-            payload: $this->hydration->hydrate(StrictDataObject::class, [
-                'task_id' => $taskId->value,
-                'reason' => $reason ?? 'Cancelled by user',
-            ])
-        ));
     }
 
-    public function reschedule(TaskIdVO $taskId, Iso8601DateTimeVO $newScheduledAt): void
+    public function reschedule(TaskAliasVO $alias, Iso8601DateTimeVO $newScheduledAt): bool
     {
-        $model = $this->repository->findById($taskId->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$taskId->value}");
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $taskRecord = $this->modelToRecord($model);
+
+            if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
+                return false;
+            }
+
+            $model->update(['scheduled_at' => $newScheduledAt->forDatabase()]);
+
+            $this->logger->info(LogDataRecord::from([
+                'type' => 'unique_task_rescheduled',
+                'payload' => $this->hydration->hydrate(StrictDataObject::class, [
+                    'alias' => $alias->getValue(),
+                    'new_scheduled_at' => $newScheduledAt->value,
+                ]),
+            ]));
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $taskRecord = $this->modelToRecord($model);
-
-        if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
-            throw new \RuntimeException("Task '{$taskId->value}' is not in PENDING state");
-        }
-
-        $model->update(['scheduled_at' => $newScheduledAt->toDateTime()->format('Y-m-d H:i:s')]);
-
-        $this->logger->info(new LogDataRecord(
-            type: 'unique_task_rescheduled',
-            payload: $this->hydration->hydrate(StrictDataObject::class, [
-                'task_id' => $taskId->value,
-                'new_scheduled_at' => $newScheduledAt->value,
-            ])
-        ));
     }
 
-    public function extendGracePeriod(TaskIdVO $taskId, int $extraSeconds): void
+    public function extendGracePeriod(TaskAliasVO $alias, DurationVO $extraSeconds): bool
     {
-        if ($extraSeconds <= 0) {
-            throw new \InvalidArgumentException('Extra seconds must be positive');
+        try {
+            if ($extraSeconds->seconds <= 0) {
+                return false;
+            }
+
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+
+            $taskRecord = $this->modelToRecord($model);
+
+            if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
+                return false;
+            }
+
+            $currentGracePeriod = $model->getGracePeriodSeconds();
+            $model->update(['grace_period_seconds' => $currentGracePeriod + (int) $extraSeconds->seconds]);
+
+            $this->logger->info(LogDataRecord::from([
+                'type' => 'unique_task_grace_period_extended',
+                'payload' => $this->hydration->hydrate(StrictDataObject::class, [
+                    'alias' => $alias->getValue(),
+                    'extra_seconds' => (int) $extraSeconds->seconds,
+                    'new_grace_period' => $currentGracePeriod + (int) $extraSeconds->seconds,
+                ]),
+            ]));
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
         }
-
-        $model = $this->repository->findById($taskId->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$taskId->value}");
-        }
-
-        $taskRecord = $this->modelToRecord($model);
-
-        if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
-            throw new \RuntimeException("Task '{$taskId->value}' is not in PENDING state");
-        }
-
-        $currentGracePeriod = $model->getGracePeriodSeconds();
-        $model->update(['grace_period_seconds' => $currentGracePeriod + $extraSeconds]);
-
-        $this->logger->info(new LogDataRecord(
-            type: 'unique_task_grace_period_extended',
-            payload: $this->hydration->hydrate(StrictDataObject::class, [
-                'task_id' => $taskId->value,
-                'extra_seconds' => $extraSeconds,
-                'new_grace_period' => $currentGracePeriod + $extraSeconds,
-            ])
-        ));
     }
 
-    public function find(TaskIdVO $taskId): ?UniqueTaskRecord
+    public function find(TaskAliasVO $alias): ?UniqueTaskRecord
     {
-        $model = $this->repository->findById($taskId->value);
+        $model = $this->repository->findByAlias($alias);
         if ($model === null) {
             return null;
         }
@@ -263,78 +325,97 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         return $this->modelToRecord($model);
     }
 
-    public function findPending(?int $limit = null): array
+    public function findPending(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection
     {
         $models = $this->repository->findPending($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
+        $collection = new UniqueTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
+        }
+
+        return $collection;
     }
 
-    public function findCompleted(?int $limit = null): array
+    public function findCompleted(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection
     {
         $models = $this->repository->findCompleted($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
+        $collection = new UniqueTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
+        }
+
+        return $collection;
     }
 
-    public function findFailed(?int $limit = null): array
+    public function findFailed(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection
     {
         $models = $this->repository->findFailed($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
+        $collection = new UniqueTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
+        }
+
+        return $collection;
     }
 
-    public function findCanceled(?int $limit = null): array
+    public function findCanceled(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection
     {
         $models = $this->repository->findCanceled($limit);
 
-        return $models->map(fn ($model) => $this->modelToRecord($model))->all();
-    }
-
-    public function exists(TaskIdVO $taskId): bool
-    {
-        return $this->repository->findById($taskId->value) !== null;
-    }
-
-    public function delete(TaskIdVO $taskId): void
-    {
-        $model = $this->repository->findById($taskId->value);
-        if ($model === null) {
-            throw new \RuntimeException("Task not found: {$taskId->value}");
+        $collection = new UniqueTaskRecordCollection;
+        foreach ($models as $model) {
+            $collection->add($this->modelToRecord($model));
         }
-        $model->delete();
+
+        return $collection;
     }
 
-    public function count(): int
+    public function exists(TaskAliasVO $alias): bool
     {
-        return $this->repository->count();
+        return $this->repository->findByAlias($alias) !== null;
     }
 
-    public function countPending(): int
+    public function delete(TaskAliasVO $alias): bool
+    {
+        try {
+            $model = $this->repository->findByAlias($alias);
+            if ($model === null) {
+                return false;
+            }
+            $model->delete();
+
+            return true;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    public function count(): CounterVO
+    {
+        return new CounterVO($this->repository->count());
+    }
+
+    public function countPending(): CounterVO
     {
         return $this->repository->countPending();
     }
 
-    public function countCompleted(): int
+    public function countCompleted(): CounterVO
     {
         return $this->repository->countCompleted();
     }
 
-    public function countFailed(): int
+    public function countFailed(): CounterVO
     {
         return $this->repository->countFailed();
     }
 
-    public function countCanceled(): int
+    public function countCanceled(): CounterVO
     {
         return $this->repository->countCanceled();
-    }
-
-    private function validateTaskClass(string $taskClass): void
-    {
-        if (! is_subclass_of($taskClass, AbstractUniqueTask::class)) {
-            throw new \InvalidArgumentException('Task must extend AbstractUniqueTask');
-        }
     }
 
     private function instantiateTask(UniqueTaskFqcnVO $fqcn, UniqueTaskRecord $record): AbstractUniqueTask

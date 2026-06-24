@@ -9,10 +9,10 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Contexts\UniqueTaskContext;
-use AndyDefer\Task\Contracts\Abstract\UniqueTaskInterface;
-use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
+use AndyDefer\Task\Contracts\Abstract\TaskInterface;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
 
-abstract class AbstractUniqueTask implements UniqueTaskInterface
+abstract class AbstractUniqueTask implements TaskInterface
 {
     protected UniqueTaskContext $context;
 
@@ -29,8 +29,6 @@ abstract class AbstractUniqueTask implements UniqueTaskInterface
         $this->logger = $logger;
         $this->hydration = $hydration;
     }
-
-    abstract public function getConfig(): UniqueTaskConfigInterface;
 
     abstract protected function process(): void;
 
@@ -83,24 +81,24 @@ abstract class AbstractUniqueTask implements UniqueTaskInterface
         }
     }
 
-    public function info(string $message): void
+    public function info(DescriptionVO $message): void
     {
         $this->logger->info(new LogDataRecord(
             type: 'unique_task_output',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'info',
-                'message' => $message,
+                'message' => $message->getValue(),
             ])
         ));
     }
 
-    public function error(string $message): void
+    public function error(DescriptionVO $message): void
     {
         $this->logger->error(new LogDataRecord(
             type: 'unique_task_output',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'error',
-                'message' => $message,
+                'message' => $message->getValue(),
             ])
         ));
     }

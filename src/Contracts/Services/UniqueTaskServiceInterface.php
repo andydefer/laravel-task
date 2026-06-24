@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Contracts\Services;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
+use AndyDefer\Task\Collections\UniqueTaskRecordCollection;
 use AndyDefer\Task\Records\ProcessResultRecord;
+use AndyDefer\Task\Records\TaskRunResultRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskConfigVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 
 interface UniqueTaskServiceInterface
 {
@@ -18,153 +25,139 @@ interface UniqueTaskServiceInterface
     /**
      * Enregistre une nouvelle tâche unique.
      *
-     * @param  string  $taskClass  Classe de la tâche (doit étendre UniqueTask)
+     * @param  UniqueTaskFqcnVO  $fqcn  Classe de la tâche (doit étendre AbstractUniqueTask)
      * @param  StrictDataObject  $payload  Données de la tâche
-     * @param  UniqueTaskConfigInterface|null  $config  Configuration personnalisée
-     * @return TaskIdVO ID de la tâche créée
-     *
-     * @throws \InvalidArgumentException Si la classe est invalide
+     * @param  UniqueTaskConfigVO  $config  Configuration de la tâche
+     * @return TaskAliasVO Alias de la tâche créée
      */
     public function register(
-        string $taskClass,
+        UniqueTaskFqcnVO $fqcn,
         StrictDataObject $payload,
-        ?UniqueTaskConfigInterface $config = null
-    ): TaskIdVO;
+        UniqueTaskConfigVO $config
+    ): TaskAliasVO;
 
     // ==================== EXÉCUTION ====================
 
     /**
-     * Exécute une tâche unique.
+     * Exécute une tâche unique spécifique.
      *
-     * @param  TaskIdVO  $taskId  ID de la tâche
-     * @return bool Succès de l'exécution
+     * @param  TaskAliasVO  $alias  Alias de la tâche à exécuter
+     * @return TaskRunResultRecord Résultat de l'exécution
      */
-    public function run(TaskIdVO $taskId): bool;
+    public function run(TaskAliasVO $alias): TaskRunResultRecord;
 
     /**
-     * Exécute toutes les tâches prêtes.
+     * Exécute toutes les tâches uniques prêtes (scheduled_at <= now).
      *
-     * @param  int|null  $limit  Nombre maximum de tâches à exécuter
+     * @param  LimitVO  $limit  Nombre maximum de tâches à exécuter
      * @return ProcessResultRecord Résultats de l'exécution
      */
-    public function process(?int $limit = null): ProcessResultRecord;
+    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord;
 
     // ==================== GESTION DES TÂCHES ====================
 
     /**
      * Annule une tâche en attente.
-     * La tâche est marquée comme CANCELED avec le message d'annulation.
      *
-     * @param  TaskIdVO  $taskId  ID de la tâche
-     * @param  string|null  $reason  Raison de l'annulation
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @param  DescriptionVO  $reason  Raison de l'annulation
      *
-     * @throws \RuntimeException Si la tâche n'existe pas ou est déjà terminée
+     * @throws \RuntimeException Si la tâche n'existe pas ou n'est pas en PENDING
      */
-    public function cancel(TaskIdVO $taskId, ?string $reason = null): void;
+    public function cancel(TaskAliasVO $alias, ?DescriptionVO $reason = null): bool;
 
     /**
      * Repousse la date d'exécution d'une tâche en attente.
      *
-     * @param  TaskIdVO  $taskId  ID de la tâche
+     * @param  TaskAliasVO  $alias  Alias de la tâche
      * @param  Iso8601DateTimeVO  $newScheduledAt  Nouvelle date planifiée
      *
-     * @throws \RuntimeException Si la tâche n'existe pas ou est déjà terminée
+     * @throws \RuntimeException Si la tâche n'existe pas ou n'est pas en PENDING
      */
-    public function reschedule(TaskIdVO $taskId, Iso8601DateTimeVO $newScheduledAt): void;
+    public function reschedule(TaskAliasVO $alias, Iso8601DateTimeVO $newScheduledAt): bool;
 
     /**
      * Prolonge la période de grâce d'une tâche en attente.
      *
-     * @param  TaskIdVO  $taskId  ID de la tâche
-     * @param  int  $extraSeconds  Secondes supplémentaires à ajouter à la période de grâce
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @param  DurationVO  $extraSeconds  Secondes supplémentaires à ajouter
      *
-     * @throws \RuntimeException Si la tâche n'existe pas ou est déjà terminée
+     * @throws \RuntimeException Si la tâche n'existe pas ou n'est pas en PENDING
+     * @throws \InvalidArgumentException Si $extraSeconds est négatif ou nul
      */
-    public function extendGracePeriod(TaskIdVO $taskId, int $extraSeconds): void;
+    public function extendGracePeriod(TaskAliasVO $alias, DurationVO $extraSeconds): bool;
 
     // ==================== RECHERCHE ====================
 
     /**
-     * Trouve une tâche par son ID.
+     * Trouve une tâche par son alias.
      *
-     * @param  TaskIdVO  $taskId  ID de la tâche
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @return UniqueTaskRecord|null Le record de la tâche ou null si non trouvée
      */
-    public function find(TaskIdVO $taskId): ?UniqueTaskRecord;
+    public function find(TaskAliasVO $alias): ?UniqueTaskRecord;
 
     /**
      * Récupère toutes les tâches en attente.
      *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<UniqueTaskRecord>
+     * @param  LimitVO  $limit  Nombre maximum de tâches
      */
-    public function findPending(?int $limit = null): array;
+    public function findPending(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection;
 
     /**
      * Récupère toutes les tâches terminées avec succès.
      *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<UniqueTaskRecord>
+     * @param  LimitVO  $limit  Nombre maximum de tâches
      */
-    public function findCompleted(?int $limit = null): array;
+    public function findCompleted(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection;
 
     /**
      * Récupère toutes les tâches en échec.
      *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<UniqueTaskRecord>
+     * @param  LimitVO  $limit  Nombre maximum de tâches
      */
-    public function findFailed(?int $limit = null): array;
+    public function findFailed(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection;
 
     /**
      * Récupère toutes les tâches annulées.
      *
-     * @param  int|null  $limit  Nombre maximum de tâches
-     * @return array<UniqueTaskRecord>
+     * @param  LimitVO  $limit  Nombre maximum de tâches
      */
-    public function findCanceled(?int $limit = null): array;
+    public function findCanceled(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection;
 
     /**
      * Vérifie si une tâche existe.
      *
-     * @param  TaskIdVO  $taskId  ID de la tâche
+     * @param  TaskAliasVO  $alias  Alias de la tâche
+     * @return bool True si la tâche existe
      */
-    public function exists(TaskIdVO $taskId): bool;
+    public function exists(TaskAliasVO $alias): bool;
 
     // ==================== SUPPRESSION ====================
 
     /**
-     * Supprime une tâche.
+     * Supprime définitivement une tâche.
      *
-     * @param  TaskIdVO  $taskId  ID de la tâche
+     * @param  TaskAliasVO  $alias  Alias de la tâche
      *
      * @throws \RuntimeException Si la tâche n'existe pas
      */
-    public function delete(TaskIdVO $taskId): void;
+    public function delete(TaskAliasVO $alias): bool;
 
     // ==================== COMPTAGE ====================
 
-    /**
-     * Compte le nombre total de tâches.
-     */
-    public function count(): int;
+    /** Compte le nombre total de tâches uniques. */
+    public function count(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches en attente.
-     */
-    public function countPending(): int;
+    /** Compte le nombre de tâches en attente. */
+    public function countPending(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches terminées avec succès.
-     */
-    public function countCompleted(): int;
+    /** Compte le nombre de tâches terminées avec succès. */
+    public function countCompleted(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches en échec.
-     */
-    public function countFailed(): int;
+    /** Compte le nombre de tâches en échec. */
+    public function countFailed(): CounterVO;
 
-    /**
-     * Compte le nombre de tâches annulées.
-     */
-    public function countCanceled(): int;
+    /** Compte le nombre de tâches annulées. */
+    public function countCanceled(): CounterVO;
 }

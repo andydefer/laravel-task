@@ -5,11 +5,6 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Fixtures\Tasks;
 
 use AndyDefer\Task\Abstract\AbstractUniqueTask;
-use AndyDefer\Task\Configs\UniqueTaskConfig;
-use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Support\Carbon;
 
 final class TestUniqueTask extends AbstractUniqueTask
@@ -17,16 +12,6 @@ final class TestUniqueTask extends AbstractUniqueTask
     private array $executionLog = [];
 
     private ?string $failOn = null;
-
-    public function getConfig(): UniqueTaskConfigInterface
-    {
-        return new UniqueTaskConfig(
-            alias: new TaskSignatureVO('test-unique'),
-            description: 'Test unique task',
-            scheduled_at: new Iso8601DateTimeVO(Carbon::now()->addMinutes(5)->toIso8601String()),
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
-    }
 
     public function setFailOn(string $message): void
     {
