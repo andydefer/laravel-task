@@ -7,8 +7,8 @@ namespace AndyDefer\Task\Tests\Fixtures\Tasks;
 use AndyDefer\Task\Abstract\AbstractUniqueTask;
 use AndyDefer\Task\Configs\UniqueTaskConfig;
 use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
 final class TestUniqueTaskWithCustomConfig extends AbstractUniqueTask
@@ -19,7 +19,7 @@ final class TestUniqueTaskWithCustomConfig extends AbstractUniqueTask
             alias: new TaskSignatureVO('test-unique-default'),
             description: 'Test unique task with default config',
             scheduled_at: new Iso8601DateTimeVO(now()->addHours(24)->toIso8601String()),
-            max_attempts: new CounterVO(3),
+            max_attempts: new MaxFailedAttemptsVO(3),
         );
     }
 

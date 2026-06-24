@@ -19,6 +19,7 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
@@ -75,7 +76,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
             interval_seconds: new CounterVO($intervalSeconds),
             start_at: new Iso8601DateTimeVO($startAt->toIso8601String()),
             end_at: new Iso8601DateTimeVO($endAt->toIso8601String()),
-            max_attempts: new CounterVO(3),
+            max_attempts: new MaxFailedAttemptsVO(3),
         );
     }
 
@@ -95,7 +96,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
             interval_seconds: new CounterVO($intervalSeconds),
             start_at: new Iso8601DateTimeVO($startAt->toIso8601String()),
             end_at: new Iso8601DateTimeVO($endAt->toIso8601String()),
-            max_attempts: new CounterVO(3),
+            max_attempts: new MaxFailedAttemptsVO(3),
         );
     }
 

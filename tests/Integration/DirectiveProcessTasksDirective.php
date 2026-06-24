@@ -23,6 +23,7 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
@@ -94,7 +95,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
             interval_seconds: new CounterVO(3600),
             start_at: new Iso8601DateTimeVO($startAt->format('Y-m-d\TH:i:sP')),
             end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP')),
-            max_attempts: new CounterVO(3),
+            max_attempts: new MaxFailedAttemptsVO(3),
         );
 
         $service = $this->app->make(RecurringTaskServiceInterface::class);
@@ -267,7 +268,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
             interval_seconds: new CounterVO(3600),
             start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP')),
             end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP')),
-            max_attempts: new CounterVO(3),
+            max_attempts: new MaxFailedAttemptsVO(3),
         );
 
         $service = $this->app->make(RecurringTaskServiceInterface::class);

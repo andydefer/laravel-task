@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Contracts\Configs;
 
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
 interface UniqueTaskConfigInterface
@@ -16,7 +16,7 @@ interface UniqueTaskConfigInterface
 
     public function getScheduledAt(): Iso8601DateTimeVO;
 
-    public function getMaxAttempts(): CounterVO;
+    public function getMaxAttempts(): MaxFailedAttemptsVO;
 
     public function toArray(): array;
 }

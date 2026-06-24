@@ -9,6 +9,7 @@ use AndyDefer\Task\Configs\RecurringTaskConfig;
 use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Support\Carbon;
 
@@ -25,7 +26,7 @@ final class TestRecurringTask extends AbstractRecurringTask
             description: 'Test recurring task',
             interval_seconds: new CounterVO(3600),
             start_at: new Iso8601DateTimeVO(Carbon::now()->toIso8601String()),
-            max_attempts: new CounterVO(3),
+            max_attempts: new MaxFailedAttemptsVO(3),
         );
     }
 

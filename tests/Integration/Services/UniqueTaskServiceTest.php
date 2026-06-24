@@ -19,8 +19,8 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTaskWithCustomConfig;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
@@ -97,7 +97,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
             alias: new TaskSignatureVO('custom-alias'),
             description: 'Custom config',
             scheduled_at: new Iso8601DateTimeVO(now()->addDays(7)->toIso8601String()),
-            max_attempts: new CounterVO(5),
+            max_attempts: new MaxFailedAttemptsVO(5),
         );
 
         $taskId = $this->service->register(

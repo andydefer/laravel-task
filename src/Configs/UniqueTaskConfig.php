@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Configs;
 
 use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
 final class UniqueTaskConfig implements UniqueTaskConfigInterface
@@ -15,7 +15,7 @@ final class UniqueTaskConfig implements UniqueTaskConfigInterface
         public readonly TaskSignatureVO $alias,
         public readonly string $description,
         public readonly Iso8601DateTimeVO $scheduled_at,
-        public readonly CounterVO $max_attempts = new CounterVO(3),
+        public readonly MaxFailedAttemptsVO $max_attempts = new MaxFailedAttemptsVO(3),
     ) {}
 
     public function getAlias(): TaskSignatureVO
@@ -33,7 +33,7 @@ final class UniqueTaskConfig implements UniqueTaskConfigInterface
         return $this->scheduled_at;
     }
 
-    public function getMaxAttempts(): CounterVO
+    public function getMaxAttempts(): MaxFailedAttemptsVO
     {
         return $this->max_attempts;
     }

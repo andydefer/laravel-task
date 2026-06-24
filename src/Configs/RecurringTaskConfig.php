@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Configs;
 use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
 final class RecurringTaskConfig implements RecurringTaskConfigInterface
@@ -17,7 +18,7 @@ final class RecurringTaskConfig implements RecurringTaskConfigInterface
         public readonly CounterVO $interval_seconds,
         public readonly ?Iso8601DateTimeVO $start_at = null,
         public readonly ?Iso8601DateTimeVO $end_at = null,
-        public readonly CounterVO $max_attempts = new CounterVO(3),
+        public readonly MaxFailedAttemptsVO $max_attempts = new MaxFailedAttemptsVO(3),
     ) {}
 
     public function getAlias(): TaskSignatureVO
@@ -45,7 +46,7 @@ final class RecurringTaskConfig implements RecurringTaskConfigInterface
         return $this->end_at;
     }
 
-    public function getMaxAttempts(): CounterVO
+    public function getMaxAttempts(): MaxFailedAttemptsVO
     {
         return $this->max_attempts;
     }

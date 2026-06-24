@@ -7,8 +7,8 @@ namespace AndyDefer\Task\Tests\Fixtures\Tasks;
 use AndyDefer\Task\Abstract\AbstractUniqueTask;
 use AndyDefer\Task\Configs\UniqueTaskConfig;
 use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Support\Carbon;
 
@@ -24,7 +24,7 @@ final class TestUniqueTask extends AbstractUniqueTask
             alias: new TaskSignatureVO('test-unique'),
             description: 'Test unique task',
             scheduled_at: new Iso8601DateTimeVO(Carbon::now()->addMinutes(5)->toIso8601String()),
-            max_attempts: new CounterVO(3),
+            max_attempts: new MaxFailedAttemptsVO(3),
         );
     }
 
