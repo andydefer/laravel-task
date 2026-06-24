@@ -32,38 +32,32 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
     {
         $startTime = new Iso8601DateTimeVO;
 
-        // ✅ 1. Valider que la tâche peut être exécutée
         if (! $this->validator->canRun($record)) {
             $errors = $this->validator->getValidationErrors($record);
             $errorMessage = $errors->count() > 0 ? $errors->join(', ') : 'Task cannot run';
 
-            return new ExecutionResultRecord(
-                success: false,
-                error: new TaskErrorRecord(
-                    alias: $record->alias->value,
-                    fqcn: $record->fqcn,
-                    error: 'Validation failed: '.$errorMessage,
-                ),
-            );
+            return ExecutionResultRecord::from([
+                'success' => false,
+                'error' => TaskErrorRecord::from([
+                    'alias' => $record->alias->value,
+                    'fqcn' => $record->fqcn->getValue(),
+                    'error' => 'Validation failed: '.$errorMessage,
+                ]),
+            ]);
         }
 
-        // ✅ 2. Vérifier si la tâche doit être exécutée à nouveau (intervalle)
         if (! $this->validator->shouldRunAgain($record)) {
-            // La tâche est en PLAYING mais l'intervalle n'est pas encore atteint
-            return new ExecutionResultRecord(
-                success: true,  // Pas une erreur, juste pas encore le moment
-                error: null,
-                execution_time: 0.0,
-            );
+            return ExecutionResultRecord::from([
+                'success' => true,
+                'error' => null,
+                'execution_time' => 0.0,
+            ]);
         }
 
-        // ✅ 3. Logger le début
         $this->logger->logStart($record);
 
-        // ✅ 4. Instancier
         $task = $this->instantiateTask($record);
 
-        // ✅ 5. Exécuter
         $error = null;
         $success = false;
 
@@ -76,18 +70,17 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
             $this->logger->logFailure($record, $error);
         }
 
-        // ✅ 6. Ajouter le debug et mettre à jour last_run_at
         $this->repository->updateAfterRun($record, $success, $error);
 
-        return new ExecutionResultRecord(
-            success: $success,
-            error: $error ? new TaskErrorRecord(
-                alias: $record->alias->value,
-                fqcn: $record->fqcn,
-                error: $error,
-            ) : null,
-            execution_time: $this->calculateDuration($startTime),
-        );
+        return ExecutionResultRecord::from([
+            'success' => $success,
+            'error' => $error ? TaskErrorRecord::from([
+                'alias' => $record->alias->value,
+                'fqcn' => $record->fqcn->getValue(),
+                'error' => $error,
+            ]) : null,
+            'execution_time' => $this->calculateDuration($startTime),
+        ]);
     }
 
     private function instantiateTask(RecurringTaskRecord $record): AbstractRecurringTask
@@ -100,7 +93,9 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
         $context->setLastRunAt($record->last_run_at);
         $context->setLaravelApp($this->app);
 
-        return new $record->fqcn($context, $this->app->make(LoggerInterface::class), $this->hydration);
+        $className = $record->fqcn->getValue();
+
+        return new $className($context, $this->app->make(LoggerInterface::class), $this->hydration);
     }
 
     private function calculateDuration(Iso8601DateTimeVO $start): float

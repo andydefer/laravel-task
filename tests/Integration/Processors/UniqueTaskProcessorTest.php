@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Processors;
 
 use AndyDefer\DomainStructures\Services\HydrationService;
-use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
@@ -17,14 +16,10 @@ use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
 use AndyDefer\Task\Runners\UniqueTaskRunner;
-use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
+use AndyDefer\Task\Tests\Fixtures\Tasks\FailingUniqueTaskForProcessor;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
@@ -44,20 +39,16 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // Repository
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new UniqueTaskRepository($this->debugRepository);
 
-        // Validator
         $validator = new UniqueTaskValidator;
 
-        // Logger
         $logger = new UniqueTaskLogger(
             logger: App::make(LoggerInterface::class),
             hydration: App::make(HydrationService::class),
         );
 
-        // Runner
         $runner = new UniqueTaskRunner(
             validator: $validator,
             logger: $logger,
@@ -66,7 +57,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
             repository: $this->repository,
         );
 
-        // Processor
         $this->processor = new UniqueTaskProcessor(
             repository: $this->repository,
             runner: $runner,
@@ -83,11 +73,13 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
 
     private function findTaskByAlias(string $alias): ?UniqueTask
     {
-        $filters = new UniqueTaskFiltersRecord(
-            alias: new TaskSignatureVO($alias)
-        );
+        $filters = UniqueTaskFiltersRecord::from([
+            'alias' => $alias,
+        ]);
 
-        $results = $this->repository->findBy(new FindByRecord(filters: $filters));
+        $results = $this->repository->findBy(
+            FindByRecord::from(['filters' => $filters])
+        );
 
         return $results->first() ?? null;
     }
@@ -102,21 +94,21 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         int $maxAttempts = 3,
         ?string $fqcn = null
     ): UniqueTaskRecord {
-        $scheduledAt = $scheduledAt ?? now();
+        $scheduledAt = $scheduledAt ?? Carbon::now()->subHours(2);
         $id = $id ?? (string) Uuid::uuid4();
         $fqcn = $fqcn ?? TestUniqueTask::class;
 
-        $task = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO($alias),
-            fqcn: $fqcn,
-            payload: StrictDataObject::from(['test' => 'unique']),
-            scheduled_at: new Iso8601DateTimeVO($scheduledAt->toIso8601String()),
-            grace_period_seconds: $gracePeriodSeconds,
-            status: $status,
-            attempts: new CounterVO($attempts),
-            max_attempts: new CounterVO($maxAttempts),
-        );
+        $task = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => $alias,
+            'fqcn' => $fqcn,
+            'payload' => ['test' => 'unique'],
+            'scheduled_at' => $scheduledAt->toIso8601String(),
+            'grace_period_seconds' => $gracePeriodSeconds,
+            'status' => $status,
+            'attempts' => $attempts,
+            'max_attempts' => $maxAttempts,
+        ]);
 
         $this->repository->create($task);
 
@@ -130,20 +122,20 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         ?Carbon $scheduledAt = null,
         int $gracePeriodSeconds = 86400
     ): UniqueTaskRecord {
-        $scheduledAt = $scheduledAt ?? now();
+        $scheduledAt = $scheduledAt ?? Carbon::now()->subHours(2);
         $id = $id ?? (string) Uuid::uuid4();
 
-        $task = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO($alias),
-            fqcn: FailingTask::class,
-            payload: StrictDataObject::from(['test' => 'failing']),
-            scheduled_at: new Iso8601DateTimeVO($scheduledAt->toIso8601String()),
-            grace_period_seconds: $gracePeriodSeconds,
-            status: $status,
-            attempts: new CounterVO(0),
-            max_attempts: new CounterVO(3),
-        );
+        $task = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => $alias,
+            'fqcn' => FailingUniqueTaskForProcessor::class,
+            'payload' => ['test' => 'failing'],
+            'scheduled_at' => $scheduledAt->toIso8601String(),
+            'grace_period_seconds' => $gracePeriodSeconds,
+            'status' => $status,
+            'attempts' => 0,
+            'max_attempts' => 3,
+        ]);
 
         $this->repository->create($task);
 
@@ -156,7 +148,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Tâche prête : scheduled_at dans le passé
         $this->createAndSaveTask(
             'ready-1',
             null,
@@ -164,7 +155,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
             $now->copy()->subHours(2)
         );
 
-        // Tâche prête : scheduled_at = now
         $this->createAndSaveTask(
             'ready-2',
             null,
@@ -172,7 +162,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
             $now->copy()
         );
 
-        // Tâche pas prête : scheduled_at dans le futur
         $this->createAndSaveTask(
             'not-ready-1',
             null,
@@ -186,7 +175,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         $this->assertEquals(0, $result->failed->value);
         $this->assertEquals(0, $result->finished->value);
 
-        // Vérifier que les tâches prêtes sont en COMPLETED
         $task1 = $this->findTaskByAlias('ready-1');
         $this->assertNotNull($task1);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task1->getStatus());
@@ -195,7 +183,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         $this->assertNotNull($task2);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task2->getStatus());
 
-        // Vérifier que la tâche pas prête est toujours en PENDING
         $task3 = $this->findTaskByAlias('not-ready-1');
         $this->assertNotNull($task3);
         $this->assertEquals(UniqueTaskStatus::PENDING, $task3->getStatus());
@@ -205,7 +192,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Tâche qui échoue
         $this->createFailingTask(
             'failing-task',
             null,
@@ -219,13 +205,11 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         $this->assertEquals(1, $result->failed->value);
         $this->assertEquals(0, $result->finished->value);
 
-        // Vérifier que la tâche est en FAILED
         $task = $this->findTaskByAlias('failing-task');
         $this->assertNotNull($task);
         $this->assertEquals(UniqueTaskStatus::FAILED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
 
-        // Vérifier que l'erreur est enregistrée
         $this->assertGreaterThan(0, $result->errors->count());
         $error = $result->errors->first();
         $this->assertEquals('Test exception', $error->error);
@@ -235,7 +219,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Créer 5 tâches prêtes
         for ($i = 1; $i <= 5; $i++) {
             $this->createAndSaveTask(
                 "ready-{$i}",
@@ -245,14 +228,12 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
             );
         }
 
-        // Process avec limit = 3
         $result = $this->processor->process(3);
 
         $this->assertEquals(3, $result->success->value);
         $this->assertEquals(0, $result->failed->value);
         $this->assertEquals(0, $result->finished->value);
 
-        // Vérifier que seules 3 tâches sont COMPLETED
         $completedCount = 0;
         for ($i = 1; $i <= 5; $i++) {
             $task = $this->findTaskByAlias("ready-{$i}");
@@ -267,38 +248,32 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Tâche expirée : scheduled_at + grace_period < now
         $this->createAndSaveTask(
             'expired-1',
             null,
             UniqueTaskStatus::PENDING,
             $now->copy()->subDays(2),
-            86400 // 24h de grace
+            3600
         );
 
-        // Tâche non expirée : scheduled_at + grace_period > now
         $this->createAndSaveTask(
             'not-expired-1',
             null,
             UniqueTaskStatus::PENDING,
             $now->copy()->subHours(12),
-            86400 // 24h de grace
+            86400
         );
 
         $result = $this->processor->process();
 
-        // 1 tâche expirée → failed
-        // 1 tâche non expirée → success (car prête)
         $this->assertEquals(1, $result->success->value);
         $this->assertEquals(1, $result->failed->value);
         $this->assertEquals(0, $result->finished->value);
 
-        // Vérifier que la tâche expirée est en FAILED
         $expiredTask = $this->findTaskByAlias('expired-1');
         $this->assertNotNull($expiredTask);
         $this->assertEquals(UniqueTaskStatus::FAILED, $expiredTask->getStatus());
 
-        // Vérifier que la tâche non expirée est en COMPLETED
         $notExpiredTask = $this->findTaskByAlias('not-expired-1');
         $this->assertNotNull($notExpiredTask);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $notExpiredTask->getStatus());
@@ -308,26 +283,24 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Tâche avec attempts = max_attempts (ne doit pas être exécutée)
         $this->createAndSaveTask(
             'max-attempts-1',
             null,
             UniqueTaskStatus::PENDING,
             $now->copy()->subHours(2),
             86400,
-            3,  // attempts = 3
-            3   // max_attempts = 3
+            3,
+            3
         );
 
-        // Tâche normale (doit être exécutée)
         $this->createAndSaveTask(
             'normal-1',
             null,
             UniqueTaskStatus::PENDING,
             $now->copy()->subHours(2),
             86400,
-            0,  // attempts = 0
-            3   // max_attempts = 3
+            0,
+            3
         );
 
         $result = $this->processor->process();
@@ -336,12 +309,10 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         $this->assertEquals(1, $result->failed->value);
         $this->assertEquals(0, $result->finished->value);
 
-        // Vérifier que max-attempts-1 est en FAILED
         $maxAttemptsTask = $this->findTaskByAlias('max-attempts-1');
         $this->assertNotNull($maxAttemptsTask);
         $this->assertEquals(UniqueTaskStatus::FAILED, $maxAttemptsTask->getStatus());
 
-        // Vérifier que normal-1 est en COMPLETED
         $normalTask = $this->findTaskByAlias('normal-1');
         $this->assertNotNull($normalTask);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $normalTask->getStatus());
@@ -363,7 +334,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
 
         $this->assertEquals(1, $result->success->value);
 
-        // Vérifier que le debug a été ajouté
         $debugs = $this->debugRepository->findByTask('unique', $id);
         $this->assertCount(1, $debugs);
 
@@ -377,7 +347,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // 1. Tâche prête → succès
         $this->createAndSaveTask(
             'mixed-success',
             null,
@@ -385,7 +354,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
             $now->copy()->subHours(2)
         );
 
-        // 2. Tâche qui échoue → failed
         $this->createFailingTask(
             'mixed-failing',
             null,
@@ -393,27 +361,24 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
             $now->copy()->subHours(2)
         );
 
-        // 3. Tâche expirée → failed
         $this->createAndSaveTask(
             'mixed-expired',
             null,
             UniqueTaskStatus::PENDING,
             $now->copy()->subDays(2),
-            86400
+            3600
         );
 
-        // 4. Tâche avec max_attempts atteint → failed
         $this->createAndSaveTask(
             'mixed-max-attempts',
             null,
             UniqueTaskStatus::PENDING,
             $now->copy()->subHours(2),
             86400,
-            3,  // attempts = 3
-            3   // max_attempts = 3
+            3,
+            3
         );
 
-        // 5. Tâche pas prête (future) → ignorée (reste PENDING)
         $this->createAndSaveTask(
             'mixed-future',
             null,
@@ -427,7 +392,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         $this->assertEquals(3, $result->failed->value);
         $this->assertEquals(0, $result->finished->value);
 
-        // Vérifications
         $task1 = $this->findTaskByAlias('mixed-success');
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task1->getStatus());
 
@@ -448,11 +412,10 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Tâche qui échoue
         $id = (string) Uuid::uuid4();
         $record = $this->createFailingTask(
             'error-task',
-            $id,  // ✅ Passer l'ID explicitement
+            $id,
             UniqueTaskStatus::PENDING,
             $now->copy()->subHours(2)
         );
@@ -470,7 +433,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Tâche en COMPLETED (ne doit pas être exécutée)
         $this->createAndSaveTask(
             'completed-1',
             null,
@@ -478,7 +440,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
             $now->copy()->subHours(2)
         );
 
-        // Tâche en FAILED (ne doit pas être exécutée)
         $this->createAndSaveTask(
             'failed-1',
             null,
@@ -486,7 +447,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
             $now->copy()->subHours(2)
         );
 
-        // Tâche en PENDING (doit être exécutée)
         $this->createAndSaveTask(
             'pending-1',
             null,
@@ -499,14 +459,12 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         $this->assertEquals(1, $result->success->value);
         $this->assertEquals(0, $result->failed->value);
 
-        // Vérifier que les tâches COMPLETED et FAILED sont inchangées
         $completed = $this->findTaskByAlias('completed-1');
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $completed->getStatus());
 
         $failed = $this->findTaskByAlias('failed-1');
         $this->assertEquals(UniqueTaskStatus::FAILED, $failed->getStatus());
 
-        // Vérifier que la tâche PENDING est passée en COMPLETED
         $pending = $this->findTaskByAlias('pending-1');
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $pending->getStatus());
     }
@@ -537,7 +495,6 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         $this->assertEquals(0, $result->success->value);
         $this->assertEquals(0, $result->failed->value);
 
-        // Vérifier que la tâche est toujours en PENDING
         $task = $this->findTaskByAlias('limit-zero');
         $this->assertEquals(UniqueTaskStatus::PENDING, $task->getStatus());
     }
@@ -546,13 +503,12 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Tâche expirée avec scheduled_at dans le passé
         $this->createAndSaveTask(
             'expired-future',
             null,
             UniqueTaskStatus::PENDING,
             $now->copy()->subDays(1),
-            3600 // 1h de grace
+            3600
         );
 
         $result = $this->processor->process();
@@ -568,27 +524,24 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        // Tâche avec scheduled_at dans le passé mais max_attempts atteint
         $this->createAndSaveTask(
             'validator-check',
             null,
             UniqueTaskStatus::PENDING,
             $now->copy()->subHours(2),
             86400,
-            3,  // attempts = 3 (max atteint)
-            3   // max_attempts = 3
+            3,
+            3
         );
 
         $result = $this->processor->process();
 
-        // La tâche ne doit pas être exécutée, mais marquée comme FAILED
         $this->assertEquals(0, $result->success->value);
         $this->assertEquals(1, $result->failed->value);
 
         $task = $this->findTaskByAlias('validator-check');
         $this->assertEquals(UniqueTaskStatus::FAILED, $task->getStatus());
 
-        // Vérifier que l'erreur de validation est présente
         $this->assertGreaterThan(0, $result->errors->count());
         $error = $result->errors->first();
         $this->assertStringContainsString('Validation failed', $error->error);

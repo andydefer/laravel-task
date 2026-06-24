@@ -17,6 +17,7 @@ use AndyDefer\Task\Records\RecurringTaskReadyToRunResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -47,7 +48,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
 
         if ($filters->fqcn !== null) {
-            $query->where('fqcn', $filters->fqcn);
+            $query->where('fqcn', $filters->fqcn->getValue());
         }
 
         if ($filters->status !== null) {
@@ -368,7 +369,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             status: RecurringTaskStatus::PLAYING,
             last_run_at: $now,
             failed_attempts: new CounterVO($newFailedAttempts),
-            max_failed_attempts: new CounterVO($maxFailedAttempts),
+            max_failed_attempts: new MaxFailedAttemptsVO($maxFailedAttempts),
         ));
 
         $this->debugRepository->addDebug(

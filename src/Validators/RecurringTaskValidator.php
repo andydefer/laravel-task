@@ -140,11 +140,11 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
 
     private function isValidTaskClass(RecurringTaskRecord $record): bool
     {
-        if (! class_exists($record->fqcn)) {
+        if (! class_exists($record->fqcn->getValue())) {
             return false;
         }
 
-        if (! is_subclass_of($record->fqcn, AbstractRecurringTask::class)) {
+        if (! is_subclass_of($record->fqcn->getValue(), AbstractRecurringTask::class)) {
             return false;
         }
 

@@ -45,7 +45,7 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         }
 
         if ($filters->fqcn !== null) {
-            $query->where('fqcn', $filters->fqcn);
+            $query->where('fqcn', $filters->fqcn->getValue());
         }
 
         if ($filters->status !== null) {
@@ -113,7 +113,6 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
     public function findReadyToRun(string $now, ?int $limit = null): Collection
     {
-
         $dateTime = new \DateTime($now);
         $dateTime->setTimezone(new \DateTimeZone('UTC'));
         $formattedNow = $dateTime->format('Y-m-d H:i:s');
@@ -128,9 +127,6 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
         /** @var Collection<int, UniqueTask> $result */
         $result = $query->get();
-
-        foreach ($result as $task) {
-        }
 
         return $result;
     }
@@ -262,5 +258,26 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         $filters = new UniqueTaskFiltersRecord(status: UniqueTaskStatus::CANCELED);
 
         return $this->count($filters);
+    }
+
+    // ==================== PRIVATE METHODS ====================
+
+    /**
+     * Convertit un modèle Eloquent UniqueTask en UniqueTaskRecord.
+     */
+    private function modelToRecord(UniqueTask $model): UniqueTaskRecord
+    {
+        return UniqueTaskRecord::from([
+            'id' => $model->getId(),
+            'alias' => $model->getAlias(),
+            'fqcn' => $model->getFqcn(),
+            'payload' => $model->getPayload(),
+            'scheduled_at' => $model->getScheduledAt(),
+            'grace_period_seconds' => $model->getGracePeriodSeconds(),
+            'status' => $model->getStatus(),
+            'attempts' => $model->getAttempts(),
+            'max_attempts' => $model->getMaxAttempts(),
+            'finished_at' => $model->getFinishedAt(),
+        ]);
     }
 }

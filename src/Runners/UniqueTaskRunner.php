@@ -32,27 +32,23 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
     {
         $startTime = new Iso8601DateTimeVO;
 
-        // ✅ 1. Valider
         if (! $this->validator->canRun($record)) {
             $errors = $this->validator->getValidationErrors($record);
 
-            return new ExecutionResultRecord(
-                success: false,
-                error: new TaskErrorRecord(
-                    alias: $record->alias->value,
-                    fqcn: $record->fqcn,
-                    error: 'Validation failed: '.$errors->join(', '),
-                ),
-            );
+            return ExecutionResultRecord::from([
+                'success' => false,
+                'error' => TaskErrorRecord::from([
+                    'alias' => $record->alias->value,
+                    'fqcn' => $record->fqcn->getValue(),
+                    'error' => 'Validation failed: '.$errors->join(', '),
+                ]),
+            ]);
         }
 
-        // ✅ 2. Logger le début
         $this->logger->logStart($record);
 
-        // ✅ 3. Instancier
         $task = $this->instantiateTask($record);
 
-        // ✅ 4. Exécuter
         $error = null;
         $success = false;
 
@@ -65,29 +61,27 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
             $this->logger->logFailure($record, $error);
         }
 
-        // ✅ 5. Ajouter le debug
         $this->repository->addDebug(
             $record,
             $success ? 'succeeded' : 'failed',
             $success ? 'Task executed successfully' : ($error ?? 'Unknown error')
         );
 
-        // ✅ 6. Mettre à jour le statut
         if ($success) {
             $this->repository->moveToCompleted($record);
         } else {
             $this->repository->moveToFailed($record);
         }
 
-        return new ExecutionResultRecord(
-            success: $success,
-            error: $error ? new TaskErrorRecord(
-                alias: $record->alias->value,
-                fqcn: $record->fqcn,
-                error: $error,
-            ) : null,
-            execution_time: $this->calculateDuration($startTime),
-        );
+        return ExecutionResultRecord::from([
+            'success' => $success,
+            'error' => $error ? TaskErrorRecord::from([
+                'alias' => $record->alias->value,
+                'fqcn' => $record->fqcn->getValue(),
+                'error' => $error,
+            ]) : null,
+            'execution_time' => $this->calculateDuration($startTime),
+        ]);
     }
 
     private function instantiateTask(UniqueTaskRecord $record): AbstractUniqueTask
@@ -98,7 +92,9 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
         $context->setScheduledAt($record->scheduled_at);
         $context->setLaravelApp($this->app);
 
-        return new $record->fqcn($context, $this->app->make(LoggerInterface::class), $this->hydration);
+        $className = $record->fqcn->getValue();
+
+        return new $className($context, $this->app->make(LoggerInterface::class), $this->hydration);
     }
 
     private function calculateDuration(Iso8601DateTimeVO $start): float

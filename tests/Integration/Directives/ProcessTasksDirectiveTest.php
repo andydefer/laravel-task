@@ -24,7 +24,6 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
@@ -46,7 +45,6 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // ✅ Freezer le temps pour tous les tests
         $frozenNow = Carbon::create(2026, 6, 23, 12, 0, 0);
         Carbon::setTestNow($frozenNow);
 
@@ -76,17 +74,17 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $scheduledAt = $scheduledAt ?? Carbon::now()->subHours(2);
         $id = $id ?? (string) Uuid::uuid4();
 
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO($alias),
-            fqcn: TestUniqueTask::class,
-            payload: StrictDataObject::from(['test' => 'unique']),
-            scheduled_at: new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: $gracePeriodSeconds,
-            status: $status,
-            attempts: new CounterVO(0),
-            max_attempts: new CounterVO(3),
-        );
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => $alias,
+            'fqcn' => TestUniqueTask::class,
+            'payload' => ['test' => 'unique'],
+            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => $gracePeriodSeconds,
+            'status' => $status,
+            'attempts' => 0,
+            'max_attempts' => 3,
+        ]);
 
         $this->uniqueRepository->create($record);
     }
@@ -94,17 +92,18 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     private function createFailingUniqueTask(): void
     {
         $id = (string) Uuid::uuid4();
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO('failing-task'),
-            fqcn: FailingTask::class,
-            payload: StrictDataObject::from(['test' => 'failing']),
-            scheduled_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: 86400,
-            status: UniqueTaskStatus::PENDING,
-            attempts: new CounterVO(2),
-            max_attempts: new CounterVO(3),
-        );
+
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => 'failing-task',
+            'fqcn' => FailingTask::class,
+            'payload' => ['test' => 'failing'],
+            'scheduled_at' => Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => 86400,
+            'status' => UniqueTaskStatus::PENDING,
+            'attempts' => 2,
+            'max_attempts' => 3,
+        ]);
 
         $this->uniqueRepository->create($record);
     }
@@ -298,7 +297,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
 
         $data = json_decode($response->output, true);
-        $this->assertNotNull($data, 'Output should be valid JSON');
+        $this->assertNotNull($data);
 
         $this->assertArrayHasKey('started_at', $data);
         $this->assertArrayHasKey('ended_at', $data);

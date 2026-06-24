@@ -23,9 +23,9 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Illuminate\Support\Carbon;
 use Ramsey\Uuid\Uuid;
 
 final class ProcessTasksDirectiveTest extends IntegrationTestCase
@@ -42,10 +42,8 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // Créer le service de test avec Laravel
         $this->service = new DirectiveTestingService($this->app);
 
-        // Repository pour vérifier les données
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->uniqueRepository = new UniqueTaskRepository($this->debugRepository);
     }
@@ -65,20 +63,20 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         ?\DateTimeInterface $scheduledAt = null,
         int $gracePeriodSeconds = 86400
     ): void {
-        $scheduledAt = $scheduledAt ?? now()->subHours(2);
+        $scheduledAt = $scheduledAt ?? Carbon::now()->subHours(2);
         $id = $id ?? (string) Uuid::uuid4();
 
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO($alias),
-            fqcn: TestUniqueTask::class,
-            payload: StrictDataObject::from(['test' => 'unique']),
-            scheduled_at: new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: $gracePeriodSeconds,
-            status: $status,
-            attempts: new CounterVO(0),
-            max_attempts: new CounterVO(3),
-        );
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => $alias,
+            'fqcn' => TestUniqueTask::class,
+            'payload' => ['test' => 'unique'],
+            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => $gracePeriodSeconds,
+            'status' => $status,
+            'attempts' => 0,
+            'max_attempts' => 3,
+        ]);
 
         $this->uniqueRepository->create($record);
     }
@@ -88,15 +86,14 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         RecurringTaskStatus $status = RecurringTaskStatus::WAITING,
         ?\DateTimeInterface $startAt = null
     ): void {
-        $startAt = $startAt ?? now()->subHours(2);
+        $startAt = $startAt ?? Carbon::now()->subHours(2);
 
-        // Utiliser le service pour créer la tâche
         $config = new RecurringTaskConfig(
             alias: new TaskSignatureVO($alias),
             description: 'Test recurring task',
             interval_seconds: new CounterVO(3600),
             start_at: new Iso8601DateTimeVO($startAt->format('Y-m-d\TH:i:sP')),
-            end_at: new Iso8601DateTimeVO(now()->addDays(7)->format('Y-m-d\TH:i:sP')),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP')),
             max_attempts: new CounterVO(3),
         );
 
@@ -112,7 +109,6 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_process_tasks_without_options(): void
     {
-        // Créer des tâches
         $this->createUniqueTask('unique-1');
         $this->createUniqueTask('unique-2');
         $this->createRecurringTask('recurring-1');
@@ -158,7 +154,6 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_process_tasks_with_limit_option(): void
     {
-        // Créer 5 tâches uniques
         for ($i = 1; $i <= 5; $i++) {
             $this->createUniqueTask("unique-{$i}");
         }
@@ -189,19 +184,19 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_process_tasks_returns_failure_when_tasks_fail(): void
     {
-        // Créer une tâche qui va échouer (FailingTask)
         $id = (string) Uuid::uuid4();
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO('failing-task'),
-            fqcn: FailingTask::class,
-            payload: StrictDataObject::from(['test' => 'failing']),
-            scheduled_at: new Iso8601DateTimeVO(now()->subHours(2)->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: 86400,
-            status: UniqueTaskStatus::PENDING,
-            attempts: new CounterVO(2), // Sera max_attempts après échec
-            max_attempts: new CounterVO(3),
-        );
+
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => 'failing-task',
+            'fqcn' => FailingTask::class,
+            'payload' => ['test' => 'failing'],
+            'scheduled_at' => Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => 86400,
+            'status' => UniqueTaskStatus::PENDING,
+            'attempts' => 2,
+            'max_attempts' => 3,
+        ]);
 
         $this->uniqueRepository->create($record);
 
@@ -247,7 +242,6 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_process_tasks_with_no_tasks_to_process(): void
     {
-        // Aucune tâche créée
         $response = $this->service->run(ProcessTasksDirective::class, []);
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
@@ -267,13 +261,12 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_process_tasks_with_recurring_failure(): void
     {
-        // Créer une tâche récurrente qui va échouer
         $config = new RecurringTaskConfig(
             alias: new TaskSignatureVO('failing-recurring'),
             description: 'Failing recurring task',
             interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->subHours(2)->format('Y-m-d\TH:i:sP')),
-            end_at: new Iso8601DateTimeVO(now()->addDays(7)->format('Y-m-d\TH:i:sP')),
+            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP')),
+            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP')),
             max_attempts: new CounterVO(3),
         );
 
@@ -284,7 +277,6 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
             $config
         );
 
-        // Passer en PLAYING
         $repo = $this->app->make(RecurringTaskRepositoryInterface::class);
         $task = $repo->findByAlias($alias->value);
         $task->update(['status' => RecurringTaskStatus::PLAYING->value]);

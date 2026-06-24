@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Repositories;
 
-use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
@@ -15,8 +14,9 @@ use AndyDefer\Task\Records\RecurringTaskReadyToRunResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Repositories\RecurringTaskRepository;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTaskForRepository;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
@@ -59,25 +59,25 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         ?\DateTimeInterface $endAt = null,
         int $intervalSeconds = 3600,
         ?\DateTimeInterface $lastRunAt = null,
-        string $fqcn = 'TestRecurringTask',
+        string $fqcn = TestRecurringTask::class,
         int $failedAttempts = 0,
         int $maxFailedAttempts = 3
     ): RecurringTaskRecord {
         $startAt = $startAt ?? Carbon::now()->addHours(2);
         $endAt = $endAt ?? Carbon::now()->addDays(7);
 
-        $task = new RecurringTaskRecord(
-            alias: new TaskSignatureVO($alias),
-            fqcn: $fqcn,
-            payload: StrictDataObject::from(['test' => 'recurring']),
-            interval_seconds: new CounterVO($intervalSeconds),
-            start_at: new Iso8601DateTimeVO($this->formatDate($startAt)),
-            end_at: new Iso8601DateTimeVO($this->formatDate($endAt)),
-            status: $status,
-            last_run_at: $lastRunAt ? new Iso8601DateTimeVO($this->formatDate($lastRunAt)) : null,
-            failed_attempts: new CounterVO($failedAttempts),
-            max_failed_attempts: new CounterVO($maxFailedAttempts),
-        );
+        $task = RecurringTaskRecord::from([
+            'alias' => $alias,
+            'fqcn' => $fqcn,
+            'payload' => ['test' => 'recurring'],
+            'interval_seconds' => $intervalSeconds,
+            'start_at' => $this->formatDate($startAt),
+            'end_at' => $this->formatDate($endAt),
+            'status' => $status,
+            'last_run_at' => $lastRunAt ? $this->formatDate($lastRunAt) : null,
+            'failed_attempts' => $failedAttempts,
+            'max_failed_attempts' => $maxFailedAttempts,
+        ]);
 
         $this->repository->create($task);
 
@@ -615,12 +615,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found: non-existent');
 
-        $task = new RecurringTaskRecord(
-            alias: new TaskSignatureVO('non-existent'),
-            fqcn: 'TestRecurringTask',
-            payload: StrictDataObject::from(['test' => 'recurring']),
-            interval_seconds: new CounterVO(3600),
-        );
+        $task = RecurringTaskRecord::from([
+            'alias' => 'non-existent',
+            'fqcn' => TestRecurringTask::class,
+            'payload' => ['test' => 'recurring'],
+            'interval_seconds' => 3600,
+        ]);
 
         $this->repository->moveToPlaying($task);
     }
@@ -648,12 +648,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found: non-existent');
 
-        $task = new RecurringTaskRecord(
-            alias: new TaskSignatureVO('non-existent'),
-            fqcn: 'TestRecurringTask',
-            payload: StrictDataObject::from(['test' => 'recurring']),
-            interval_seconds: new CounterVO(3600),
-        );
+        $task = RecurringTaskRecord::from([
+            'alias' => 'non-existent',
+            'fqcn' => TestRecurringTask::class,
+            'payload' => ['test' => 'recurring'],
+            'interval_seconds' => 3600,
+        ]);
 
         $this->repository->moveToPaused($task);
     }
@@ -681,12 +681,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found: non-existent');
 
-        $task = new RecurringTaskRecord(
-            alias: new TaskSignatureVO('non-existent'),
-            fqcn: 'TestRecurringTask',
-            payload: StrictDataObject::from(['test' => 'recurring']),
-            interval_seconds: new CounterVO(3600),
-        );
+        $task = RecurringTaskRecord::from([
+            'alias' => 'non-existent',
+            'fqcn' => TestRecurringTask::class,
+            'payload' => ['test' => 'recurring'],
+            'interval_seconds' => 3600,
+        ]);
 
         $this->repository->moveToWaiting($task);
     }
@@ -715,12 +715,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found: non-existent');
 
-        $task = new RecurringTaskRecord(
-            alias: new TaskSignatureVO('non-existent'),
-            fqcn: 'TestRecurringTask',
-            payload: StrictDataObject::from(['test' => 'recurring']),
-            interval_seconds: new CounterVO(3600),
-        );
+        $task = RecurringTaskRecord::from([
+            'alias' => 'non-existent',
+            'fqcn' => TestRecurringTask::class,
+            'payload' => ['test' => 'recurring'],
+            'interval_seconds' => 3600,
+        ]);
 
         $this->repository->moveToFinished($task);
     }
@@ -752,12 +752,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found: non-existent');
 
-        $task = new RecurringTaskRecord(
-            alias: new TaskSignatureVO('non-existent'),
-            fqcn: 'TestRecurringTask',
-            payload: StrictDataObject::from(['test' => 'recurring']),
-            interval_seconds: new CounterVO(3600),
-        );
+        $task = RecurringTaskRecord::from([
+            'alias' => 'non-existent',
+            'fqcn' => TestRecurringTask::class,
+            'payload' => ['test' => 'recurring'],
+            'interval_seconds' => 3600,
+        ]);
 
         $this->repository->moveToCanceled($task);
     }
@@ -822,12 +822,12 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found: non-existent');
 
-        $task = new RecurringTaskRecord(
-            alias: new TaskSignatureVO('non-existent'),
-            fqcn: 'TestRecurringTask',
-            payload: StrictDataObject::from(['test' => 'recurring']),
-            interval_seconds: new CounterVO(3600),
-        );
+        $task = RecurringTaskRecord::from([
+            'alias' => 'non-existent',
+            'fqcn' => TestRecurringTask::class,
+            'payload' => ['test' => 'recurring'],
+            'interval_seconds' => 3600,
+        ]);
 
         $this->repository->updateAfterRun($task, true);
     }
@@ -926,15 +926,15 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $startAt = $frozenNow->copy()->addDays(1);
             $endAt = $frozenNow->copy()->addDays(8);
 
-            $task = new RecurringTaskRecord(
-                alias: new TaskSignatureVO($alias),
-                fqcn: 'TestRecurringTask',
-                payload: StrictDataObject::from(['test' => 'create']),
-                interval_seconds: new CounterVO(7200),
-                start_at: new Iso8601DateTimeVO($this->formatDate($startAt)),
-                end_at: new Iso8601DateTimeVO($this->formatDate($endAt)),
-                status: RecurringTaskStatus::WAITING,
-            );
+            $task = RecurringTaskRecord::from([
+                'alias' => $alias,
+                'fqcn' => TestRecurringTask::class,
+                'payload' => ['test' => 'create'],
+                'interval_seconds' => 7200,
+                'start_at' => $this->formatDate($startAt),
+                'end_at' => $this->formatDate($endAt),
+                'status' => RecurringTaskStatus::WAITING,
+            ]);
 
             $this->repository->create($task);
 
@@ -960,22 +960,22 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $task = $this->createAndSaveTask($alias, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2));
             $model = $this->repository->findByAlias($alias);
 
-            $updated = new RecurringTaskRecord(
-                alias: new TaskSignatureVO($alias),
-                fqcn: 'UpdatedTask',
-                payload: StrictDataObject::from(['updated' => true]),
-                interval_seconds: new CounterVO(14400),
-                start_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->addDays(2))),
-                end_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->addDays(9))),
-                status: RecurringTaskStatus::PLAYING,
-                last_run_at: new Iso8601DateTimeVO($this->formatDate($frozenNow)),
-            );
+            $updated = RecurringTaskRecord::from([
+                'alias' => $alias,
+                'fqcn' => TestRecurringTask::class,
+                'payload' => ['updated' => true],
+                'interval_seconds' => 14400,
+                'start_at' => $this->formatDate($frozenNow->copy()->addDays(2)),
+                'end_at' => $this->formatDate($frozenNow->copy()->addDays(9)),
+                'status' => RecurringTaskStatus::PLAYING,
+                'last_run_at' => $this->formatDate($frozenNow),
+            ]);
 
             $this->repository->update($model->getId(), $updated);
 
             $found = $this->repository->findByAlias($alias);
             $this->assertNotNull($found);
-            $this->assertEquals('UpdatedTask', $found->getFqcn());
+            $this->assertEquals(TestRecurringTask::class, $found->getFqcn());
             $this->assertEquals(14400, $found->getIntervalSeconds()->value);
             $this->assertEquals(RecurringTaskStatus::PLAYING, $found->getStatus());
             $this->assertNotNull($found->getLastRunAt());
@@ -1202,7 +1202,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 2,
                 5
             );
@@ -1229,7 +1229,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 3,
                 5
             );
@@ -1237,15 +1237,15 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $task = $this->repository->findByAlias('reset-failed-test');
             $this->assertEquals(3, $task->getFailedAttempts()->value);
 
-            $taskRecord = new RecurringTaskRecord(
-                alias: new TaskSignatureVO('reset-failed-test'),
-                fqcn: 'TestTask',
-                payload: StrictDataObject::from(['test' => 'recurring']),
-                interval_seconds: new CounterVO(3600),
-                start_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->subHours(2))),
-                end_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->addDays(7))),
-                status: RecurringTaskStatus::PLAYING,
-            );
+            $taskRecord = RecurringTaskRecord::from([
+                'alias' => 'reset-failed-test',
+                'fqcn' => TestRecurringTaskForRepository::class,
+                'payload' => ['test' => 'recurring'],
+                'interval_seconds' => 3600,
+                'start_at' => $this->formatDate($frozenNow->copy()->subHours(2)),
+                'end_at' => $this->formatDate($frozenNow->copy()->addDays(7)),
+                'status' => RecurringTaskStatus::PLAYING,
+            ]);
 
             $this->repository->updateAfterRun($taskRecord, true);
 
@@ -1270,7 +1270,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 1,
                 5
             );
@@ -1278,15 +1278,15 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $task = $this->repository->findByAlias('increment-failed-test');
             $this->assertEquals(1, $task->getFailedAttempts()->value);
 
-            $taskRecord = new RecurringTaskRecord(
-                alias: new TaskSignatureVO('increment-failed-test'),
-                fqcn: 'TestTask',
-                payload: StrictDataObject::from(['test' => 'recurring']),
-                interval_seconds: new CounterVO(3600),
-                start_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->subHours(2))),
-                end_at: new Iso8601DateTimeVO($this->formatDate($frozenNow->copy()->addDays(7))),
-                status: RecurringTaskStatus::PLAYING,
-            );
+            $taskRecord = RecurringTaskRecord::from([
+                'alias' => 'increment-failed-test',
+                'fqcn' => TestRecurringTaskForRepository::class,
+                'payload' => ['test' => 'recurring'],
+                'interval_seconds' => 3600,
+                'start_at' => $this->formatDate($frozenNow->copy()->subHours(2)),
+                'end_at' => $this->formatDate($frozenNow->copy()->addDays(7)),
+                'status' => RecurringTaskStatus::PLAYING,
+            ]);
 
             $this->repository->updateAfterRun($taskRecord, false, 'Test error');
 
@@ -1311,7 +1311,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 3,
                 3
             );
@@ -1323,7 +1323,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 1,
                 3
             );
@@ -1360,7 +1360,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 2,
                 3
             );
@@ -1393,7 +1393,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 3,
                 3
             );
@@ -1427,7 +1427,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 1,
                 3
             );
@@ -1439,7 +1439,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 2,
                 3
             );
@@ -1473,7 +1473,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 0,
                 3
             );
@@ -1485,13 +1485,13 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 0,
                 5
             );
 
-            $filters = new RecurringTaskFiltersRecord(
-                max_failed_attempts: 5
+            $filters = RecurringTaskFiltersRecord::from(
+                ['max_failed_attempts' => 5]
             );
 
             $results = $this->repository->findBy(
@@ -1519,7 +1519,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 2,
                 5
             );
@@ -1531,7 +1531,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 1,
                 5
             );
@@ -1543,18 +1543,18 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
                 $frozenNow->copy()->addDays(7),
                 3600,
                 null,
-                'TestTask',
+                TestRecurringTaskForRepository::class,
                 2,
                 3
             );
 
-            $filters = new RecurringTaskFiltersRecord(
-                failed_attempts: 2,
-                max_failed_attempts: 5
-            );
+            $filters = RecurringTaskFiltersRecord::from([
+                'failed_attempts' => 2,
+                'max_failed_attempts' => 5,
+            ]);
 
             $results = $this->repository->findBy(
-                new FindByRecord(filters: $filters)
+                FindByRecord::from(['filters' => $filters])
             );
 
             $this->assertCount(1, $results);

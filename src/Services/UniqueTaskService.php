@@ -21,6 +21,7 @@ use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\Carbon;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -48,15 +49,15 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
         $taskId = new TaskIdVO((string) $this->uuidFactory->uuid4());
 
-        $record = new UniqueTaskRecord(
-            id: $taskId,
-            alias: $finalConfig->getAlias(),
-            fqcn: $taskClass,
-            payload: $payload,
-            scheduled_at: $finalConfig->getScheduledAt(),
-            status: UniqueTaskStatus::PENDING,
-            max_attempts: $finalConfig->getMaxAttempts(),
-        );
+        $record = UniqueTaskRecord::from([
+            'id' => $taskId,
+            'alias' => $finalConfig->getAlias(),
+            'fqcn' => $taskClass,
+            'payload' => $payload,
+            'scheduled_at' => $finalConfig->getScheduledAt(),
+            'status' => UniqueTaskStatus::PENDING,
+            'max_attempts' => $finalConfig->getMaxAttempts(),
+        ]);
 
         $this->repository->create($record);
 
@@ -65,27 +66,22 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
     public function run(TaskIdVO $taskId): bool
     {
-
         $model = $this->repository->findById($taskId->value);
         if ($model === null) {
-
             return false;
         }
 
         $taskRecord = $this->modelToRecord($model);
 
         if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
-
             return false;
         }
 
-        // ✅ Vérifier que la tâche est prête à être exécutée (scheduled_at <= maintenant)
         $now = Carbon::now();
         $scheduledAt = Carbon::parse($taskRecord->scheduled_at->value);
 
         if ($scheduledAt->gt($now)) {
-
-            return false; // La tâche est dans le futur, ne pas exécuter
+            return false;
         }
 
         if ($taskRecord->attempts->value >= $taskRecord->max_attempts->value) {
@@ -138,36 +134,35 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                     $success++;
                 } else {
                     $failed++;
-                    $errors->add(new TaskErrorRecord(
-                        alias: $record->alias->value,
-                        fqcn: $record->fqcn,
-                        error: 'Task execution failed',
-                        context: 'attempts: '.$record->attempts->value.'/'.$record->max_attempts->value,
-                    ));
+                    $errors->add(TaskErrorRecord::from([
+                        'alias' => $record->alias->value,
+                        'fqcn' => $record->fqcn->getValue(),
+                        'error' => 'Task execution failed',
+                        'context' => 'attempts: '.$record->attempts->value.'/'.$record->max_attempts->value,
+                    ]));
                 }
             } catch (\Throwable $e) {
                 $failed++;
-                $errors->add(new TaskErrorRecord(
-                    alias: $record->alias->value,
-                    fqcn: $record->fqcn,
-                    error: $e->getMessage(),
-                    context: 'Exception during execution',
-                ));
+                $errors->add(TaskErrorRecord::from([
+                    'alias' => $record->alias->value,
+                    'fqcn' => $record->fqcn->getValue(),
+                    'error' => $e->getMessage(),
+                    'context' => 'Exception during execution',
+                ]));
             }
         }
 
-        // Traiter les tâches expirées
         $expiredTasks = $this->repository->findExpired($now);
         foreach ($expiredTasks as $task) {
             $taskRecord = $this->modelToRecord($task);
             $this->repository->moveToFailed($taskRecord);
             $failed++;
-            $errors->add(new TaskErrorRecord(
-                alias: $taskRecord->alias->value,
-                fqcn: $taskRecord->fqcn,
-                error: 'Task expired',
-                context: 'scheduled_at: '.$taskRecord->scheduled_at->value.', grace_period: '.$taskRecord->grace_period_seconds,
-            ));
+            $errors->add(TaskErrorRecord::from([
+                'alias' => $taskRecord->alias->value,
+                'fqcn' => $taskRecord->fqcn->getValue(),
+                'error' => 'Task expired',
+                'context' => 'scheduled_at: '.$taskRecord->scheduled_at->value.', grace_period: '.$taskRecord->grace_period_seconds,
+            ]));
         }
 
         return ProcessResultRecord::from([
@@ -342,7 +337,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         }
     }
 
-    private function instantiateTask(string $fqcn, UniqueTaskRecord $record): AbstractUniqueTask
+    private function instantiateTask(UniqueTaskFqcnVO $fqcn, UniqueTaskRecord $record): AbstractUniqueTask
     {
         $context = new UniqueTaskContext;
         $context->setTaskId($record->id);
@@ -350,7 +345,9 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         $context->setScheduledAt($record->scheduled_at);
         $context->setLaravelApp($this->app);
 
-        return new $fqcn($context, $this->logger, $this->hydration);
+        $className = $fqcn->getValue();
+
+        return new $className($context, $this->logger, $this->hydration);
     }
 
     private function modelToRecord(ModelsUniqueTask $model): UniqueTaskRecord

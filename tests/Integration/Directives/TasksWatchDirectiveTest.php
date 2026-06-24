@@ -23,7 +23,6 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
@@ -72,17 +71,17 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $scheduledAt = $scheduledAt ?? Carbon::now()->subHours(2);
         $id = $id ?? (string) Uuid::uuid4();
 
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO($alias),
-            fqcn: TestUniqueTask::class,
-            payload: StrictDataObject::from(['test' => 'unique']),
-            scheduled_at: new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: $gracePeriodSeconds,
-            status: $status,
-            attempts: new CounterVO(0),
-            max_attempts: new CounterVO(3),
-        );
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => $alias,
+            'fqcn' => TestUniqueTask::class,
+            'payload' => ['test' => 'unique'],
+            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => $gracePeriodSeconds,
+            'status' => $status,
+            'attempts' => 0,
+            'max_attempts' => 3,
+        ]);
 
         $this->uniqueRepository->create($record);
     }
@@ -90,17 +89,18 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     private function createFailingUniqueTask(): void
     {
         $id = (string) Uuid::uuid4();
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO('failing-task'),
-            fqcn: FailingTask::class,
-            payload: StrictDataObject::from(['test' => 'failing']),
-            scheduled_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: 86400,
-            status: UniqueTaskStatus::PENDING,
-            attempts: new CounterVO(2),
-            max_attempts: new CounterVO(3),
-        );
+
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => 'failing-task',
+            'fqcn' => FailingTask::class,
+            'payload' => ['test' => 'failing'],
+            'scheduled_at' => Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => 86400,
+            'status' => UniqueTaskStatus::PENDING,
+            'attempts' => 2,
+            'max_attempts' => 3,
+        ]);
 
         $this->uniqueRepository->create($record);
     }
@@ -111,7 +111,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         ?\DateTimeInterface $startAt = null,
         ?\DateTimeInterface $lastRunAt = null
     ): void {
-        $startAt = $startAt ?? Carbon::now()->subMinutes(10); // ✅ Dans le passé
+        $startAt = $startAt ?? Carbon::now()->subMinutes(10);
         $lastRunAt = $lastRunAt ?? Carbon::now()->subMinutes(10);
 
         $config = new RecurringTaskConfig(
@@ -144,11 +144,6 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $frozenNow = Carbon::create(2026, 6, 23, 12, 0, 0);
         Carbon::setTestNow($frozenNow);
 
-        $payload = StrictDataObject::from([
-            'should_fail' => true,
-            'fail_message' => 'Test recurring failure',
-        ]);
-
         $config = new RecurringTaskConfig(
             alias: new TaskSignatureVO('test-recurring-failing'),
             description: 'Test recurring task that fails',
@@ -161,7 +156,10 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $service = $this->app->make(RecurringTaskServiceInterface::class);
         $service->register(
             FailingRecurringTask::class,
-            $payload,
+            StrictDataObject::from([
+                'should_fail' => true,
+                'fail_message' => 'Test recurring failure',
+            ]),
             $config
         );
     }
@@ -324,11 +322,9 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_testing_mode_with_recurring_only_flag(): void
     {
-        // ✅ Freeze avant de créer la tâche
         $frozenNow = Carbon::create(2026, 6, 23, 12, 0, 0);
         Carbon::setTestNow($frozenNow);
 
-        // ✅ Créer la tâche récurrente directement ici
         $config = new RecurringTaskConfig(
             alias: new TaskSignatureVO('recurring-1'),
             description: 'Test recurring task',
@@ -431,8 +427,8 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
         $this->assertStringContainsString('❌ 1 tasks failed', $response->output);
-        $this->assertStringContainsString('Total failures:   2', $response->output); // ✅ 2 échecs
-        $this->assertStringContainsString('Total errors:     2', $response->output); // ✅ 2 erreurs
+        $this->assertStringContainsString('Total failures:   2', $response->output);
+        $this->assertStringContainsString('Total errors:     2', $response->output);
     }
 
     public function test_execute_testing_mode_with_mixed_success_and_errors(): void

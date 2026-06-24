@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Repositories;
 
-use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask;
@@ -12,11 +11,9 @@ use AndyDefer\Task\Records\UniqueTaskFiltersRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -57,17 +54,17 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $scheduledAt = $scheduledAt ?? now();
         $id = $id ?? (string) Uuid::uuid4();
 
-        $task = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO($alias),
-            fqcn: 'TestUniqueTask',
-            payload: StrictDataObject::from(['test' => 'unique']),
-            scheduled_at: new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: $gracePeriodSeconds,
-            status: $status,
-            attempts: new CounterVO($attempts),
-            max_attempts: new CounterVO($maxAttempts),
-        );
+        $task = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => $alias,
+            'fqcn' => TestUniqueTask::class,
+            'payload' => ['test' => 'unique'],
+            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => $gracePeriodSeconds,
+            'status' => $status,
+            'attempts' => $attempts,
+            'max_attempts' => $maxAttempts,
+        ]);
 
         $this->repository->create($task);
 
@@ -370,13 +367,13 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found');
 
-        $task = new UniqueTaskRecord(
-            id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
-            alias: new TaskSignatureVO('test'),
-            fqcn: 'TestUniqueTask',
-            payload: StrictDataObject::from([]),
-            scheduled_at: new Iso8601DateTimeVO(now()->toIso8601String()),
-        );
+        $task = UniqueTaskRecord::from([
+            'id' => '550e8400-e29b-41d4-a716-446655440000',
+            'alias' => 'test',
+            'fqcn' => TestUniqueTask::class,
+            'payload' => [],
+            'scheduled_at' => now()->toIso8601String(),
+        ]);
 
         $this->repository->moveToCompleted($task);
     }
@@ -399,13 +396,13 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found');
 
-        $task = new UniqueTaskRecord(
-            id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
-            alias: new TaskSignatureVO('test'),
-            fqcn: 'TestUniqueTask',
-            payload: StrictDataObject::from([]),
-            scheduled_at: new Iso8601DateTimeVO(now()->toIso8601String()),
-        );
+        $task = UniqueTaskRecord::from([
+            'id' => '550e8400-e29b-41d4-a716-446655440000',
+            'alias' => 'test',
+            'fqcn' => TestUniqueTask::class,
+            'payload' => [],
+            'scheduled_at' => now()->toIso8601String(),
+        ]);
 
         $this->repository->moveToFailed($task);
     }
@@ -430,13 +427,13 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found');
 
-        $task = new UniqueTaskRecord(
-            id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
-            alias: new TaskSignatureVO('test'),
-            fqcn: 'TestUniqueTask',
-            payload: StrictDataObject::from([]),
-            scheduled_at: new Iso8601DateTimeVO(now()->toIso8601String()),
-        );
+        $task = UniqueTaskRecord::from([
+            'id' => '550e8400-e29b-41d4-a716-446655440000',
+            'alias' => 'test',
+            'fqcn' => TestUniqueTask::class,
+            'payload' => [],
+            'scheduled_at' => now()->toIso8601String(),
+        ]);
 
         $this->repository->moveToCanceled($task);
     }
@@ -458,13 +455,13 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $this->expectException(\RuntimeException::class);
         $this->expectExceptionMessage('Task not found');
 
-        $task = new UniqueTaskRecord(
-            id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
-            alias: new TaskSignatureVO('test'),
-            fqcn: 'TestUniqueTask',
-            payload: StrictDataObject::from([]),
-            scheduled_at: new Iso8601DateTimeVO(now()->toIso8601String()),
-        );
+        $task = UniqueTaskRecord::from([
+            'id' => '550e8400-e29b-41d4-a716-446655440000',
+            'alias' => 'test',
+            'fqcn' => TestUniqueTask::class,
+            'payload' => [],
+            'scheduled_at' => now()->toIso8601String(),
+        ]);
 
         $this->repository->updateAttempts($task, 2);
     }
@@ -554,17 +551,17 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $id = (string) Uuid::uuid4();
         $scheduledAt = now()->addDays(1);
 
-        $task = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO('create-test'),
-            fqcn: 'TestUniqueTask',
-            payload: StrictDataObject::from(['test' => 'create']),
-            scheduled_at: new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: 43200,
-            status: UniqueTaskStatus::PENDING,
-            attempts: new CounterVO(0),
-            max_attempts: new CounterVO(5),
-        );
+        $task = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => 'create-test',
+            'fqcn' => TestUniqueTask::class,
+            'payload' => ['test' => 'create'],
+            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => 43200,
+            'status' => UniqueTaskStatus::PENDING,
+            'attempts' => 0,
+            'max_attempts' => 5,
+        ]);
 
         $this->repository->create($task);
 
@@ -589,7 +586,7 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
             $model->getId()->getValue(),
             [
                 'alias' => 'updated-alias',
-                'fqcn' => 'UpdatedTask',
+                'fqcn' => TestRecurringTask::class,
                 'payload' => json_encode(['updated' => true]),
                 'grace_period_seconds' => 172800,
                 'status' => UniqueTaskStatus::COMPLETED->value,
@@ -635,12 +632,12 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $this->createAndSaveTask('filter-alias-1', null, UniqueTaskStatus::PENDING);
         $this->createAndSaveTask('filter-alias-2', null, UniqueTaskStatus::PENDING);
 
-        $filters = new UniqueTaskFiltersRecord(
-            alias: new TaskSignatureVO('filter-alias-1')
-        );
+        $filters = UniqueTaskFiltersRecord::from([
+            'alias' => 'filter-alias-1',
+        ]);
 
         $results = $this->repository->findBy(
-            new FindByRecord(filters: $filters)
+            FindByRecord::from(['filters' => $filters])
         );
 
         $this->assertCount(1, $results);
@@ -652,12 +649,12 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $this->createAndSaveTask('status-pending', null, UniqueTaskStatus::PENDING);
         $this->createAndSaveTask('status-completed', null, UniqueTaskStatus::COMPLETED);
 
-        $filters = new UniqueTaskFiltersRecord(
-            status: UniqueTaskStatus::PENDING
-        );
+        $filters = UniqueTaskFiltersRecord::from([
+            'status' => UniqueTaskStatus::PENDING,
+        ]);
 
         $results = $this->repository->findBy(
-            new FindByRecord(filters: $filters)
+            FindByRecord::from(['filters' => $filters])
         );
 
         $this->assertCount(1, $results);
@@ -669,12 +666,12 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $this->createCanceledTask('canceled-1');
         $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
 
-        $filters = new UniqueTaskFiltersRecord(
-            status: UniqueTaskStatus::CANCELED
-        );
+        $filters = UniqueTaskFiltersRecord::from([
+            'status' => UniqueTaskStatus::CANCELED,
+        ]);
 
         $results = $this->repository->findBy(
-            new FindByRecord(filters: $filters)
+            FindByRecord::from(['filters' => $filters])
         );
 
         $this->assertCount(1, $results);

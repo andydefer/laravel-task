@@ -10,6 +10,7 @@ use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -58,6 +59,16 @@ final class UniqueTask extends Model
         return new TaskSignatureVO($this->alias);
     }
 
+    public function getFqcn(): UniqueTaskFqcnVO
+    {
+        return new UniqueTaskFqcnVO($this->fqcn);
+    }
+
+    public function getFqcnString(): string
+    {
+        return $this->fqcn;
+    }
+
     public function getScheduledAt(): Iso8601DateTimeVO
     {
         return new Iso8601DateTimeVO($this->scheduled_at->toIso8601String());
@@ -96,10 +107,5 @@ final class UniqueTask extends Model
     public function getPayload(): StrictDataObject
     {
         return new StrictDataObject($this->payload ?? []);
-    }
-
-    public function getFqcn(): string
-    {
-        return $this->fqcn;
     }
 }

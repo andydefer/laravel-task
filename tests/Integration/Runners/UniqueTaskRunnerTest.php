@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Runners;
 
 use AndyDefer\DomainStructures\Services\HydrationService;
-use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Loggers\UniqueTaskLogger;
@@ -19,10 +18,6 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTaskWithCustomConfig;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\App;
 use Ramsey\Uuid\Uuid;
@@ -43,20 +38,15 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // Repository
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->repository = new UniqueTaskRepository($this->debugRepository);
-
-        // Validator
         $this->validator = new UniqueTaskValidator;
 
-        // Logger
         $logger = new UniqueTaskLogger(
             logger: App::make(LoggerInterface::class),
             hydration: App::make(HydrationService::class),
         );
 
-        // Runner
         $this->runner = new UniqueTaskRunner(
             validator: $this->validator,
             logger: $logger,
@@ -87,17 +77,17 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
         $id = $id ?? (string) Uuid::uuid4();
         $fqcn = $fqcn ?? TestUniqueTask::class;
 
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO($alias),
-            fqcn: $fqcn,
-            payload: StrictDataObject::from(['test' => 'runner']),
-            scheduled_at: new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: $gracePeriodSeconds,
-            status: $status,
-            attempts: new CounterVO($attempts),
-            max_attempts: new CounterVO($maxAttempts),
-        );
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => $alias,
+            'fqcn' => $fqcn,
+            'payload' => ['test' => 'runner'],
+            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => $gracePeriodSeconds,
+            'status' => $status,
+            'attempts' => $attempts,
+            'max_attempts' => $maxAttempts,
+        ]);
 
         $this->repository->create($record);
 
@@ -121,13 +111,11 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
         $this->assertNull($result->error);
         $this->assertGreaterThanOrEqual(0, $result->execution_time);
 
-        // Vérifier que la tâche est en COMPLETED
         $task = $this->findTaskById($record->id->value);
         $this->assertNotNull($task);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
 
-        // Vérifier que le debug a été ajouté
         $debugs = $this->debugRepository->findByTask('unique', $record->id->value);
         $this->assertCount(1, $debugs);
         $debugData = $debugs->first()->getData();
@@ -137,7 +125,6 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
     public function test_run_returns_failure_when_task_not_in_pending_status(): void
     {
-        // Tâche en COMPLETED
         $record = $this->createTaskRecord(
             'test-run-completed',
             null,
@@ -155,7 +142,6 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
     public function test_run_returns_failure_when_scheduled_at_in_future(): void
     {
-        // Tâche avec scheduled_at dans le futur
         $record = $this->createTaskRecord(
             'test-run-future',
             null,
@@ -174,15 +160,14 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
     public function test_run_returns_failure_when_max_attempts_reached(): void
     {
-        // Tâche avec attempts = max_attempts
         $record = $this->createTaskRecord(
             'test-run-max-attempts',
             null,
             UniqueTaskStatus::PENDING,
             now()->subHours(2),
             86400,
-            3,  // attempts
-            3   // max_attempts
+            3,
+            3
         );
 
         $result = $this->runner->run($record);
@@ -196,13 +181,12 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
     public function test_run_returns_failure_when_task_expired(): void
     {
-        // Tâche expirée : scheduled_at + grace_period < now
         $record = $this->createTaskRecord(
             'test-run-expired',
             null,
             UniqueTaskStatus::PENDING,
             now()->subDays(2),
-            3600  // 1h de grace (expiré depuis longtemps)
+            3600
         );
 
         $result = $this->runner->run($record);
@@ -233,13 +217,11 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
         $this->assertNotNull($result->error);
         $this->assertEquals('Test exception', $result->error->error);
 
-        // Vérifier que la tâche est en FAILED
         $task = $this->findTaskById($record->id->value);
         $this->assertNotNull($task);
         $this->assertEquals(UniqueTaskStatus::FAILED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
 
-        // Vérifier que le debug avec l'erreur a été ajouté
         $debugs = $this->debugRepository->findByTask('unique', $record->id->value);
         $this->assertCount(1, $debugs);
         $debugData = $debugs->first()->getData();
@@ -266,7 +248,6 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertTrue($result->success);
 
-        // Vérifier que le debug a été ajouté
         $debugs = $this->debugRepository->findByTask('unique', $record->id->value);
         $this->assertCount(1, $debugs);
         $debugData = $debugs->first()->getData();
@@ -317,17 +298,17 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
         $alias = 'test-run-data';
         $id = (string) Uuid::uuid4();
 
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO($alias),
-            fqcn: TestUniqueTask::class,
-            payload: StrictDataObject::from(['test' => 'runner', 'data' => 'should_persist']),
-            scheduled_at: new Iso8601DateTimeVO(now()->subHours(2)->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: 86400,
-            status: UniqueTaskStatus::PENDING,
-            attempts: new CounterVO(0),
-            max_attempts: new CounterVO(3),
-        );
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => $alias,
+            'fqcn' => TestUniqueTask::class,
+            'payload' => ['test' => 'runner', 'data' => 'should_persist'],
+            'scheduled_at' => now()->subHours(2)->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => 86400,
+            'status' => UniqueTaskStatus::PENDING,
+            'attempts' => 0,
+            'max_attempts' => 3,
+        ]);
 
         $this->repository->create($record);
 
@@ -336,8 +317,6 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $task = $this->findTaskById($id);
         $this->assertNotNull($task);
-
-        // Vérifier que les données n'ont pas changé
         $this->assertEquals(TestUniqueTask::class, $task->getFqcn());
         $this->assertEquals('should_persist', $task->getPayload()->toArray()['data']);
         $this->assertEquals(86400, $task->getGracePeriodSeconds());
@@ -361,7 +340,6 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
         $this->assertTrue($result->success);
         $this->assertNull($result->error);
 
-        // Vérifier que la tâche est en COMPLETED
         $task = $this->findTaskById($record->id->value);
         $this->assertNotNull($task);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task->getStatus());
@@ -371,17 +349,17 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
     {
         $id = (string) Uuid::uuid4();
 
-        $record = new UniqueTaskRecord(
-            id: new TaskIdVO($id),
-            alias: new TaskSignatureVO('test-null-payload'),
-            fqcn: TestUniqueTask::class,
-            payload: StrictDataObject::from([]),  // Payload vide
-            scheduled_at: new Iso8601DateTimeVO(now()->subHours(2)->format('Y-m-d\TH:i:sP')),
-            grace_period_seconds: 86400,
-            status: UniqueTaskStatus::PENDING,
-            attempts: new CounterVO(0),
-            max_attempts: new CounterVO(3),
-        );
+        $record = UniqueTaskRecord::from([
+            'id' => $id,
+            'alias' => 'test-null-payload',
+            'fqcn' => TestUniqueTask::class,
+            'payload' => [],
+            'scheduled_at' => now()->subHours(2)->format('Y-m-d\TH:i:sP'),
+            'grace_period_seconds' => 86400,
+            'status' => UniqueTaskStatus::PENDING,
+            'attempts' => 0,
+            'max_attempts' => 3,
+        ]);
 
         $this->repository->create($record);
 
@@ -439,25 +417,22 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
     public function test_run_does_not_update_task_when_validation_fails(): void
     {
-        // Tâche avec scheduled_at dans le futur (validation échoue)
         $record = $this->createTaskRecord(
             'test-run-no-update',
             null,
             UniqueTaskStatus::PENDING,
-            now()->addHours(2)  // Future
+            now()->addHours(2)
         );
 
         $result = $this->runner->run($record);
 
         $this->assertFalse($result->success);
 
-        // Vérifier que la tâche est toujours en PENDING
         $task = $this->findTaskById($record->id->value);
         $this->assertNotNull($task);
         $this->assertEquals(UniqueTaskStatus::PENDING, $task->getStatus());
         $this->assertNull($task->getFinishedAt());
 
-        // Vérifier qu'aucun debug n'a été ajouté
         $debugs = $this->debugRepository->findByTask('unique', $record->id->value);
         $this->assertCount(0, $debugs);
     }

@@ -85,11 +85,12 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
 
     private function isValidTaskClass(UniqueTaskRecord $record): bool
     {
-        if (! class_exists($record->fqcn)) {
+        if (! class_exists($record->fqcn->getValue())) {
             return false;
         }
 
-        if (! is_subclass_of($record->fqcn, AbstractUniqueTask::class)) {
+        if (! is_subclass_of($record->fqcn->getValue(), AbstractUniqueTask::class)) {
+
             return false;
         }
 

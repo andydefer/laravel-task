@@ -9,6 +9,7 @@ use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -55,6 +56,16 @@ final class RecurringTask extends Model
     public function getAlias(): TaskSignatureVO
     {
         return new TaskSignatureVO($this->alias);
+    }
+
+    public function getFqcn(): RecurringTaskFqcnVO
+    {
+        return new RecurringTaskFqcnVO($this->fqcn);
+    }
+
+    public function getFqcnString(): string
+    {
+        return $this->fqcn;
     }
 
     public function getIntervalSeconds(): CounterVO
@@ -105,10 +116,5 @@ final class RecurringTask extends Model
     public function getPayload(): StrictDataObject
     {
         return new StrictDataObject($this->payload ?? []);
-    }
-
-    public function getFqcn(): string
-    {
-        return $this->fqcn;
     }
 }

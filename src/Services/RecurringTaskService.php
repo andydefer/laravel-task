@@ -49,15 +49,15 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $now = Carbon::now()->toIso8601String();
         $start_at = $config->getStartAt()?->value ?? $now;
 
-        $record = new RecurringTaskRecord(
-            alias: $alias,
-            fqcn: $taskClass,
-            payload: $payload,
-            interval_seconds: $config->getIntervalSeconds(),
-            start_at: new Iso8601DateTimeVO($start_at),
-            end_at: $config->getEndAt(),
-            status: RecurringTaskStatus::WAITING,
-        );
+        $record = RecurringTaskRecord::from([
+            'alias' => $alias,
+            'fqcn' => $taskClass,
+            'payload' => $payload,
+            'interval_seconds' => $config->getIntervalSeconds(),
+            'start_at' => $start_at,
+            'end_at' => $config->getEndAt(),
+            'status' => RecurringTaskStatus::WAITING,
+        ]);
 
         $this->repository->create($record);
 
@@ -84,7 +84,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             return false;
         }
 
-        $task = $this->instantiateTask($record->fqcn, $record);
+        $task = $this->instantiateTask($record->fqcn->getValue(), $record);
 
         try {
             $task->execute($record->payload);
@@ -125,21 +125,21 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                     $success++;
                 } else {
                     $failed++;
-                    $errors->add(new TaskErrorRecord(
-                        alias: $record->alias->value,
-                        fqcn: $record->fqcn,
-                        error: 'Task execution failed',
-                        context: 'end_at: '.($record->end_at?->value ?? 'null'),
-                    ));
+                    $errors->add(TaskErrorRecord::from([
+                        'alias' => $record->alias->value,
+                        'fqcn' => $record->fqcn,
+                        'error' => 'Task execution failed',
+                        'context' => 'end_at: '.($record->end_at?->value ?? 'null'),
+                    ]));
                 }
             } catch (\Throwable $e) {
                 $failed++;
-                $errors->add(new TaskErrorRecord(
-                    alias: $record->alias->value,
-                    fqcn: $record->fqcn,
-                    error: $e->getMessage(),
-                    context: 'Exception during execution',
-                ));
+                $errors->add(TaskErrorRecord::from([
+                    'alias' => $record->alias->value,
+                    'fqcn' => $record->fqcn,
+                    'error' => $e->getMessage(),
+                    'context' => 'Exception during execution',
+                ]));
             }
         }
 
@@ -429,6 +429,8 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             'last_run_at' => $model->getLastRunAt(),
             'finished_at' => $model->getFinishedAt(),
             'cancelled_at' => $model->getCancelledAt(),
+            'failed_attempts' => $model->getFailedAttempts(),
+            'max_failed_attempts' => $model->getMaxFailedAttempts(),
         ]);
     }
 }

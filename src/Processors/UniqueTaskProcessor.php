@@ -33,37 +33,31 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
 
         $now = Carbon::now()->toIso8601String();
 
-        // ✅ 1. Récupérer les tâches prêtes (Collection de modèles Eloquent)
         $tasks = $this->repository->findReadyToRun($now);
 
         if ($limit !== null) {
             $tasks = $tasks->take($limit);
         }
 
-        // ✅ 2. Exécuter chaque tâche
         foreach ($tasks as $task) {
-            // ✅ Convertir le modèle en Record
             $taskRecord = $this->modelToRecord($task);
 
-            // ✅ Vérifier si la tâche peut être exécutée (validator)
             if (! $this->validator->canRun($taskRecord)) {
                 $errorsList = $this->validator->getValidationErrors($taskRecord);
                 $errorMessage = $errorsList->count() > 0 ? $errorsList->join(', ') : 'Task cannot run';
 
-                // Marquer comme échec
                 $this->repository->moveToFailed($taskRecord);
                 $failed++;
-                $errors->add(new TaskErrorRecord(
-                    alias: $taskRecord->alias->value,
-                    fqcn: $taskRecord->fqcn,
-                    error: 'Validation failed: '.$errorMessage,
-                    context: 'scheduled_at: '.$taskRecord->scheduled_at->value.', attempts: '.$taskRecord->attempts->value,
-                ));
+                $errors->add(TaskErrorRecord::from([
+                    'alias' => $taskRecord->alias->value,
+                    'fqcn' => $taskRecord->fqcn->getValue(),
+                    'error' => 'Validation failed: '.$errorMessage,
+                    'context' => 'scheduled_at: '.$taskRecord->scheduled_at->value.', attempts: '.$taskRecord->attempts->value,
+                ]));
 
                 continue;
             }
 
-            // ✅ Exécuter la tâche via le runner
             $result = $this->runner->run($taskRecord);
 
             if ($result->success) {
@@ -76,22 +70,19 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
             }
         }
 
-        // ✅ 3. Traiter les tâches expirées (via le validator)
         $expiredTasks = $this->repository->findExpired($now);
         foreach ($expiredTasks as $task) {
-            // ✅ Convertir le modèle en Record
             $taskRecord = $this->modelToRecord($task);
 
-            // ✅ Vérifier si vraiment expirée via le validator
             if ($this->validator->isExpired($taskRecord)) {
                 $this->repository->moveToFailed($taskRecord);
                 $failed++;
-                $errors->add(new TaskErrorRecord(
-                    alias: $taskRecord->alias->value,
-                    fqcn: $taskRecord->fqcn,
-                    error: 'Task expired',
-                    context: 'scheduled_at: '.$taskRecord->scheduled_at->value.', grace_period: '.$taskRecord->grace_period_seconds,
-                ));
+                $errors->add(TaskErrorRecord::from([
+                    'alias' => $taskRecord->alias->value,
+                    'fqcn' => $taskRecord->fqcn->getValue(),
+                    'error' => 'Task expired',
+                    'context' => 'scheduled_at: '.$taskRecord->scheduled_at->value.', grace_period: '.$taskRecord->grace_period_seconds,
+                ]));
             }
         }
 
@@ -105,9 +96,6 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
         ]);
     }
 
-    /**
-     * Convertit un modèle Eloquent UniqueTask en UniqueTaskRecord.
-     */
     private function modelToRecord(UniqueTask $model): UniqueTaskRecord
     {
         return UniqueTaskRecord::from([
