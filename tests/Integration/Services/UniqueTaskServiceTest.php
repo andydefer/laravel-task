@@ -15,6 +15,7 @@ use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
 use AndyDefer\Task\Services\UniqueTaskService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
+use AndyDefer\Task\Tests\Fixtures\Tasks\SomeClass;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTaskWithCustomConfig;
 use AndyDefer\Task\Tests\IntegrationTestCase;
@@ -80,28 +81,18 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         );
     }
 
-    private function findTaskByAliasName(string $aliasName): ?UniqueTask
+    private function findTaskByAlias(TaskAliasVO $alias): ?UniqueTask
     {
-        $alias = $this->generateAliasFromName($aliasName);
-
         return $this->repository->findByAlias($alias);
     }
 
-    private function updateTaskScheduledAt(string $aliasName, Iso8601DateTimeVO $scheduledAt): void
+    private function getAliasValue(TaskAliasVO $alias): string
     {
-        $alias = $this->generateAliasFromName($aliasName);
-        $task = $this->repository->findByAlias($alias);
-        if ($task !== null) {
-            $this->repository->updateRaw(
-                $task->getId()->getValue(),
-                ['scheduled_at' => $scheduledAt->forDatabase()]
-            );
-        }
+        return $alias->getValue();
     }
 
-    private function updateTaskStatus(string $aliasName, UniqueTaskStatus $status): void
+    private function updateTaskStatus(TaskAliasVO $alias, UniqueTaskStatus $status): void
     {
-        $alias = $this->generateAliasFromName($aliasName);
         $task = $this->repository->findByAlias($alias);
         if ($task !== null) {
             $this->repository->updateRaw(
@@ -111,9 +102,8 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         }
     }
 
-    private function updateTaskAttempts(string $aliasName, int $attempts): void
+    private function updateTaskAttempts(TaskAliasVO $alias, int $attempts): void
     {
-        $alias = $this->generateAliasFromName($aliasName);
         $task = $this->repository->findByAlias($alias);
         if ($task !== null) {
             $this->repository->updateRaw(
@@ -140,20 +130,22 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $alias = $this->service->register($fqcn, $payload, $config);
 
         $this->assertInstanceOf(TaskAliasVO::class, $alias);
-        $this->assertStringContainsString('@', $alias->getValue());
+        $this->assertStringContainsString('@', $this->getAliasValue($alias));
 
-        $task = $this->findTaskByAliasName('test-register');
+        $task = $this->findTaskByAlias($alias);
         $this->assertNotNull($task);
         $this->assertEquals(TestUniqueTask::class, $task->getFqcn());
         $this->assertEquals(UniqueTaskStatus::PENDING, $task->getStatus());
     }
 
-    public function test_register_throws_exception_for_invalid_class(): void
+    public function test_register_throws_exception_for_class_not_extending_abstract(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Task must extend AbstractUniqueTask');
+        $this->expectExceptionMessage(
+            'Class "AndyDefer\Task\Tests\Fixtures\Tasks\SomeClass" must extend AndyDefer\Task\Abstract\AbstractUniqueTask'
+        );
 
-        $fqcn = new UniqueTaskFqcnVO('InvalidClass');
+        $fqcn = new UniqueTaskFqcnVO(SomeClass::class);
         $config = new UniqueTaskConfigVO(
             type: new TaskTypeVO('unique'),
             description: new DescriptionVO('Test'),
@@ -169,7 +161,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $payload = StrictDataObject::from(['test' => 'data']);
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTaskWithCustomConfig::class);
 
-        $scheduledAt = (new Iso8601DateTimeVO)->addSeconds(604800); // addDays(7)
+        $scheduledAt = (new Iso8601DateTimeVO)->addSeconds(604800);
 
         $config = new UniqueTaskConfigVO(
             type: new TaskTypeVO('unique'),
@@ -180,7 +172,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $alias = $this->service->register($fqcn, $payload, $config);
 
-        $task = $this->findTaskByAliasName('custom-alias');
+        $task = $this->findTaskByAlias($alias);
         $this->assertNotNull($task);
         $this->assertEquals(5, $task->getMaxAttempts()->getValue());
     }
@@ -193,7 +185,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $config = new UniqueTaskConfigVO(
             type: new TaskTypeVO('unique'),
             description: new DescriptionVO('Test'),
-            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200), // subHours(2)
+            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
             max_attempts: new MaxFailedAttemptsVO(3),
         );
 
@@ -203,7 +195,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $this->assertTrue($result->success);
 
-        $task = $this->findTaskByAliasName('test-run-executes');
+        $task = $this->findTaskByAlias($alias);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
     }
@@ -228,7 +220,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
-        $this->updateTaskStatus('test-run-completed', UniqueTaskStatus::COMPLETED);
+        $this->updateTaskStatus($alias, UniqueTaskStatus::COMPLETED);
 
         $result = $this->service->run($alias);
 
@@ -242,18 +234,18 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $config = new UniqueTaskConfigVO(
             type: new TaskTypeVO('unique'),
             description: new DescriptionVO('Test'),
-            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200), // subHours(2)
+            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
             max_attempts: new MaxFailedAttemptsVO(3),
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
-        $this->updateTaskAttempts('test-run-failing', 2);
+        $this->updateTaskAttempts($alias, 2);
 
         $result = $this->service->run($alias);
 
         $this->assertFalse($result->success);
 
-        $task = $this->findTaskByAliasName('test-run-failing');
+        $task = $this->findTaskByAlias($alias);
         $this->assertEquals(UniqueTaskStatus::FAILED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
     }
@@ -276,7 +268,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $this->assertTrue($result);
 
-        $task = $this->findTaskByAliasName('test-cancel');
+        $task = $this->findTaskByAlias($alias);
         $this->assertEquals(UniqueTaskStatus::CANCELED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
     }
@@ -300,7 +292,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
-        $this->updateTaskStatus('test-cancel-completed', UniqueTaskStatus::COMPLETED);
+        $this->updateTaskStatus($alias, UniqueTaskStatus::COMPLETED);
 
         $result = $this->service->cancel($alias, new DescriptionVO('Test'));
 
@@ -318,7 +310,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
-        $this->updateTaskStatus('test-cancel-failed', UniqueTaskStatus::FAILED);
+        $this->updateTaskStatus($alias, UniqueTaskStatus::FAILED);
 
         $result = $this->service->cancel($alias, new DescriptionVO('Test'));
 
@@ -339,13 +331,13 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
-        $newScheduledAt = (new Iso8601DateTimeVO)->addSeconds(432000); // addDays(5)
+        $newScheduledAt = (new Iso8601DateTimeVO)->addSeconds(432000);
 
         $result = $this->service->reschedule($alias, $newScheduledAt);
 
         $this->assertTrue($result);
 
-        $task = $this->findTaskByAliasName('test-reschedule');
+        $task = $this->findTaskByAlias($alias);
         $this->assertEquals(
             $newScheduledAt->format('Y-m-d H:i:s'),
             $task->getScheduledAt()->format('Y-m-d H:i:s')
@@ -371,7 +363,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
-        $this->updateTaskStatus('test-reschedule-completed', UniqueTaskStatus::COMPLETED);
+        $this->updateTaskStatus($alias, UniqueTaskStatus::COMPLETED);
 
         $result = $this->service->reschedule($alias, new Iso8601DateTimeVO);
 
@@ -392,19 +384,22 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
-        $task = $this->findTaskByAliasName('test-extend-grace');
+        $task = $this->findTaskByAlias($alias);
         $originalGracePeriod = $task->getGracePeriodSeconds();
 
         $result = $this->service->extendGracePeriod($alias, new DurationVO(3600));
 
         $this->assertTrue($result);
 
-        $updatedTask = $this->findTaskByAliasName('test-extend-grace');
+        $updatedTask = $this->findTaskByAlias($alias);
         $this->assertEquals($originalGracePeriod + 3600, $updatedTask->getGracePeriodSeconds());
     }
 
     public function test_extend_grace_period_returns_false_for_negative_seconds(): void
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Duration cannot be negative');
+
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
         $config = new UniqueTaskConfigVO(
             type: new TaskTypeVO('unique'),
@@ -415,9 +410,8 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
-        $result = $this->service->extendGracePeriod($alias, new DurationVO(-3600));
-
-        $this->assertFalse($result);
+        // ✅ DurationVO lance une exception pour les valeurs négatives
+        $this->service->extendGracePeriod($alias, new DurationVO(-3600));
     }
 
     public function test_extend_grace_period_returns_false_for_non_existing_task(): void
@@ -439,7 +433,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
-        $this->updateTaskStatus('test-extend-completed', UniqueTaskStatus::COMPLETED);
+        $this->updateTaskStatus($alias, UniqueTaskStatus::COMPLETED);
 
         $result = $this->service->extendGracePeriod($alias, new DurationVO(3600));
 
@@ -455,7 +449,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
             $config = new UniqueTaskConfigVO(
                 type: new TaskTypeVO('unique'),
                 description: new DescriptionVO("Task {$i}"),
-                scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200), // subHours(2)
+                scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
                 max_attempts: new MaxFailedAttemptsVO(3),
             );
 
@@ -480,7 +474,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
             $config = new UniqueTaskConfigVO(
                 type: new TaskTypeVO('unique'),
                 description: new DescriptionVO("Task {$i}"),
-                scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200), // subHours(2)
+                scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
                 max_attempts: new MaxFailedAttemptsVO(3),
             );
 
@@ -515,7 +509,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $record = $this->service->find($alias);
 
         $this->assertInstanceOf(UniqueTaskRecord::class, $record);
-        $this->assertEquals($alias->getValue(), $record->alias->getValue());
+        $this->assertEquals($this->getAliasValue($alias), $this->getAliasValue($record->alias));
         $this->assertEquals(TestUniqueTask::class, $record->fqcn->getValue());
     }
 
@@ -584,7 +578,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $this->assertTrue($result);
 
-        $task = $this->findTaskByAliasName('test-delete');
+        $task = $this->findTaskByAlias($alias);
         $this->assertNull($task);
     }
 
@@ -605,7 +599,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $this->assertTrue($result);
 
-        $task = $this->findTaskByAliasName('test-delete-canceled');
+        $task = $this->findTaskByAlias($alias);
         $this->assertNull($task);
     }
 
@@ -657,7 +651,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $config = new UniqueTaskConfigVO(
             type: new TaskTypeVO('unique'),
             description: new DescriptionVO('Test'),
-            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200), // subHours(2)
+            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
             max_attempts: new MaxFailedAttemptsVO(3),
         );
 
@@ -673,13 +667,16 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $config = new UniqueTaskConfigVO(
             type: new TaskTypeVO('unique'),
             description: new DescriptionVO('Test'),
-            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200), // subHours(2)
+            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
             max_attempts: new MaxFailedAttemptsVO(3),
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
-        $this->updateTaskAttempts('test-count-failed', 3);
-        $this->service->run($alias);
+        $this->updateTaskAttempts($alias, 3);
+
+        // ✅ Le run doit marquer la tâche comme FAILED
+        $result = $this->service->run($alias);
+        $this->assertFalse($result->success);
 
         $this->assertEquals(1, $this->service->countFailed()->getValue());
     }

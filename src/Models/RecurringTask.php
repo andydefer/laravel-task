@@ -102,7 +102,7 @@ final class RecurringTask extends Model
         return $this->start_at ? new Iso8601DateTimeVO($this->start_at->toIso8601String()) : null;
     }
 
-    public function getEndAtVO(): ?Iso8601DateTimeVO
+    public function getEndAt(): ?Iso8601DateTimeVO
     {
         return $this->end_at ? new Iso8601DateTimeVO($this->end_at->toIso8601String()) : null;
     }

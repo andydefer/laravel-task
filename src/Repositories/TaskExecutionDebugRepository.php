@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Repositories;
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\Repository\AbstractRepository;
 use AndyDefer\Repository\Records\FindByRecord;
+use AndyDefer\Repository\ValueObjects\SortColumns;
 use AndyDefer\Task\Contracts\Repositories\TaskExecutionDebugRepositoryInterface;
 use AndyDefer\Task\Enums\ExecutionStatus;
 use AndyDefer\Task\Models\TaskExecutionDebug;
@@ -78,7 +79,15 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
             'alias' => $alias,
         ]);
 
-        return $this->findBy(FindByRecord::from(['filters' => $filters]));
+        // ✅ Ajouter le tri par created_at décroissant
+        $sortBy = new SortColumns('created_at:desc');
+
+        return $this->findBy(
+            FindByRecord::from([
+                'filters' => $filters,
+                'sortBy' => $sortBy,
+            ])
+        );
     }
 
     public function findByFqcn(TaskFqcnVO $fqcn): Collection

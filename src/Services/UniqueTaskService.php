@@ -28,6 +28,7 @@ use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskConfigVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Foundation\Application;
 use Ramsey\Uuid\Uuid;
 
@@ -45,6 +46,19 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         StrictDataObject $payload,
         UniqueTaskConfigVO $config
     ): TaskAliasVO {
+        $className = $fqcn->getValue();
+
+        // ✅ Validation de la classe
+        if (! class_exists($className)) {
+            throw new \InvalidArgumentException("Task class \"{$className}\" does not exist.");
+        }
+
+        if (! is_subclass_of($className, AbstractUniqueTask::class)) {
+            throw new \InvalidArgumentException(
+                "Class \"{$className}\" must extend ".AbstractUniqueTask::class
+            );
+        }
+
         $uuid = (string) Uuid::uuid4();
 
         $alias = new TaskAliasVO(
@@ -53,12 +67,15 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         );
 
         $record = UniqueTaskRecord::from([
+            'id' => new UuidVO($uuid),                           // ✅ AJOUTÉ
             'alias' => $alias,
             'fqcn' => $fqcn,
             'payload' => $payload,
             'scheduled_at' => $config->getScheduledAt(),
+            'grace_period_seconds' => $config->getGracePeriod()->getValue(), // ✅ INT
             'status' => UniqueTaskStatus::PENDING,
-            'max_attempts' => $config->getMaxAttempts(),
+            'attempts' => 0,                                     // ✅ AJOUTÉ
+            'max_attempts' => $config->getMaxAttempts()->getValue(), // ✅ INT
         ]);
 
         $model = $this->repository->create($record);
@@ -103,7 +120,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             ]);
         }
 
-        if ($taskRecord->attempts->value >= $taskRecord->max_attempts->value) {
+        if ($taskRecord->attempts->getValue() >= $taskRecord->max_attempts->getValue()) {
             $this->repository->moveToFailed($taskRecord);
 
             return TaskRunResultRecord::from([
@@ -127,10 +144,10 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         } catch (\Throwable $e) {
             $newAttempts = $taskRecord->attempts->increment();
 
-            if ($newAttempts->value >= $taskRecord->max_attempts->value) {
+            if ($newAttempts->getValue() >= $taskRecord->max_attempts->getValue()) {
                 $this->repository->moveToFailed($taskRecord);
             } else {
-                $model->update(['attempts' => $newAttempts->value]);
+                $this->repository->updateAttempts($taskRecord, $newAttempts);
             }
 
             return TaskRunResultRecord::from([
@@ -151,11 +168,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
         $now = new Iso8601DateTimeVO;
 
-        $tasks = $this->repository->findReadyToRun($now);
-
-        if ($limit !== null) {
-            $tasks = $tasks->take($limit->getValue());
-        }
+        $tasks = $this->repository->findReadyToRun($now, $limit);
 
         foreach ($tasks as $task) {
             $record = $this->modelToRecord($task);
@@ -172,8 +185,8 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                         'error' => $result->error ?? 'Task execution failed',
                         'context' => sprintf(
                             'attempts: %d/%d',
-                            $record->attempts->value,
-                            $record->max_attempts->value
+                            $record->attempts->getValue(),
+                            $record->max_attempts->getValue()
                         ),
                     ]));
                 }
@@ -188,7 +201,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             }
         }
 
-        $expiredTasks = $this->repository->findExpired($now);
+        $expiredTasks = $this->repository->findExpired($now, $limit);
         foreach ($expiredTasks as $task) {
             $taskRecord = $this->modelToRecord($task);
             $this->repository->moveToFailed($taskRecord);
@@ -199,8 +212,8 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 'error' => 'Task expired',
                 'context' => sprintf(
                     'scheduled_at: %s, grace_period: %d',
-                    $taskRecord->scheduled_at->value,
-                    $taskRecord->grace_period_seconds
+                    $taskRecord->scheduled_at->getValue(),
+                    $taskRecord->grace_period_seconds->getValue()
                 ),
             ]));
         }
@@ -259,13 +272,16 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 return false;
             }
 
-            $model->update(['scheduled_at' => $newScheduledAt->forDatabase()]);
+            $this->repository->updateRaw(
+                $model->getId()->getValue(),
+                ['scheduled_at' => $newScheduledAt->forDatabase()]
+            );
 
             $this->logger->info(LogDataRecord::from([
                 'type' => 'unique_task_rescheduled',
                 'payload' => $this->hydration->hydrate(StrictDataObject::class, [
                     'alias' => $alias->getValue(),
-                    'new_scheduled_at' => $newScheduledAt->value,
+                    'new_scheduled_at' => $newScheduledAt->getValue(),
                 ]),
             ]));
 
@@ -278,7 +294,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
     public function extendGracePeriod(TaskAliasVO $alias, DurationVO $extraSeconds): bool
     {
         try {
-            if ($extraSeconds->seconds <= 0) {
+            if ($extraSeconds->getValue() <= 0) {
                 return false;
             }
 
@@ -294,14 +310,17 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             }
 
             $currentGracePeriod = $model->getGracePeriodSeconds();
-            $model->update(['grace_period_seconds' => $currentGracePeriod + (int) $extraSeconds->seconds]);
+            $this->repository->updateRaw(
+                $model->getId()->getValue(),
+                ['grace_period_seconds' => $currentGracePeriod + (int) $extraSeconds->getValue()]
+            );
 
             $this->logger->info(LogDataRecord::from([
                 'type' => 'unique_task_grace_period_extended',
                 'payload' => $this->hydration->hydrate(StrictDataObject::class, [
                     'alias' => $alias->getValue(),
-                    'extra_seconds' => (int) $extraSeconds->seconds,
-                    'new_grace_period' => $currentGracePeriod + (int) $extraSeconds->seconds,
+                    'extra_seconds' => (int) $extraSeconds->getValue(),
+                    'new_grace_period' => $currentGracePeriod + (int) $extraSeconds->getValue(),
                 ]),
             ]));
 
@@ -381,7 +400,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             if ($model === null) {
                 return false;
             }
-            $model->delete();
+            $this->repository->delete($model->getId()->getValue());
 
             return true;
         } catch (\Throwable $e) {

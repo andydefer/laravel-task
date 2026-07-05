@@ -28,8 +28,8 @@ use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskConfigVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Support\Carbon;
 use Ramsey\Uuid\Uuid;
 
 final class RecurringTaskService implements RecurringTaskServiceInterface
@@ -46,6 +46,19 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         StrictDataObject $payload,
         RecurringTaskConfigVO $config
     ): TaskAliasVO {
+        $className = $fqcn->getValue();
+
+        // ✅ Validation de la classe
+        if (! class_exists($className)) {
+            throw new \InvalidArgumentException("Task class \"{$className}\" does not exist.");
+        }
+
+        if (! is_subclass_of($className, AbstractRecurringTask::class)) {
+            throw new \InvalidArgumentException(
+                "Class \"{$className}\" must extend ".AbstractRecurringTask::class
+            );
+        }
+
         $uuid = (string) Uuid::uuid4();
 
         $alias = new TaskAliasVO(
@@ -57,14 +70,16 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $startAt = $config->getStartAt() ?? $now;
 
         $record = RecurringTaskRecord::from([
+            'id' => new UuidVO($uuid),                              // ✅ AJOUTÉ
             'alias' => $alias,
             'fqcn' => $fqcn,
             'payload' => $payload,
-            'interval_seconds' => $config->getIntervalSeconds(),
+            'interval_seconds' => $config->getIntervalSeconds()->getValue(), // ✅ INT
             'start_at' => $startAt,
             'end_at' => $config->getEndAt(),
             'status' => RecurringTaskStatus::WAITING,
-            'max_failed_attempts' => $config->getMaxAttempts(),
+            'failed_attempts' => 0,                                  // ✅ AJOUTÉ
+            'max_failed_attempts' => $config->getMaxAttempts()->getValue(), // ✅ INT
         ]);
 
         $model = $this->repository->create($record);
@@ -144,7 +159,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
         $result = $this->repository->findReadyToRun($now, $limit);
 
-        $finished += $result->fresh_state->playing_to_finished->value;
+        $finished += $result->fresh_state->playing_to_finished->getValue();
 
         foreach ($result->tasks as $record) {
             if (! $this->shouldRunAgain($record)) {
@@ -163,7 +178,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                         'error' => $runResult->error ?? 'Task execution failed',
                         'context' => sprintf(
                             'end_at: %s',
-                            $record->end_at?->value ?? 'null'
+                            $record->end_at?->getValue() ?? 'null'
                         ),
                     ]));
                 }
@@ -202,7 +217,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $lastRun = $record->last_run_at;
         $interval = $record->interval_seconds;
 
-        return $now->diffInSeconds($lastRun)->seconds >= $interval->seconds;
+        return $now->diffInSeconds($lastRun)->getValue() >= $interval->getValue();
     }
 
     public function pause(TaskAliasVO $alias): bool
@@ -282,8 +297,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             $record = $this->modelToRecord($model);
             $this->repository->moveToCanceled($record);
 
-            $model->update(['cancelled_at' => Carbon::now()->toDateTimeString()]);
-
             $this->logger->warning(LogDataRecord::from([
                 'type' => 'recurring_task_cancelled',
                 'payload' => $this->hydration->hydrate(StrictDataObject::class, [
@@ -344,7 +357,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
             $this->repository->updateRaw(
                 $model->getId()->getValue(),
-                ['interval_seconds' => $intervalSeconds->getValue()]
+                ['interval_seconds' => (int) $intervalSeconds->getValue()]
             );
 
             return true;
@@ -516,12 +529,13 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
     private function modelToRecord(ModelsRecurringTask $model): RecurringTaskRecord
     {
         return RecurringTaskRecord::from([
+            'id' => $model->getId(),
             'alias' => $model->getAlias(),
             'fqcn' => $model->getFqcn(),
             'payload' => $model->getPayload(),
             'interval_seconds' => $model->getIntervalSeconds(),
             'start_at' => $model->getStartAt(),
-            'end_at' => $model->getEndAtVO(),
+            'end_at' => $model->getEndAt(),
             'status' => $model->getStatus(),
             'last_run_at' => $model->getLastRunAt(),
             'finished_at' => $model->getFinishedAt(),

@@ -724,7 +724,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             'payload' => $model->getPayload(),
             'interval_seconds' => $model->getIntervalSeconds(),
             'start_at' => $model->getStartAt(),
-            'end_at' => $model->getEndAtVO(),
+            'end_at' => $model->getEndAt(),
             'status' => $model->getStatus(),
             'last_run_at' => $model->getLastRunAt(),
             'finished_at' => $model->getFinishedAt(),

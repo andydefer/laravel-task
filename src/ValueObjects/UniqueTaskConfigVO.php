@@ -14,6 +14,7 @@ final class UniqueTaskConfigVO extends AbstractValueObject
         public readonly DescriptionVO $description,
         public readonly Iso8601DateTimeVO $scheduled_at,
         public readonly MaxFailedAttemptsVO $max_attempts = new MaxFailedAttemptsVO(3),
+        public readonly DurationVO $grace_period = new DurationVO(86400),
     ) {}
 
     public function getType(): string
@@ -36,6 +37,11 @@ final class UniqueTaskConfigVO extends AbstractValueObject
         return $this->max_attempts;
     }
 
+    public function getGracePeriod(): DurationVO
+    {
+        return $this->grace_period;
+    }
+
     public function getValue(): StrictDataObject
     {
         return new StrictDataObject($this->toArray());
@@ -48,6 +54,7 @@ final class UniqueTaskConfigVO extends AbstractValueObject
             'description' => $this->description->getValue(),
             'scheduled_at' => $this->scheduled_at->value,
             'max_attempts' => $this->max_attempts->value,
+            'grace_period' => $this->grace_period->getValue(),
         ];
     }
 
