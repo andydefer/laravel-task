@@ -10,7 +10,7 @@ use Ramsey\Uuid\Uuid;
 
 final class UuidVO extends AbstractValueObject
 {
-    public readonly string $value;
+    private readonly string $value;
 
     public function __construct(string $value)
     {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Processors;
 
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
-use AndyDefer\Task\Contracts\Processors\ProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Runners\RecurringTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
@@ -17,7 +17,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use Illuminate\Support\Carbon;
 
-final class RecurringTaskProcessor implements ProcessorInterface
+final class RecurringTaskProcessor implements RecurringTaskProcessorInterface
 {
     public function __construct(
         private readonly RecurringTaskRepositoryInterface $repository,
@@ -37,7 +37,8 @@ final class RecurringTaskProcessor implements ProcessorInterface
 
         $result = $this->repository->findReadyToRun($now, $limit);
 
-        $finished += $result->fresh_state->playing_to_finished->value;
+        // ✅ Correction : extraire la valeur du CounterVO
+        $finished += $result->fresh_state->playing_to_finished->getValue();
 
         foreach ($result->tasks as $record) {
             if (! $this->validator->shouldRunAgain($record)) {
@@ -55,7 +56,7 @@ final class RecurringTaskProcessor implements ProcessorInterface
                 }
             }
 
-            $finalModel = $this->repository->findByAlias($record->alias->value);
+            $finalModel = $this->repository->findByAlias($record->alias);
             if ($finalModel !== null) {
                 $finalRecord = $this->modelToRecord($finalModel);
                 if ($this->validator->shouldMoveToFinished($finalRecord)) {

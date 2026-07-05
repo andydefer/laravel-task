@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\ValueObjects;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
-use DateTime;
+use Carbon\Carbon;
 use InvalidArgumentException;
 
 /**
@@ -17,9 +17,9 @@ final class Iso8601DateTimeVO extends AbstractValueObject
 
     public function __construct(?string $value = null)
     {
-        $value = $value ?? (new DateTime)->format(self::FORMAT);
+        $value = $value ?? Carbon::now()->format(self::FORMAT);
 
-        $date = DateTime::createFromFormat(self::FORMAT, $value);
+        $date = Carbon::createFromFormat(self::FORMAT, $value);
 
         if (! $date || $date->format(self::FORMAT) !== $value) {
             throw new InvalidArgumentException("Invalid ISO 8601 datetime: {$value}");
@@ -28,26 +28,36 @@ final class Iso8601DateTimeVO extends AbstractValueObject
         $this->value = $value;
     }
 
-    public readonly string $value;
+    private readonly string $value;
 
     public function getValue(): string
     {
         return $this->value;
     }
 
-    public function toDateTime(): DateTime
+    public function toCarbon(): Carbon
     {
-        return DateTime::createFromFormat(self::FORMAT, $this->value);
+        return Carbon::createFromFormat(self::FORMAT, $this->value);
+    }
+
+    /**
+     * Get the Unix timestamp.
+     *
+     * @return int The Unix timestamp
+     */
+    public function getTimestamp(): int
+    {
+        return $this->toCarbon()->timestamp;
     }
 
     public function isAfter(self $other): bool
     {
-        return $this->toDateTime() > $other->toDateTime();
+        return $this->toCarbon()->gt($other->toCarbon());
     }
 
     public function isBefore(self $other): bool
     {
-        return $this->toDateTime() < $other->toDateTime();
+        return $this->toCarbon()->lt($other->toCarbon());
     }
 
     /**
@@ -58,9 +68,22 @@ final class Iso8601DateTimeVO extends AbstractValueObject
      */
     public function diffInSeconds(self $other): DurationVO
     {
-        $diff = $this->toDateTime()->getTimestamp() - $other->toDateTime()->getTimestamp();
+        $diff = $this->toCarbon()->diffInSeconds($other->toCarbon());
 
         return new DurationVO((float) abs($diff));
+    }
+
+    /**
+     * Calculate the duration since this datetime in milliseconds.
+     *
+     * @return MillisecondsVO The duration from this datetime to now in milliseconds
+     */
+    public function elapsedInMilliseconds(): MillisecondsVO
+    {
+        $now = new self;
+        $diff = $now->toCarbon()->diffInMilliseconds($this->toCarbon());
+
+        return new MillisecondsVO((int) abs($diff));
     }
 
     /**
@@ -81,7 +104,7 @@ final class Iso8601DateTimeVO extends AbstractValueObject
      */
     public function format(string $format = 'Y-m-d H:i:s'): string
     {
-        return $this->toDateTime()->format($format);
+        return $this->toCarbon()->format($format);
     }
 
     /**
@@ -131,7 +154,7 @@ final class Iso8601DateTimeVO extends AbstractValueObject
      */
     public function toRfc2822(): string
     {
-        return $this->toDateTime()->format(DateTime::RFC2822);
+        return $this->toCarbon()->toRfc2822String();
     }
 
     /**
@@ -141,7 +164,33 @@ final class Iso8601DateTimeVO extends AbstractValueObject
      */
     public function toAtom(): string
     {
-        return $this->toDateTime()->format(DateTime::ATOM);
+        return $this->toCarbon()->toAtomString();
+    }
+
+    /**
+     * Add seconds to the datetime.
+     *
+     * @param  int  $seconds  Number of seconds to add
+     * @return self New instance with added seconds
+     */
+    public function addSeconds(int $seconds): self
+    {
+        $carbon = $this->toCarbon()->addSeconds($seconds);
+
+        return new self($carbon->format(self::FORMAT));
+    }
+
+    /**
+     * Subtract seconds from the datetime.
+     *
+     * @param  int  $seconds  Number of seconds to subtract
+     * @return self New instance with subtracted seconds
+     */
+    public function subSeconds(int $seconds): self
+    {
+        $carbon = $this->toCarbon()->subSeconds($seconds);
+
+        return new self($carbon->format(self::FORMAT));
     }
 
     /**

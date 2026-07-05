@@ -9,7 +9,7 @@ use InvalidArgumentException;
 
 final class TaskTypeVO extends AbstractValueObject
 {
-    public readonly string $value;
+    private readonly string $value;
 
     public function __construct(string $value)
     {

@@ -110,12 +110,12 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    private function freshState(Iso8601DateTimeVO $now = new Iso8601DateTimeVO): FreshStateResultRecord
+    private function freshState(?Iso8601DateTimeVO $now = null): FreshStateResultRecord
     {
+        $now = $now ?? new Iso8601DateTimeVO;
+
         try {
-            $dateTime = new \DateTime($now->value);
-            $dateTime->setTimezone(new \DateTimeZone('UTC'));
-            $formattedNow = $dateTime->format('Y-m-d H:i:s');
+            $formattedNow = $now->forDatabase();
 
             $waitingToPlaying = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::WAITING->value)
@@ -125,12 +125,18 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             $playingToFinished = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::PLAYING->value)
                 ->where('end_at', '<=', $formattedNow)
-                ->update(['status' => RecurringTaskStatus::FINISHED->value, 'finished_at' => $formattedNow]);
+                ->update([
+                    'status' => RecurringTaskStatus::FINISHED->value,
+                    'finished_at' => $formattedNow,
+                ]);
 
             $playingToCanceled = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::PLAYING->value)
                 ->whereRaw('failed_attempts >= max_failed_attempts')
-                ->update(['status' => RecurringTaskStatus::CANCELED->value, 'cancelled_at' => $formattedNow]);
+                ->update([
+                    'status' => RecurringTaskStatus::CANCELED->value,
+                    'cancelled_at' => $formattedNow,
+                ]);
 
             return FreshStateResultRecord::from([
                 'waiting_to_playing' => new CounterVO($waitingToPlaying),
@@ -141,7 +147,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_fresh_state_error',
                 'payload' => [
-                    'now' => $now->value,
+                    'now' => $now->getValue(),
                     'error' => $e->getMessage(),
                 ],
             ]));
@@ -319,7 +325,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_find_ready_to_run_error',
                 'payload' => [
-                    'now' => $now?->value ?? 'null',
+                    'now' => $now?->getValue() ?? 'null',
                     'limit' => $limit?->getValue() ?? 'null',
                     'error' => $e->getMessage(),
                 ],
@@ -371,7 +377,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 return false;
             }
 
-            $this->update($existingTask->getId(), RecurringTaskRecord::from([
+            $this->update($existingTask->getId()->getValue(), RecurringTaskRecord::from([
                 'alias' => $task->alias,
                 'fqcn' => $task->fqcn,
                 'payload' => $task->payload,
@@ -406,7 +412,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 return false;
             }
 
-            $this->update($existingTask->getId(), RecurringTaskRecord::from([
+            $this->update($existingTask->getId()->getValue(), RecurringTaskRecord::from([
                 'alias' => $task->alias,
                 'fqcn' => $task->fqcn,
                 'payload' => $task->payload,
@@ -441,7 +447,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 return false;
             }
 
-            $this->update($existingTask->getId(), RecurringTaskRecord::from([
+            $this->update($existingTask->getId()->getValue(), RecurringTaskRecord::from([
                 'alias' => $task->alias,
                 'fqcn' => $task->fqcn,
                 'payload' => $task->payload,
@@ -478,7 +484,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
             $now = new Iso8601DateTimeVO;
 
-            $this->update($existingTask->getId(), RecurringTaskRecord::from([
+            $this->update($existingTask->getId()->getValue(), RecurringTaskRecord::from([
                 'alias' => $task->alias,
                 'fqcn' => $task->fqcn,
                 'payload' => $task->payload,
@@ -516,7 +522,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
             $now = new Iso8601DateTimeVO;
 
-            $this->update($existingTask->getId(), RecurringTaskRecord::from([
+            $this->update($existingTask->getId()->getValue(), RecurringTaskRecord::from([
                 'alias' => $task->alias,
                 'fqcn' => $task->fqcn,
                 'payload' => $task->payload,
@@ -557,8 +563,8 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 return false;
             }
 
-            $currentFailedAttempts = $existingTask->getFailedAttempts()->value;
-            $maxFailedAttempts = $existingTask->getMaxFailedAttempts()->value;
+            $currentFailedAttempts = $existingTask->getFailedAttempts()->getValue();
+            $maxFailedAttempts = $existingTask->getMaxFailedAttempts()->getValue();
 
             if ($success) {
                 $newFailedAttempts = 0;
@@ -566,7 +572,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 $newFailedAttempts = $currentFailedAttempts + 1;
             }
 
-            $this->update($existingTask->getId(), RecurringTaskRecord::from([
+            $this->update($existingTask->getId()->getValue(), RecurringTaskRecord::from([
                 'alias' => $task->alias,
                 'fqcn' => $task->fqcn,
                 'payload' => $task->payload,
@@ -579,8 +585,10 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'max_failed_attempts' => new MaxFailedAttemptsVO($maxFailedAttempts),
             ]));
 
+            $duration = (int) ($task->last_run_at?->diffInSeconds($now)->getValue() * 1000);
+
             $durationMs = $task->last_run_at !== null
-                ? new MillisecondsVO((int) ($this->calculateDuration($task->last_run_at, $now) * 1000))
+                ? new MillisecondsVO($duration)
                 : null;
 
             $this->debugRepository->addDebug(
@@ -607,18 +615,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
             return false;
         }
-    }
-
-    private function calculateDuration(?Iso8601DateTimeVO $start, Iso8601DateTimeVO $end): float
-    {
-        if ($start === null) {
-            return 0.0;
-        }
-
-        $startTimestamp = strtotime($start->value);
-        $endTimestamp = strtotime($end->value);
-
-        return (float) ($endTimestamp - $startTimestamp);
     }
 
     // ==================== COUNTS ====================

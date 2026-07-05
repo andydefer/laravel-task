@@ -21,10 +21,11 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @extends AbstractRepository<UniqueTask, UniqueTaskRecord>
@@ -51,7 +52,7 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         }
 
         if ($filters->id !== null) {
-            $query->where('id', $filters->id->value);
+            $query->where('id', $filters->id->getValue());
         }
 
         if ($filters->alias !== null) {
@@ -153,32 +154,45 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         ]));
     }
 
+    /**
+     * Finds tasks ready to run with row locking to prevent concurrency issues.
+     *
+     * Uses lockForUpdate() and skipLocked() to ensure each task is executed only once.
+     */
     public function findReadyToRun(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection
     {
         $formattedNow = $now->forDatabase();
 
-        $query = $this->model->newQuery();
-        $query->where('status', UniqueTaskStatus::PENDING->value);
-        $query->where('scheduled_at', '<=', $formattedNow);
+        return DB::transaction(function () use ($formattedNow, $limit) {
+            $query = $this->model->newQuery()
+                ->where('status', UniqueTaskStatus::PENDING->value)
+                ->where('scheduled_at', '<=', $formattedNow)
+                ->lockForUpdate();
+
+            if ($limit !== null) {
+                $query->limit($limit->getValue());
+            }
+
+            return $query->get();
+        });
+    }
+
+    public function findExpired(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection
+    {
+        $nowTimestamp = $now->getTimestamp();
+
+        $query = $this->model->newQuery()
+            ->where('status', UniqueTaskStatus::PENDING->value);
 
         if ($limit !== null) {
             $query->limit($limit->getValue());
         }
 
-        /** @var Collection<int, UniqueTask> $result */
-        $result = $query->get();
-
-        return $result;
-    }
-
-    public function findExpired(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection
-    {
-        $tasks = $this->findPending();
+        $tasks = $query->get();
         $expired = [];
-        $nowTimestamp = strtotime($now->value);
 
         foreach ($tasks as $task) {
-            $scheduledAt = strtotime($task->getScheduledAt()->value);
+            $scheduledAt = $task->getScheduledAt()->getTimestamp();
             $graceEnd = $scheduledAt + $task->getGracePeriodSeconds();
 
             if ($nowTimestamp > $graceEnd) {
@@ -186,16 +200,10 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
             }
         }
 
-        $collection = new Collection($expired);
-
-        if ($limit !== null) {
-            $collection = $collection->take($limit->getValue());
-        }
-
-        return $collection;
+        return new Collection($expired);
     }
 
-    public function findById(TaskIdVO $id): ?UniqueTask
+    public function findById(UuidVO $id): ?UniqueTask
     {
         $filters = UniqueTaskFiltersRecord::from([
             'id' => $id,
@@ -222,12 +230,15 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
     public function updateAttempts(UniqueTaskRecord $task, CounterVO $newAttempts): bool
     {
         try {
-            $existingTask = $this->findById($task->id);
-            if ($existingTask === null) {
+            $updated = $this->model->newQuery()
+                ->where('id', $task->id->getValue())
+                ->update(['attempts' => $newAttempts->getValue()]);
+
+            if ($updated === 0) {
                 $this->logger->error(LogDataRecord::from([
                     'type' => 'unique_task_update_attempts_not_found',
                     'payload' => [
-                        'task_id' => $task->id->value,
+                        'task_id' => $task->id->getValue(),
                         'new_attempts' => $newAttempts->getValue(),
                     ],
                 ]));
@@ -235,14 +246,12 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
                 return false;
             }
 
-            $existingTask->update(['attempts' => $newAttempts->getValue()]);
-
             return true;
         } catch (\Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_update_attempts_error',
                 'payload' => [
-                    'task_id' => $task->id->value,
+                    'task_id' => $task->id->getValue(),
                     'new_attempts' => $newAttempts->getValue(),
                     'error' => $e->getMessage(),
                 ],
@@ -281,31 +290,33 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
     public function moveToCompleted(UniqueTaskRecord $task): bool
     {
         try {
-            $existingTask = $this->findById($task->id);
-            if ($existingTask === null) {
+            $now = Carbon::now()->toDateTimeString();
+
+            $updated = $this->model->newQuery()
+                ->where('id', $task->id->getValue())
+                ->where('status', '!=', UniqueTaskStatus::COMPLETED->value)
+                ->update([
+                    'status' => UniqueTaskStatus::COMPLETED->value,
+                    'finished_at' => $now,
+                ]);
+
+            if ($updated === 0) {
                 $this->logger->error(LogDataRecord::from([
-                    'type' => 'unique_task_move_to_completed_not_found',
+                    'type' => 'unique_task_move_to_completed_not_found_or_already_completed',
                     'payload' => [
-                        'task_id' => $task->id->value,
+                        'task_id' => $task->id->getValue(),
                     ],
                 ]));
 
                 return false;
             }
 
-            $now = Carbon::now()->toDateTimeString();
-
-            $existingTask->update([
-                'status' => UniqueTaskStatus::COMPLETED->value,
-                'finished_at' => $now,
-            ]);
-
             return true;
         } catch (\Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_move_to_completed_error',
                 'payload' => [
-                    'task_id' => $task->id->value,
+                    'task_id' => $task->id->getValue(),
                     'error' => $e->getMessage(),
                 ],
             ]));
@@ -317,31 +328,33 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
     public function moveToFailed(UniqueTaskRecord $task): bool
     {
         try {
-            $existingTask = $this->findById($task->id);
-            if ($existingTask === null) {
+            $now = Carbon::now()->toDateTimeString();
+
+            $updated = $this->model->newQuery()
+                ->where('id', $task->id->getValue())
+                ->where('status', '!=', UniqueTaskStatus::FAILED->value)
+                ->update([
+                    'status' => UniqueTaskStatus::FAILED->value,
+                    'finished_at' => $now,
+                ]);
+
+            if ($updated === 0) {
                 $this->logger->error(LogDataRecord::from([
-                    'type' => 'unique_task_move_to_failed_not_found',
+                    'type' => 'unique_task_move_to_failed_not_found_or_already_failed',
                     'payload' => [
-                        'task_id' => $task->id->value,
+                        'task_id' => $task->id->getValue(),
                     ],
                 ]));
 
                 return false;
             }
 
-            $now = Carbon::now()->toDateTimeString();
-
-            $existingTask->update([
-                'status' => UniqueTaskStatus::FAILED->value,
-                'finished_at' => $now,
-            ]);
-
             return true;
         } catch (\Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_move_to_failed_error',
                 'payload' => [
-                    'task_id' => $task->id->value,
+                    'task_id' => $task->id->getValue(),
                     'error' => $e->getMessage(),
                 ],
             ]));
@@ -353,31 +366,33 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
     public function moveToCanceled(UniqueTaskRecord $task): bool
     {
         try {
-            $existingTask = $this->findById($task->id);
-            if ($existingTask === null) {
+            $now = Carbon::now()->toDateTimeString();
+
+            $updated = $this->model->newQuery()
+                ->where('id', $task->id->getValue())
+                ->where('status', '!=', UniqueTaskStatus::CANCELED->value)
+                ->update([
+                    'status' => UniqueTaskStatus::CANCELED->value,
+                    'finished_at' => $now,
+                ]);
+
+            if ($updated === 0) {
                 $this->logger->error(LogDataRecord::from([
-                    'type' => 'unique_task_move_to_canceled_not_found',
+                    'type' => 'unique_task_move_to_canceled_not_found_or_already_canceled',
                     'payload' => [
-                        'task_id' => $task->id->value,
+                        'task_id' => $task->id->getValue(),
                     ],
                 ]));
 
                 return false;
             }
 
-            $now = Carbon::now()->toDateTimeString();
-
-            $existingTask->update([
-                'status' => UniqueTaskStatus::CANCELED->value,
-                'finished_at' => $now,
-            ]);
-
             return true;
         } catch (\Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_move_to_canceled_error',
                 'payload' => [
-                    'task_id' => $task->id->value,
+                    'task_id' => $task->id->getValue(),
                     'error' => $e->getMessage(),
                 ],
             ]));

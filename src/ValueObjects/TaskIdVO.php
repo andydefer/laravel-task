@@ -6,12 +6,13 @@ namespace AndyDefer\Task\ValueObjects;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use InvalidArgumentException;
+use Ramsey\Uuid\Uuid;
 
-final class TaskIdVO extends AbstractValueObject
+final class UuidVO extends AbstractValueObject
 {
     public function __construct(public readonly string $value)
     {
-        if (! preg_match('/^[a-f0-9-]{36}$/', $value)) {
+        if (! Uuid::isValid($value)) {
             throw new InvalidArgumentException("Invalid task ID format: {$value}");
         }
     }
@@ -19,10 +20,5 @@ final class TaskIdVO extends AbstractValueObject
     public function getValue(): string
     {
         return $this->value;
-    }
-
-    public function fileName(): string
-    {
-        return $this->value.'.jsonl';
     }
 }

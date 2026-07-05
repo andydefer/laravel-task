@@ -17,6 +17,7 @@ use AndyDefer\Task\Records\ExecutionResultRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use Illuminate\Contracts\Foundation\Application;
@@ -41,10 +42,11 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
             return ExecutionResultRecord::from([
                 'success' => false,
                 'error' => TaskErrorRecord::from([
-                    'alias' => $record->alias->value,
+                    'alias' => $record->alias,
                     'fqcn' => $record->fqcn->getValue(),
                     'error' => 'Validation failed: '.$errors->join(', '),
                 ]),
+                'execution_time' => new DurationVO(0.0), // ✅ Ajouté
             ]);
         }
 
@@ -83,8 +85,8 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
         return ExecutionResultRecord::from([
             'success' => $success,
             'error' => $error ? TaskErrorRecord::from([
-                'alias' => $record->alias->value,
-                'fqcn' => $record->fqcn->getValue(),
+                'alias' => $record->alias,
+                'fqcn' => $record->fqcn,
                 'error' => $error,
             ]) : null,
             'execution_time' => $startTime->elapsed(),

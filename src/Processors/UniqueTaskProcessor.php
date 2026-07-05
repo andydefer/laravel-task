@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Processors;
 
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
-use AndyDefer\Task\Contracts\Processors\ProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\UniqueTaskProcessorInterface;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
@@ -18,7 +18,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use Illuminate\Support\Carbon;
 
-final class UniqueTaskProcessor implements ProcessorInterface
+final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
 {
     public function __construct(
         private readonly UniqueTaskRepositoryInterface $repository,
@@ -53,10 +53,10 @@ final class UniqueTaskProcessor implements ProcessorInterface
                 $this->repository->moveToFailed($taskRecord);
                 $failed++;
                 $errors->add(TaskErrorRecord::from([
-                    'alias' => $taskRecord->alias->value,
+                    'alias' => $taskRecord->alias,
                     'fqcn' => $taskRecord->fqcn->getValue(),
                     'error' => 'Validation failed: '.$errorMessage,
-                    'context' => 'scheduled_at: '.$taskRecord->scheduled_at->value.', attempts: '.$taskRecord->attempts->value,
+                    'context' => 'scheduled_at: '.$taskRecord->scheduled_at->getValue().', attempts: '.$taskRecord->attempts->getValue(),
                 ]));
 
                 continue;
@@ -82,10 +82,10 @@ final class UniqueTaskProcessor implements ProcessorInterface
                 $this->repository->moveToFailed($taskRecord);
                 $failed++;
                 $errors->add(TaskErrorRecord::from([
-                    'alias' => $taskRecord->alias->value,
+                    'alias' => $taskRecord->alias->getValue(),
                     'fqcn' => $taskRecord->fqcn->getValue(),
                     'error' => 'Task expired',
-                    'context' => 'scheduled_at: '.$taskRecord->scheduled_at->value.', grace_period: '.$taskRecord->grace_period_seconds,
+                    'context' => 'scheduled_at: '.$taskRecord->scheduled_at->getValue().', grace_period: '.$taskRecord->grace_period_seconds->getValue(),
                 ]));
             }
         }

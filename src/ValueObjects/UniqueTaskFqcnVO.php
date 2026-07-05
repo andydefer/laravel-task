@@ -8,7 +8,7 @@ use AndyDefer\Task\Abstract\AbstractUniqueTask;
 
 final class UniqueTaskFqcnVO extends TaskFqcnVO
 {
-    public readonly string $value;
+    private readonly string $value;
 
     public function __construct(string $fqcn)
     {

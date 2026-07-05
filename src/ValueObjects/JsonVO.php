@@ -18,7 +18,7 @@ use InvalidArgumentException;
  */
 final class JsonVO extends AbstractValueObject
 {
-    public readonly string $value;
+    private readonly string $value;
 
     /**
      * Create a new JsonVO instance.

@@ -7,7 +7,7 @@ namespace AndyDefer\Task\Contracts\Processors;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\ValueObjects\LimitVO;
 
-interface ProcessorInterface
+interface UniqueTaskProcessorInterface
 {
     public function process(LimitVO $limit = new LimitVO): ProcessResultRecord;
 }

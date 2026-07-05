@@ -29,7 +29,7 @@ final class MillisecondsVO extends AbstractValueObject
      *
      * @throws InvalidArgumentException If milliseconds is negative
      */
-    public function __construct(int $milliseconds)
+    public function __construct(int $milliseconds = 1)
     {
         if ($milliseconds < 0) {
             throw new InvalidArgumentException(sprintf(
@@ -46,9 +46,9 @@ final class MillisecondsVO extends AbstractValueObject
      *
      * @return int The duration in milliseconds
      */
-    public function getValue(): int
+    public function getValue(): float
     {
-        return $this->value;
+        return (float) $this->value;
     }
 
     /**

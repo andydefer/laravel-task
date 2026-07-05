@@ -16,11 +16,14 @@ use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Contexts\RecurringTaskContext;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\Carbon;
+use Ramsey\Uuid\Uuid;
 
 final class RecurringTaskTest extends IntegrationTestCase
 {
@@ -64,9 +67,13 @@ final class RecurringTaskTest extends IntegrationTestCase
             hydrationService: $this->hydration,
         );
 
+        // ✅ Utiliser un UUID valide
         $this->context = new RecurringTaskContext;
-        $this->context->setAlias(new TaskSignatureVO('test-recurring'));
-        $this->context->setIntervalSeconds(new CounterVO(3600));
+        $this->context->setAlias(new TaskAliasVO(
+            type: new TaskTypeVO('recurring'),
+            uuid: (string) Uuid::uuid4()
+        ));
+        $this->context->setIntervalSeconds(new DurationVO(3600));
         $this->context->setStartAt(new Iso8601DateTimeVO(Carbon::now()->toIso8601String()));
         $this->context->setNextRunAt(new Iso8601DateTimeVO(Carbon::now()->addSeconds(3600)->toIso8601String()));
         $this->context->setLaravelApp($this->app);
@@ -88,14 +95,10 @@ final class RecurringTaskTest extends IntegrationTestCase
         }
     }
 
-    public function test_returns_config(): void
+    // ✅ Récupérer l'alias pour les assertions
+    private function getAliasValue(): string
     {
-        $config = $this->task->getConfig();
-
-        $this->assertEquals('test-recurring', $config->getAlias()->value);
-        $this->assertEquals('Test recurring task', $config->getDescription());
-        $this->assertEquals(3600, $config->getIntervalSeconds()->value);
-        $this->assertEquals(3, $config->getMaxAttempts()->value);
+        return $this->context->getAlias()->getValue();
     }
 
     public function test_executes_task_successfully(): void
@@ -150,8 +153,9 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_preserves_context_data(): void
     {
-        $this->assertEquals('test-recurring', $this->context->getAlias()->value);
-        $this->assertEquals(3600, $this->context->getIntervalSeconds()->value);
+        $aliasValue = $this->getAliasValue();
+        $this->assertStringContainsString('recurring@', $aliasValue);
+        $this->assertEquals(3600, $this->context->getIntervalSeconds()->seconds);
         $this->assertNotNull($this->context->getStartAt());
         $this->assertNotNull($this->context->getNextRunAt());
         $this->assertNull($this->context->getLastRunAt());
@@ -205,7 +209,7 @@ final class RecurringTaskTest extends IntegrationTestCase
     {
         $this->logger->flush();
 
-        $this->task->info('Info without execution');
+        $this->task->info(new DescriptionVO('Info without execution'));
 
         $this->logger->flush();
         $fs = new FileSystemService;
@@ -224,7 +228,7 @@ final class RecurringTaskTest extends IntegrationTestCase
     {
         $this->logger->flush();
 
-        $this->task->error('Error without execution');
+        $this->task->error(new DescriptionVO('Error without execution'));
 
         $this->logger->flush();
         $fs = new FileSystemService;
@@ -241,15 +245,18 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_context_can_be_modified_after_creation(): void
     {
-        $newAlias = new TaskSignatureVO('modified-recurring');
+        $newAlias = new TaskAliasVO(
+            type: new TaskTypeVO('recurring'),
+            uuid: (string) Uuid::uuid4()
+        );
         $this->context->setAlias($newAlias);
 
-        $this->assertEquals('modified-recurring', $this->context->getAlias()->value);
+        $this->assertStringContainsString('recurring@', $this->context->getAlias()->getValue());
 
-        $newInterval = new CounterVO(7200);
+        $newInterval = new DurationVO(7200);
         $this->context->setIntervalSeconds($newInterval);
 
-        $this->assertEquals(7200, $this->context->getIntervalSeconds()->value);
+        $this->assertEquals(7200, $this->context->getIntervalSeconds()->seconds);
     }
 
     public function test_task_execution_with_empty_payload(): void
@@ -282,9 +289,87 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $log = $this->task->getExecutionLog();
         $this->assertCount(1, $log);
-        $this->assertEquals(123, $log[0]['payload']['user']['id']);
-        $this->assertEquals('John Doe', $log[0]['payload']['user']['name']);
-        $this->assertEquals('high', $log[0]['payload']['settings']['priority']);
-        $this->assertEquals([1, 2, 3, 4, 5], $log[0]['payload']['items']);
+
+        $logPayload = $log[0]['payload'];
+        $this->assertEquals(123, $logPayload['user']['id']);
+        $this->assertEquals('John Doe', $logPayload['user']['name']);
+        $this->assertEquals('high', $logPayload['settings']['priority']);
+        $this->assertEquals([1, 2, 3, 4, 5], $logPayload['items']);
+    }
+
+    public function test_before_hook_executed(): void
+    {
+        $payload = StrictDataObject::from(['test' => 'before_hook']);
+
+        $this->task->execute($payload);
+
+        $this->assertTrue($this->task->wasBeforeCalled());
+    }
+
+    public function test_after_hook_executed_on_success(): void
+    {
+        $payload = StrictDataObject::from(['test' => 'after_hook_success']);
+
+        $this->task->execute($payload);
+
+        $this->assertTrue($this->task->wasAfterCalled());
+        $this->assertNull($this->task->getAfterError());
+    }
+
+    public function test_after_hook_executed_on_failure(): void
+    {
+        $this->task->setFailOn('Hook failure test');
+
+        $payload = StrictDataObject::from(['test' => 'after_hook_failure']);
+
+        try {
+            $this->task->execute($payload);
+        } catch (\RuntimeException $e) {
+            // Expected
+        }
+
+        $this->assertTrue($this->task->wasAfterCalled());
+        $this->assertNotNull($this->task->getAfterError());
+        $this->assertEquals('Hook failure test', $this->task->getAfterError()->getValue());
+    }
+
+    public function test_info_logs_are_written(): void
+    {
+        $this->logger->flush();
+
+        $message = new DescriptionVO('Test info message');
+        $this->task->info($message);
+
+        $this->logger->flush();
+        $fs = new FileSystemService;
+        $today = Carbon::now()->format('Y-m-d');
+        $logFiles = $fs->glob($this->logPath.'/'.$today.'/*.jsonl');
+        $this->assertNotEmpty($logFiles);
+
+        $content = '';
+        foreach ($logFiles as $file) {
+            $content .= $fs->get($file);
+        }
+        $this->assertStringContainsString('Test info message', $content);
+    }
+
+    public function test_error_logs_are_written(): void
+    {
+        $this->logger->flush();
+
+        $message = new DescriptionVO('Test error message');
+        $this->task->error($message);
+
+        $this->logger->flush();
+        $fs = new FileSystemService;
+        $today = Carbon::now()->format('Y-m-d');
+        $logFiles = $fs->glob($this->logPath.'/'.$today.'/*.jsonl');
+        $this->assertNotEmpty($logFiles);
+
+        $content = '';
+        foreach ($logFiles as $file) {
+            $content .= $fs->get($file);
+        }
+        $this->assertStringContainsString('Test error message', $content);
     }
 }

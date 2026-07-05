@@ -11,6 +11,7 @@ use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\ValueObjects\MillisecondsVO;
 
 final class RecurringTaskLogger implements RecurringTaskLoggerInterface
 {
@@ -23,19 +24,19 @@ final class RecurringTaskLogger implements RecurringTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'recurring_task_started',
-            'alias' => $record->alias->value,
-            'interval' => $record->interval_seconds->value,
-            'last_run_at' => $record->last_run_at?->value,
+            'alias' => $record->alias,
+            'interval' => $record->interval_seconds,
+            'last_run_at' => $record->last_run_at,
         ]);
 
         $this->logger->info(new LogDataRecord(type: 'recurring_task', payload: $payload));
     }
 
-    public function logSuccess(RecurringTaskRecord $record, float $executionTime): void
+    public function logSuccess(RecurringTaskRecord $record, MillisecondsVO $executionTime): void
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'recurring_task_completed',
-            'alias' => $record->alias->value,
+            'alias' => $record->alias,
             'execution_time' => $executionTime,
         ]);
 
@@ -46,7 +47,7 @@ final class RecurringTaskLogger implements RecurringTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'recurring_task_failed',
-            'alias' => $record->alias->value,
+            'alias' => $record->alias,
             'error' => $error->getValue(),
         ]);
 
@@ -57,7 +58,7 @@ final class RecurringTaskLogger implements RecurringTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'recurring_task_moved_to_running',
-            'alias' => $record->alias->value,
+            'alias' => $record->alias,
         ]);
 
         $this->logger->info(new LogDataRecord(type: 'recurring_task', payload: $payload));
@@ -67,8 +68,8 @@ final class RecurringTaskLogger implements RecurringTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'recurring_task_moved_to_finished',
-            'alias' => $record->alias->value,
-            'end_at' => $record->end_at?->value,
+            'alias' => $record->alias,
+            'end_at' => $record->end_at,
         ]);
 
         $this->logger->info(new LogDataRecord(type: 'recurring_task', payload: $payload));

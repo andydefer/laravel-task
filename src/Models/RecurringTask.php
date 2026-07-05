@@ -12,6 +12,7 @@ use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\TaskTypeVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -19,9 +20,14 @@ final class RecurringTask extends Model
 {
     use SoftDeletes;
 
+    public $incrementing = false;
+
+    protected $keyType = 'string';
+
     protected $table = 'recurring_tasks';
 
     protected $fillable = [
+        'id',
         'alias',
         'fqcn',
         'payload',
@@ -34,6 +40,8 @@ final class RecurringTask extends Model
         'max_failed_attempts',
         'finished_at',
         'cancelled_at',
+        'deleted_at',
+
     ];
 
     protected $casts = [
@@ -49,9 +57,9 @@ final class RecurringTask extends Model
         'payload' => 'array',
     ];
 
-    public function getId(): int
+    public function getId(): UuidVO
     {
-        return $this->id;
+        return new UuidVO((string) $this->id);
     }
 
     public function getAlias(): TaskAliasVO

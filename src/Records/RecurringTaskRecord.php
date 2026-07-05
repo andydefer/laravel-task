@@ -13,15 +13,17 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 
 final class RecurringTaskRecord extends AbstractRecord
 {
     public function __construct(
+        public readonly ?UuidVO $id,
         public readonly ?TaskAliasVO $alias,
         public readonly ?RecurringTaskFqcnVO $fqcn,
         public readonly ?StrictDataObject $payload,
         public readonly DurationVO $interval_seconds,
-        public readonly ?Iso8601DateTimeVO $start_at = null,
+        public readonly ?Iso8601DateTimeVO $start_at = new Iso8601DateTimeVO,
         public readonly ?Iso8601DateTimeVO $end_at = null,
         public readonly RecurringTaskStatus $status = RecurringTaskStatus::WAITING,
         public readonly ?Iso8601DateTimeVO $last_run_at = null,

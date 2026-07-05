@@ -24,11 +24,11 @@ final class UniqueTaskLogger implements UniqueTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'unique_task_started',
-            'task_id' => $record->id->value,
-            'alias' => $record->alias->value,
-            'scheduled_at' => $record->scheduled_at->value,
-            'attempts' => $record->attempts->value,
-            'max_attempts' => $record->max_attempts->value,
+            'task_id' => $record->id,
+            'alias' => $record->alias,
+            'scheduled_at' => $record->scheduled_at,
+            'attempts' => $record->attempts,
+            'max_attempts' => $record->max_attempts,
         ]);
 
         $this->logger->info(new LogDataRecord(type: 'unique_task', payload: $payload));
@@ -38,8 +38,8 @@ final class UniqueTaskLogger implements UniqueTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'unique_task_completed',
-            'task_id' => $record->id->value,
-            'alias' => $record->alias->value,
+            'task_id' => $record->id,
+            'alias' => $record->alias,
             'execution_time' => $executionTime,
         ]);
 
@@ -50,9 +50,9 @@ final class UniqueTaskLogger implements UniqueTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'unique_task_failed',
-            'task_id' => $record->id->value,
-            'alias' => $record->alias->value,
-            'attempts' => $record->attempts->value,
+            'task_id' => $record->id,
+            'alias' => $record->alias,
+            'attempts' => $record->attempts,
             'error' => $error,
         ]);
 
@@ -63,9 +63,9 @@ final class UniqueTaskLogger implements UniqueTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'unique_task_expired',
-            'task_id' => $record->id->value,
-            'alias' => $record->alias->value,
-            'scheduled_at' => $record->scheduled_at->value,
+            'task_id' => $record->id,
+            'alias' => $record->alias,
+            'scheduled_at' => $record->scheduled_at,
             'grace_period' => $record->grace_period_seconds,
         ]);
 
@@ -76,10 +76,10 @@ final class UniqueTaskLogger implements UniqueTaskLoggerInterface
     {
         $payload = $this->hydration->hydrate(StrictDataObject::class, [
             'event' => 'unique_task_max_attempts',
-            'task_id' => $record->id->value,
-            'alias' => $record->alias->value,
-            'attempts' => $record->attempts->value,
-            'max_attempts' => $record->max_attempts->value,
+            'task_id' => $record->id,
+            'alias' => $record->alias,
+            'attempts' => $record->attempts,
+            'max_attempts' => $record->max_attempts,
         ]);
 
         $this->logger->warning(new LogDataRecord(type: 'unique_task', payload: $payload));

@@ -8,7 +8,7 @@ use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 
 final class DescriptionVO extends AbstractValueObject
 {
-    public readonly string $value;
+    private readonly string $value;
 
     public function __construct(string $value)
     {

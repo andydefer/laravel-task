@@ -15,7 +15,7 @@ use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
  */
 final class StyledTextVO extends AbstractValueObject
 {
-    public readonly string $value;
+    private readonly string $value;
 
     private function __construct(string $value)
     {

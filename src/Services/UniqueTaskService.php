@@ -76,7 +76,6 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 'alias' => $alias,
                 'success' => false,
                 'error' => 'Task not found',
-                'execution_time' => new DurationVO(0.0),
             ]);
         }
 
@@ -90,7 +89,6 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                     'Task is not in PENDING state (current: %s)',
                     $taskRecord->status->value
                 ),
-                'execution_time' => new DurationVO(0.0),
             ]);
         }
 
@@ -102,7 +100,6 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 'alias' => $alias,
                 'success' => false,
                 'error' => 'Task is scheduled in the future',
-                'execution_time' => new DurationVO(0.0),
             ]);
         }
 
@@ -113,7 +110,6 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 'alias' => $alias,
                 'success' => false,
                 'error' => 'Maximum attempts reached',
-                'execution_time' => new DurationVO(0.0),
             ]);
         }
 
@@ -126,7 +122,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             return TaskRunResultRecord::from([
                 'alias' => $alias,
                 'success' => true,
-                'execution_time' => $startTime->elapsed(),
+                'execution_time_ms' => $startTime->elapsedInMilliseconds(),
             ]);
         } catch (\Throwable $e) {
             $newAttempts = $taskRecord->attempts->increment();
@@ -141,7 +137,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 'alias' => $alias,
                 'success' => false,
                 'error' => $e->getMessage(),
-                'execution_time' => $startTime->elapsed(),
+                'execution_time_ms' => $startTime->elapsedInMilliseconds(),
             ]);
         }
     }

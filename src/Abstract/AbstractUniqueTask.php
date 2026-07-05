@@ -44,9 +44,9 @@ abstract class AbstractUniqueTask implements TaskInterface
             type: 'unique_task',
             payload: $this->hydration->hydrate(StrictDataObject::class, [
                 'event' => 'task_started',
-                'task_id' => $this->context->getTaskId()->value,
-                'alias' => $this->context->getAlias()->value,
-                'scheduled_at' => $this->context->getScheduledAt()->value,
+                'task_id' => $this->context->getTaskId(),
+                'alias' => $this->context->getAlias(),
+                'scheduled_at' => $this->context->getScheduledAt(),
             ])
         ));
 
@@ -60,7 +60,7 @@ abstract class AbstractUniqueTask implements TaskInterface
                 type: 'unique_task',
                 payload: $this->hydration->hydrate(StrictDataObject::class, [
                     'event' => 'task_completed',
-                    'task_id' => $this->context->getTaskId()->value,
+                    'task_id' => $this->context->getTaskId(),
                     'status' => 'success',
                 ])
             ));
@@ -71,7 +71,7 @@ abstract class AbstractUniqueTask implements TaskInterface
                 type: 'unique_task',
                 payload: $this->hydration->hydrate(StrictDataObject::class, [
                     'event' => 'task_failed',
-                    'task_id' => $this->context->getTaskId()->value,
+                    'task_id' => $this->context->getTaskId(),
                     'status' => 'failed',
                     'error' => $e->getMessage(),
                 ])

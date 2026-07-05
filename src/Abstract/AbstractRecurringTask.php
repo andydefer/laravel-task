@@ -51,8 +51,8 @@ abstract class AbstractRecurringTask implements TaskInterface
         ));
 
         $this->before();
-
         try {
+
             $this->process();
             $this->after(true);
 
@@ -60,7 +60,7 @@ abstract class AbstractRecurringTask implements TaskInterface
                 type: 'recurring_task',
                 payload: $this->hydration->hydrate(StrictDataObject::class, [
                     'event' => 'task_completed',
-                    'alias' => $this->context->getAlias()->value,
+                    'alias' => $this->context->getAlias()->getValue(),
                     'status' => 'success',
                 ])
             ));
@@ -71,7 +71,7 @@ abstract class AbstractRecurringTask implements TaskInterface
                 type: 'recurring_task',
                 payload: $this->hydration->hydrate(StrictDataObject::class, [
                     'event' => 'task_failed',
-                    'alias' => $this->context->getAlias()->value,
+                    'alias' => $this->context->getAlias()->getValue(),
                     'status' => 'failed',
                     'error' => $e->getMessage(),
                 ])

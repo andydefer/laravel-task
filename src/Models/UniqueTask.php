@@ -9,9 +9,9 @@ use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -37,6 +37,7 @@ final class UniqueTask extends Model
         'max_attempts',
         'finished_at',
         'cancelled_at',
+        'deleted_at',
     ];
 
     protected $casts = [
@@ -50,9 +51,9 @@ final class UniqueTask extends Model
         'payload' => 'array',
     ];
 
-    public function getId(): TaskIdVO
+    public function getId(): UuidVO
     {
-        return new TaskIdVO((string) $this->id);
+        return new UuidVO((string) $this->id);
     }
 
     public function getAlias(): TaskAliasVO

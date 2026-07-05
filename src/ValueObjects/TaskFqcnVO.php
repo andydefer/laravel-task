@@ -11,7 +11,7 @@ use ReflectionClass;
 
 class TaskFqcnVO extends AbstractValueObject
 {
-    public readonly string $value;
+    private readonly string $value;
 
     public function __construct(string $fqcn)
     {

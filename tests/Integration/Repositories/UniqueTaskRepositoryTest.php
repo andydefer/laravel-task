@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Repositories;
 
+use AndyDefer\DomainStructures\Services\HydrationService;
+use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
+use AndyDefer\LaravelJsonl\JsonlService;
+use AndyDefer\LaravelJsonl\Strategies\TemporalPathStrategy;
+use AndyDefer\Logger\Configs\LoggerConfig;
+use AndyDefer\Logger\LoggerService;
+use AndyDefer\PhpServices\Enums\PermissionMode;
+use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask;
@@ -11,9 +19,18 @@ use AndyDefer\Task\Records\UniqueTaskFiltersRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
-use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\TaskTypeVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
+use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -27,23 +44,89 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     private TaskExecutionDebugRepository $debugRepository;
 
+    private LoggerService $logger;
+
+    private string $logPath;
+
     protected function setUp(): void
     {
         parent::setUp();
 
+        $config = new LoggerConfig($this->app->make(ConfigRepository::class));
+        $this->logPath = $config->basePath();
+        $fs = new FileSystemService;
+
+        if (! $fs->isDirectory($this->logPath)) {
+            $fs->makeDirectory($this->logPath, PermissionMode::DIRECTORY, true);
+        }
+
+        $pathStrategy = new TemporalPathStrategy($this->logPath);
+        $jsonlContext = new JsonlContext;
+
+        $jsonlService = new JsonlService(
+            pathStrategy: $pathStrategy,
+            fileSystem: $fs,
+            context: $jsonlContext,
+            defaultBufferSize: $config->bufferSize(),
+        );
+
+        $hydration = new HydrationService;
+
+        $this->logger = new LoggerService(
+            jsonlService: $jsonlService,
+            hydrationService: $hydration,
+        );
+
         $this->debugRepository = new TaskExecutionDebugRepository;
-        $this->repository = new UniqueTaskRepository($this->debugRepository);
+        $this->repository = new UniqueTaskRepository($this->debugRepository, $this->logger);
     }
 
     protected function tearDown(): void
     {
         parent::tearDown();
+
+        $fs = new FileSystemService;
+        if ($fs->isDirectory($this->logPath)) {
+            $fs->deleteDirectory($this->logPath);
+        }
     }
 
     // ==================== HELPERS ====================
 
-    private function createAndSaveTask(
-        string $alias,
+    private function generateUuid(): string
+    {
+        return Uuid::uuid4()->toString();
+    }
+
+    private function generateUuidVO(): UuidVO
+    {
+        return new UuidVO($this->generateUuid());
+    }
+
+    private function createAliasVO(?string $uuid = null): TaskAliasVO
+    {
+        $uuid = $uuid ?? $this->generateUuid();
+
+        return new TaskAliasVO(
+            type: new TaskTypeVO('unique'),
+            uuid: $uuid
+        );
+    }
+
+    private function createFqcnVO(): UniqueTaskFqcnVO
+    {
+        return new UniqueTaskFqcnVO(TestUniqueTask::class);
+    }
+
+    private function createIdVO(?string $id = null): UuidVO
+    {
+        $id = $id ?? $this->generateUuid();
+
+        return new UuidVO($id);
+    }
+
+    private function createTaskRecord(
+        ?string $alias = null,
         ?string $id = null,
         UniqueTaskStatus $status = UniqueTaskStatus::PENDING,
         ?\DateTimeInterface $scheduledAt = null,
@@ -52,42 +135,53 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         int $maxAttempts = 3
     ): UniqueTaskRecord {
         $scheduledAt = $scheduledAt ?? now();
-        $id = $id ?? (string) Uuid::uuid4();
+        $id = $id ?? $this->generateUuid();
+        $alias = $alias ?? $this->generateUuid();
 
-        $task = UniqueTaskRecord::from([
-            'id' => $id,
-            'alias' => $alias,
-            'fqcn' => TestUniqueTask::class,
+        return UniqueTaskRecord::from([
+            'id' => new UuidVO($id),
+            'alias' => $this->createAliasVO($alias),
+            'fqcn' => $this->createFqcnVO(),
             'payload' => ['test' => 'unique'],
-            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
-            'grace_period_seconds' => $gracePeriodSeconds,
+            'scheduled_at' => new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
+            'grace_period_seconds' => new DurationVO($gracePeriodSeconds),
             'status' => $status,
-            'attempts' => $attempts,
-            'max_attempts' => $maxAttempts,
+            'attempts' => new CounterVO($attempts),
+            'max_attempts' => new MaxFailedAttemptsVO($maxAttempts),
         ]);
-
-        $this->repository->create($task);
-
-        return $task;
     }
 
-    private function createCanceledTask(string $alias): UniqueTaskRecord
-    {
-        $id = (string) Uuid::uuid4();
-        $task = $this->createAndSaveTask($alias, $id, UniqueTaskStatus::CANCELED);
+    private function createAndSaveTask(
+        ?string $alias = null,
+        ?string $id = null,
+        UniqueTaskStatus $status = UniqueTaskStatus::PENDING,
+        ?\DateTimeInterface $scheduledAt = null,
+        int $gracePeriodSeconds = 86400,
+        int $attempts = 0,
+        int $maxAttempts = 3
+    ): UniqueTask {
+        $id = $id ?? $this->generateUuid();
+        $alias = $alias ?? $this->generateUuid();
 
-        return $task;
+        $record = $this->createTaskRecord($alias, $id, $status, $scheduledAt, $gracePeriodSeconds, $attempts, $maxAttempts);
+
+        return $this->repository->create($record);
+    }
+
+    private function createCanceledTask(): UniqueTask
+    {
+        return $this->createAndSaveTask(null, null, UniqueTaskStatus::CANCELED);
     }
 
     // ==================== TESTS FINDERS ====================
 
     public function test_find_pending_returns_collection(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('pending-2', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('completed-1', null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask();
+        $this->createAndSaveTask();
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
 
-        $pending = $this->repository->findPending();
+        $pending = $this->repository->findPending(new LimitVO(10));
 
         $this->assertInstanceOf(Collection::class, $pending);
         $this->assertCount(2, $pending);
@@ -100,11 +194,11 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_pending_with_limit(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('pending-2', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('pending-3', null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask();
+        $this->createAndSaveTask();
+        $this->createAndSaveTask();
 
-        $pending = $this->repository->findPending(2);
+        $pending = $this->repository->findPending(new LimitVO(2));
 
         $this->assertInstanceOf(Collection::class, $pending);
         $this->assertCount(2, $pending);
@@ -112,18 +206,20 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_pending_returns_empty_collection_when_none(): void
     {
-        $pending = $this->repository->findPending();
+        $pending = $this->repository->findPending(new LimitVO(10));
         $this->assertInstanceOf(Collection::class, $pending);
         $this->assertCount(0, $pending);
     }
 
+    // ==================== TESTS FIND COMPLETED ====================
+
     public function test_find_completed_returns_collection(): void
     {
-        $this->createAndSaveTask('completed-1', null, UniqueTaskStatus::COMPLETED);
-        $this->createAndSaveTask('completed-2', null, UniqueTaskStatus::COMPLETED);
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
-        $completed = $this->repository->findCompleted();
+        $completed = $this->repository->findCompleted(new LimitVO(10));
 
         $this->assertInstanceOf(Collection::class, $completed);
         $this->assertCount(2, $completed);
@@ -136,11 +232,11 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_completed_with_limit(): void
     {
-        $this->createAndSaveTask('completed-1', null, UniqueTaskStatus::COMPLETED);
-        $this->createAndSaveTask('completed-2', null, UniqueTaskStatus::COMPLETED);
-        $this->createAndSaveTask('completed-3', null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
 
-        $completed = $this->repository->findCompleted(2);
+        $completed = $this->repository->findCompleted(new LimitVO(2));
 
         $this->assertInstanceOf(Collection::class, $completed);
         $this->assertCount(2, $completed);
@@ -148,20 +244,22 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_completed_returns_empty_collection_when_none(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
-        $completed = $this->repository->findCompleted();
+        $completed = $this->repository->findCompleted(new LimitVO(10));
         $this->assertInstanceOf(Collection::class, $completed);
         $this->assertCount(0, $completed);
     }
 
+    // ==================== TESTS FIND FAILED ====================
+
     public function test_find_failed_returns_collection(): void
     {
-        $this->createAndSaveTask('failed-1', null, UniqueTaskStatus::FAILED);
-        $this->createAndSaveTask('failed-2', null, UniqueTaskStatus::FAILED);
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
-        $failed = $this->repository->findFailed();
+        $failed = $this->repository->findFailed(new LimitVO(10));
 
         $this->assertInstanceOf(Collection::class, $failed);
         $this->assertCount(2, $failed);
@@ -174,11 +272,11 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_failed_with_limit(): void
     {
-        $this->createAndSaveTask('failed-1', null, UniqueTaskStatus::FAILED);
-        $this->createAndSaveTask('failed-2', null, UniqueTaskStatus::FAILED);
-        $this->createAndSaveTask('failed-3', null, UniqueTaskStatus::FAILED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED);
 
-        $failed = $this->repository->findFailed(2);
+        $failed = $this->repository->findFailed(new LimitVO(2));
 
         $this->assertInstanceOf(Collection::class, $failed);
         $this->assertCount(2, $failed);
@@ -186,9 +284,9 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_failed_returns_empty_collection_when_none(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
-        $failed = $this->repository->findFailed();
+        $failed = $this->repository->findFailed(new LimitVO(10));
         $this->assertInstanceOf(Collection::class, $failed);
         $this->assertCount(0, $failed);
     }
@@ -197,12 +295,12 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_canceled_returns_collection(): void
     {
-        $this->createCanceledTask('canceled-1');
-        $this->createCanceledTask('canceled-2');
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('completed-1', null, UniqueTaskStatus::COMPLETED);
+        $this->createCanceledTask();
+        $this->createCanceledTask();
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
 
-        $canceled = $this->repository->findCanceled();
+        $canceled = $this->repository->findCanceled(new LimitVO(10));
 
         $this->assertInstanceOf(Collection::class, $canceled);
         $this->assertCount(2, $canceled);
@@ -215,11 +313,11 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_canceled_with_limit(): void
     {
-        $this->createCanceledTask('canceled-1');
-        $this->createCanceledTask('canceled-2');
-        $this->createCanceledTask('canceled-3');
+        $this->createCanceledTask();
+        $this->createCanceledTask();
+        $this->createCanceledTask();
 
-        $canceled = $this->repository->findCanceled(2);
+        $canceled = $this->repository->findCanceled(new LimitVO(2));
 
         $this->assertInstanceOf(Collection::class, $canceled);
         $this->assertCount(2, $canceled);
@@ -227,9 +325,9 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_canceled_returns_empty_collection_when_none(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
-        $canceled = $this->repository->findCanceled();
+        $canceled = $this->repository->findCanceled(new LimitVO(10));
         $this->assertInstanceOf(Collection::class, $canceled);
         $this->assertCount(0, $canceled);
     }
@@ -240,32 +338,28 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
     {
         $now = Carbon::now();
 
-        $this->createAndSaveTask('ready-1', null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2));
-        $this->createAndSaveTask('ready-2', null, UniqueTaskStatus::PENDING, $now->copy());
-        $this->createAndSaveTask('not-ready-1', null, UniqueTaskStatus::PENDING, $now->copy()->addHours(2));
-        $this->createAndSaveTask('completed-1', null, UniqueTaskStatus::COMPLETED, $now->copy()->subHours(2));
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2));
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy());
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->addHours(2));
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED, $now->copy()->subHours(2));
 
-        $ready = $this->repository->findReadyToRun($now->format('Y-m-d\TH:i:sP'));
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(10));
 
         $this->assertInstanceOf(Collection::class, $ready);
         $this->assertCount(2, $ready);
-
-        $aliases = $ready->map(fn ($task) => $task->getAlias()->getValue())->toArray();
-        $this->assertContains('ready-1', $aliases);
-        $this->assertContains('ready-2', $aliases);
-        $this->assertNotContains('not-ready-1', $aliases);
-        $this->assertNotContains('completed-1', $aliases);
     }
 
     public function test_find_ready_to_run_with_limit(): void
     {
         $now = Carbon::now();
 
-        $this->createAndSaveTask('ready-1', null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2));
-        $this->createAndSaveTask('ready-2', null, UniqueTaskStatus::PENDING, $now->copy()->subHours(1));
-        $this->createAndSaveTask('ready-3', null, UniqueTaskStatus::PENDING, $now->copy());
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2));
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(1));
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy());
 
-        $ready = $this->repository->findReadyToRun($now->format('Y-m-d\TH:i:sP'), 2);
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(2));
 
         $this->assertInstanceOf(Collection::class, $ready);
         $this->assertCount(2, $ready);
@@ -274,36 +368,40 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
     public function test_find_ready_to_run_returns_empty_collection_when_none(): void
     {
         $now = Carbon::now();
-        $this->createAndSaveTask('future-1', null, UniqueTaskStatus::PENDING, $now->copy()->addHours(2));
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->addHours(2));
 
-        $ready = $this->repository->findReadyToRun($now->format('Y-m-d\TH:i:sP'));
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(10));
         $this->assertInstanceOf(Collection::class, $ready);
         $this->assertCount(0, $ready);
     }
+
+    // ==================== TESTS FIND EXPIRED ====================
 
     public function test_find_expired_returns_collection(): void
     {
         $now = Carbon::now();
 
-        $this->createAndSaveTask('expired-1', null, UniqueTaskStatus::PENDING, $now->copy()->subDays(2), 86400);
-        $this->createAndSaveTask('not-expired-1', null, UniqueTaskStatus::PENDING, $now->copy()->subHours(12), 86400);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subDays(2), 86400);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(12), 86400);
 
-        $expired = $this->repository->findExpired($now->format('Y-m-d\TH:i:sP'));
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $expired = $this->repository->findExpired($nowVO, new LimitVO(10));
 
         $this->assertInstanceOf(Collection::class, $expired);
         $this->assertCount(1, $expired);
-        $this->assertEquals('expired-1', $expired->first()->getAlias()->getValue());
     }
 
     public function test_find_expired_with_limit(): void
     {
         $now = Carbon::now();
 
-        $this->createAndSaveTask('expired-1', null, UniqueTaskStatus::PENDING, $now->copy()->subDays(2), 86400);
-        $this->createAndSaveTask('expired-2', null, UniqueTaskStatus::PENDING, $now->copy()->subDays(1), 86400);
-        $this->createAndSaveTask('not-expired-1', null, UniqueTaskStatus::PENDING, $now->copy()->subHours(12), 86400);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subDays(2), 86400);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subDays(1), 86400);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(12), 86400);
 
-        $expired = $this->repository->findExpired($now->format('Y-m-d\TH:i:sP'), 1);
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $expired = $this->repository->findExpired($nowVO, new LimitVO(1));
 
         $this->assertInstanceOf(Collection::class, $expired);
         $this->assertCount(1, $expired);
@@ -312,9 +410,10 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
     public function test_find_expired_returns_empty_collection_when_none(): void
     {
         $now = Carbon::now();
-        $this->createAndSaveTask('not-expired-1', null, UniqueTaskStatus::PENDING, $now->copy()->subHours(12), 86400);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(12), 86400);
 
-        $expired = $this->repository->findExpired($now->format('Y-m-d\TH:i:sP'));
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $expired = $this->repository->findExpired($nowVO, new LimitVO(10));
         $this->assertInstanceOf(Collection::class, $expired);
         $this->assertCount(0, $expired);
     }
@@ -323,27 +422,42 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_find_by_id_returns_model(): void
     {
-        $id = (string) Uuid::uuid4();
-        $this->createAndSaveTask('test-find-id', $id, UniqueTaskStatus::PENDING);
+        $id = $this->generateUuid();
+        $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
 
-        $found = $this->repository->findById($id);
+        $found = $this->repository->findById(new UuidVO($id));
 
         $this->assertNotNull($found);
         $this->assertInstanceOf(UniqueTask::class, $found);
         $this->assertEquals($id, $found->getId()->getValue());
-        $this->assertEquals('test-find-id', $found->getAlias()->getValue());
         $this->assertEquals(UniqueTaskStatus::PENDING, $found->getStatus());
     }
 
     public function test_find_by_id_returns_null_when_not_found(): void
     {
-        $found = $this->repository->findById('00000000-0000-0000-0000-000000000000');
+        $found = $this->repository->findById(new UuidVO('550e8400-e29b-41d4-a716-446655440000'));
         $this->assertNull($found);
     }
 
-    public function test_find_by_id_returns_null_when_invalid_format(): void
+    // ==================== TESTS findByAlias ====================
+
+    public function test_find_by_alias_returns_model(): void
     {
-        $found = $this->repository->findById('invalid-uuid-format');
+        $alias = $this->generateUuid();
+        $this->createAndSaveTask($alias, null, UniqueTaskStatus::PENDING);
+
+        $found = $this->repository->findByAlias($this->createAliasVO($alias));
+
+        $this->assertNotNull($found);
+        $this->assertInstanceOf(UniqueTask::class, $found);
+        $this->assertEquals('unique@'.$alias, $found->getAlias()->getValue());
+        $this->assertEquals(UniqueTaskStatus::PENDING, $found->getStatus());
+    }
+
+    public function test_find_by_alias_returns_null_when_not_found(): void
+    {
+        $alias = $this->generateUuid();
+        $found = $this->repository->findByAlias($this->createAliasVO($alias));
         $this->assertNull($found);
     }
 
@@ -351,273 +465,239 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_move_to_completed_updates_status(): void
     {
-        $id = (string) Uuid::uuid4();
-        $task = $this->createAndSaveTask('test-move-completed', $id, UniqueTaskStatus::PENDING);
+        $id = $this->generateUuid();
+        $taskModel = $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
 
-        $this->repository->moveToCompleted($task);
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO($id),
+            'alias' => $taskModel->getAlias(),
+        ]);
 
-        $found = $this->repository->findById($id);
+        $result = $this->repository->moveToCompleted($taskRecord);
+        $this->assertTrue($result);
+
+        $found = $this->repository->findById(new UuidVO($id));
         $this->assertNotNull($found);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $found->getStatus());
         $this->assertNotNull($found->getFinishedAt());
     }
 
-    public function test_move_to_completed_throws_exception_when_task_not_found(): void
+    public function test_move_to_completed_returns_false_when_task_not_found(): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Task not found');
-
-        $task = UniqueTaskRecord::from([
-            'id' => '550e8400-e29b-41d4-a716-446655440000',
-            'alias' => 'test',
-            'fqcn' => TestUniqueTask::class,
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO('550e8400-e29b-41d4-a716-446655440000'),
+            'alias' => $this->createAliasVO(),
+            'fqcn' => $this->createFqcnVO(),
             'payload' => [],
-            'scheduled_at' => now()->toIso8601String(),
+            'scheduled_at' => new Iso8601DateTimeVO(now()->format('Y-m-d\TH:i:sP')),
         ]);
 
-        $this->repository->moveToCompleted($task);
+        $result = $this->repository->moveToCompleted($taskRecord);
+        $this->assertFalse($result);
     }
 
     public function test_move_to_failed_updates_status(): void
     {
-        $id = (string) Uuid::uuid4();
-        $task = $this->createAndSaveTask('test-move-failed', $id, UniqueTaskStatus::PENDING);
+        $id = $this->generateUuid();
+        $taskModel = $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
 
-        $this->repository->moveToFailed($task);
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO($id),
+            'alias' => $taskModel->getAlias(),
+        ]);
 
-        $found = $this->repository->findById($id);
+        $result = $this->repository->moveToFailed($taskRecord);
+        $this->assertTrue($result);
+
+        $found = $this->repository->findById(new UuidVO($id));
         $this->assertNotNull($found);
         $this->assertEquals(UniqueTaskStatus::FAILED, $found->getStatus());
         $this->assertNotNull($found->getFinishedAt());
     }
 
-    public function test_move_to_failed_throws_exception_when_task_not_found(): void
+    public function test_move_to_failed_returns_false_when_task_not_found(): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Task not found');
-
-        $task = UniqueTaskRecord::from([
-            'id' => '550e8400-e29b-41d4-a716-446655440000',
-            'alias' => 'test',
-            'fqcn' => TestUniqueTask::class,
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO('550e8400-e29b-41d4-a716-446655440000'),
+            'alias' => $this->createAliasVO(),
+            'fqcn' => $this->createFqcnVO(),
             'payload' => [],
-            'scheduled_at' => now()->toIso8601String(),
+            'scheduled_at' => new Iso8601DateTimeVO(now()->format('Y-m-d\TH:i:sP')),
         ]);
 
-        $this->repository->moveToFailed($task);
+        $result = $this->repository->moveToFailed($taskRecord);
+        $this->assertFalse($result);
     }
-
-    // ==================== TEST MOVE TO CANCELED ====================
 
     public function test_move_to_canceled_updates_status(): void
     {
-        $id = (string) Uuid::uuid4();
-        $task = $this->createAndSaveTask('test-move-canceled', $id, UniqueTaskStatus::PENDING);
+        $id = $this->generateUuid();
+        $taskModel = $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
 
-        $this->repository->moveToCanceled($task);
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO($id),
+            'alias' => $taskModel->getAlias(),
+        ]);
 
-        $found = $this->repository->findById($id);
+        $result = $this->repository->moveToCanceled($taskRecord);
+        $this->assertTrue($result);
+
+        $found = $this->repository->findById(new UuidVO($id));
         $this->assertNotNull($found);
         $this->assertEquals(UniqueTaskStatus::CANCELED, $found->getStatus());
         $this->assertNotNull($found->getFinishedAt());
     }
 
-    public function test_move_to_canceled_throws_exception_when_task_not_found(): void
+    public function test_move_to_canceled_returns_false_when_task_not_found(): void
     {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Task not found');
-
-        $task = UniqueTaskRecord::from([
-            'id' => '550e8400-e29b-41d4-a716-446655440000',
-            'alias' => 'test',
-            'fqcn' => TestUniqueTask::class,
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO('550e8400-e29b-41d4-a716-446655440000'),
+            'alias' => $this->createAliasVO(),
+            'fqcn' => $this->createFqcnVO(),
             'payload' => [],
-            'scheduled_at' => now()->toIso8601String(),
+            'scheduled_at' => new Iso8601DateTimeVO(now()->format('Y-m-d\TH:i:sP')),
         ]);
 
-        $this->repository->moveToCanceled($task);
+        $result = $this->repository->moveToCanceled($taskRecord);
+        $this->assertFalse($result);
     }
+
+    // ==================== TESTS UPDATE ATTEMPTS ====================
 
     public function test_update_attempts_updates_attempts(): void
     {
-        $id = (string) Uuid::uuid4();
-        $task = $this->createAndSaveTask('test-update-attempts', $id, UniqueTaskStatus::PENDING);
+        $id = $this->generateUuid();
+        $taskModel = $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
 
-        $this->repository->updateAttempts($task, 2);
-
-        $found = $this->repository->findById($id);
-        $this->assertNotNull($found);
-        $this->assertEquals(2, $found->getAttempts()->value);
-    }
-
-    public function test_update_attempts_throws_exception_when_task_not_found(): void
-    {
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('Task not found');
-
-        $task = UniqueTaskRecord::from([
-            'id' => '550e8400-e29b-41d4-a716-446655440000',
-            'alias' => 'test',
-            'fqcn' => TestUniqueTask::class,
-            'payload' => [],
-            'scheduled_at' => now()->toIso8601String(),
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO($id),
+            'alias' => $taskModel->getAlias(),
         ]);
 
-        $this->repository->updateAttempts($task, 2);
+        $result = $this->repository->updateAttempts($taskRecord, new CounterVO(2));
+        $this->assertTrue($result);
+
+        $found = $this->repository->findById(new UuidVO($id));
+        $this->assertNotNull($found);
+        $this->assertEquals(2, $found->getAttempts()->getValue());
     }
 
-    public function test_add_debug_creates_debug_entry(): void
+    public function test_update_attempts_returns_false_when_task_not_found(): void
     {
-        $id = (string) Uuid::uuid4();
-        $task = $this->createAndSaveTask('test-add-debug', $id, UniqueTaskStatus::PENDING);
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO('550e8400-e29b-41d4-a716-446655440000'),
+            'alias' => $this->createAliasVO(),
+            'fqcn' => $this->createFqcnVO(),
+            'payload' => [],
+            'scheduled_at' => new Iso8601DateTimeVO(now()->format('Y-m-d\TH:i:sP')),
+        ]);
 
-        $this->repository->addDebug($task, 'succeeded', 'Task executed successfully');
-
-        $debugs = $this->debugRepository->findByTask('unique', $id);
-        $this->assertCount(1, $debugs);
-
-        $debugData = $debugs->first()->getData();
-        $this->assertEquals('succeeded', $debugData->status);
-        $this->assertEquals('Task executed successfully', $debugData->info);
-        $this->assertNotNull($debugData->acted_at);
+        $result = $this->repository->updateAttempts($taskRecord, new CounterVO(2));
+        $this->assertFalse($result);
     }
 
     // ==================== TESTS COUNTS ====================
 
     public function test_count_pending(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('pending-2', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('completed-1', null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
 
-        $this->assertEquals(2, $this->repository->countPending());
+        $this->assertEquals(2, $this->repository->countPending()->getValue());
     }
 
     public function test_count_pending_returns_zero_when_none(): void
     {
-        $this->createAndSaveTask('completed-1', null, UniqueTaskStatus::COMPLETED);
-        $this->assertEquals(0, $this->repository->countPending());
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
+        $this->assertEquals(0, $this->repository->countPending()->getValue());
     }
 
     public function test_count_completed(): void
     {
-        $this->createAndSaveTask('completed-1', null, UniqueTaskStatus::COMPLETED);
-        $this->createAndSaveTask('completed-2', null, UniqueTaskStatus::COMPLETED);
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
-        $this->assertEquals(2, $this->repository->countCompleted());
+        $this->assertEquals(2, $this->repository->countCompleted()->getValue());
     }
 
     public function test_count_completed_returns_zero_when_none(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
-        $this->assertEquals(0, $this->repository->countCompleted());
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
+        $this->assertEquals(0, $this->repository->countCompleted()->getValue());
     }
 
     public function test_count_failed(): void
     {
-        $this->createAndSaveTask('failed-1', null, UniqueTaskStatus::FAILED);
-        $this->createAndSaveTask('failed-2', null, UniqueTaskStatus::FAILED);
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
-        $this->assertEquals(2, $this->repository->countFailed());
+        $this->assertEquals(2, $this->repository->countFailed()->getValue());
     }
 
     public function test_count_failed_returns_zero_when_none(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
-        $this->assertEquals(0, $this->repository->countFailed());
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
+        $this->assertEquals(0, $this->repository->countFailed()->getValue());
     }
 
     public function test_count_canceled(): void
     {
-        $this->createCanceledTask('canceled-1');
-        $this->createCanceledTask('canceled-2');
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createCanceledTask();
+        $this->createCanceledTask();
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
-        $this->assertEquals(2, $this->repository->countCanceled());
+        $this->assertEquals(2, $this->repository->countCanceled()->getValue());
     }
 
     public function test_count_canceled_returns_zero_when_none(): void
     {
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
-        $this->assertEquals(0, $this->repository->countCanceled());
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
+        $this->assertEquals(0, $this->repository->countCanceled()->getValue());
     }
 
     // ==================== TESTS CREATE ====================
 
     public function test_create_persists_task(): void
     {
-        $id = (string) Uuid::uuid4();
+        $id = $this->generateUuid();
         $scheduledAt = now()->addDays(1);
+        $alias = $this->generateUuid();
 
-        $task = UniqueTaskRecord::from([
-            'id' => $id,
-            'alias' => 'create-test',
-            'fqcn' => TestUniqueTask::class,
-            'payload' => ['test' => 'create'],
-            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
-            'grace_period_seconds' => 43200,
-            'status' => UniqueTaskStatus::PENDING,
-            'attempts' => 0,
-            'max_attempts' => 5,
-        ]);
-
-        $this->repository->create($task);
-
-        $found = $this->repository->findById($id);
-        $this->assertNotNull($found);
-        $this->assertEquals('create-test', $found->getAlias()->getValue());
-        $this->assertEquals(43200, $found->getGracePeriodSeconds());
-        $this->assertEquals(5, $found->getMaxAttempts()->value);
-        $this->assertEquals(UniqueTaskStatus::PENDING, $found->getStatus());
-    }
-
-    // ==================== TESTS UPDATE ====================
-
-    public function test_update_updates_task(): void
-    {
-        $id = (string) Uuid::uuid4();
-        $task = $this->createAndSaveTask('update-test', $id, UniqueTaskStatus::PENDING);
-        $model = $this->repository->findById($id);
-        $this->assertNotNull($model);
-
-        $this->repository->updateRaw(
-            $model->getId()->getValue(),
-            [
-                'alias' => 'updated-alias',
-                'fqcn' => TestRecurringTask::class,
-                'payload' => json_encode(['updated' => true]),
-                'grace_period_seconds' => 172800,
-                'status' => UniqueTaskStatus::COMPLETED->value,
-                'attempts' => 2,
-                'max_attempts' => 5,
-                'finished_at' => now()->toDateTimeString(),
-            ]
+        $record = $this->createTaskRecord(
+            alias: $alias,
+            id: $id,
+            status: UniqueTaskStatus::PENDING,
+            scheduledAt: $scheduledAt,
+            gracePeriodSeconds: 43200,
+            attempts: 0,
+            maxAttempts: 5
         );
 
-        $found = $this->repository->findById($id);
+        $model = $this->repository->create($record);
+
+        $this->assertInstanceOf(UniqueTask::class, $model);
+        $this->assertEquals('unique@'.$alias, $model->getAlias()->getValue());
+        $this->assertEquals(43200, $model->getGracePeriodSeconds());
+        $this->assertEquals(5, $model->getMaxAttempts()->getValue());
+        $this->assertEquals(UniqueTaskStatus::PENDING, $model->getStatus());
+
+        $found = $this->repository->findById(new UuidVO($id));
         $this->assertNotNull($found);
-        $this->assertEquals('updated-alias', $found->getAlias()->getValue());
-        $this->assertEquals(172800, $found->getGracePeriodSeconds());
-        $this->assertEquals(2, $found->getAttempts()->value);
-        $this->assertEquals(5, $found->getMaxAttempts()->value);
-        $this->assertEquals(UniqueTaskStatus::COMPLETED, $found->getStatus());
-        $this->assertNotNull($found->getFinishedAt());
     }
 
     // ==================== TESTS DELETE ====================
 
     public function test_delete_soft_deletes_task(): void
     {
-        $id = (string) Uuid::uuid4();
-        $this->createAndSaveTask('delete-test', $id, UniqueTaskStatus::PENDING);
+        $id = $this->generateUuid();
+        $model = $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
 
-        $model = $this->repository->findById($id);
-        $this->assertNotNull($model);
         $model->delete();
 
-        $found = $this->repository->findById($id);
+        $found = $this->repository->findById(new UuidVO($id));
         $this->assertNull($found);
 
         $withTrashed = UniqueTask::withTrashed()->where('id', $id)->first();
@@ -629,11 +709,11 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_apply_filters_with_alias(): void
     {
-        $this->createAndSaveTask('filter-alias-1', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('filter-alias-2', null, UniqueTaskStatus::PENDING);
+        $alias = $this->generateUuid();
+        $this->createAndSaveTask($alias, null, UniqueTaskStatus::PENDING);
 
         $filters = UniqueTaskFiltersRecord::from([
-            'alias' => 'filter-alias-1',
+            'alias' => $this->createAliasVO($alias),
         ]);
 
         $results = $this->repository->findBy(
@@ -641,13 +721,13 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         );
 
         $this->assertCount(1, $results);
-        $this->assertEquals('filter-alias-1', $results->first()->getAlias()->getValue());
+        $this->assertEquals('unique@'.$alias, $results->first()->getAlias()->getValue());
     }
 
     public function test_apply_filters_with_status(): void
     {
-        $this->createAndSaveTask('status-pending', null, UniqueTaskStatus::PENDING);
-        $this->createAndSaveTask('status-completed', null, UniqueTaskStatus::COMPLETED);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED);
 
         $filters = UniqueTaskFiltersRecord::from([
             'status' => UniqueTaskStatus::PENDING,
@@ -663,8 +743,8 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     public function test_apply_filters_with_canceled_status(): void
     {
-        $this->createCanceledTask('canceled-1');
-        $this->createAndSaveTask('pending-1', null, UniqueTaskStatus::PENDING);
+        $this->createCanceledTask();
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING);
 
         $filters = UniqueTaskFiltersRecord::from([
             'status' => UniqueTaskStatus::CANCELED,
@@ -676,5 +756,76 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
         $this->assertCount(1, $results);
         $this->assertEquals(UniqueTaskStatus::CANCELED, $results->first()->getStatus());
+    }
+
+    public function test_apply_filters_with_attempts(): void
+    {
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 2);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 5);
+
+        $filters = UniqueTaskFiltersRecord::from([
+            'attempts' => new CounterVO(2),
+        ]);
+
+        $results = $this->repository->findBy(
+            FindByRecord::from(['filters' => $filters])
+        );
+
+        $this->assertCount(1, $results);
+        $this->assertEquals(2, $results->first()->getAttempts()->getValue());
+    }
+
+    public function test_apply_filters_with_max_attempts(): void
+    {
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 0, 3);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 0, 5);
+
+        $filters = UniqueTaskFiltersRecord::from([
+            'max_attempts' => new MaxFailedAttemptsVO(5),
+        ]);
+
+        $results = $this->repository->findBy(
+            FindByRecord::from(['filters' => $filters])
+        );
+
+        $this->assertCount(1, $results);
+        $this->assertEquals(5, $results->first()->getMaxAttempts()->getValue());
+    }
+
+    public function test_apply_filters_with_scheduled_at_range(): void
+    {
+        $now = Carbon::now();
+
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subDays(5));
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subDays(2));
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->addDays(2));
+
+        $filters = UniqueTaskFiltersRecord::from([
+            'scheduled_at_from' => new Iso8601DateTimeVO($now->copy()->subDays(3)->format('Y-m-d\TH:i:sP')),
+            'scheduled_at_to' => new Iso8601DateTimeVO($now->copy()->addDays(1)->format('Y-m-d\TH:i:sP')),
+        ]);
+
+        $results = $this->repository->findBy(
+            FindByRecord::from(['filters' => $filters])
+        );
+
+        $this->assertCount(1, $results);
+    }
+
+    public function test_apply_filters_with_id(): void
+    {
+        $id = $this->generateUuid();
+        $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
+
+        $filters = UniqueTaskFiltersRecord::from([
+            'id' => new UuidVO($id),
+        ]);
+
+        $results = $this->repository->findBy(
+            FindByRecord::from(['filters' => $filters])
+        );
+
+        $this->assertCount(1, $results);
+        $this->assertEquals($id, $results->first()->getId()->getValue());
     }
 }

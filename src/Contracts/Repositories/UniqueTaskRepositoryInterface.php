@@ -13,7 +13,7 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Support\Collection;
 
 interface UniqueTaskRepositoryInterface extends AbstractRepositoryInterface
@@ -32,7 +32,7 @@ interface UniqueTaskRepositoryInterface extends AbstractRepositoryInterface
 
     public function findExpired(Iso8601DateTimeVO $now, ?LimitVO $limit = new LimitVO): Collection;
 
-    public function findById(TaskIdVO $id): ?UniqueTask;
+    public function findById(UuidVO $id): ?UniqueTask;
 
     /**
      * Trouve une tâche par son alias.

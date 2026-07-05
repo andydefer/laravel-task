@@ -10,13 +10,13 @@ use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 
 final class UniqueTaskFiltersRecord extends AbstractRecord
 {
     public function __construct(
-        public readonly ?TaskIdVO $id = null,
+        public readonly ?UuidVO $id = null,
         public readonly ?TaskAliasVO $alias = null,
         public readonly ?UniqueTaskFqcnVO $fqcn = null,
         public readonly ?UniqueTaskStatus $status = null,

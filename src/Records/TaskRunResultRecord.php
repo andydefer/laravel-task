@@ -15,6 +15,6 @@ final class TaskRunResultRecord extends AbstractRecord
         public readonly TaskAliasVO $alias,
         public readonly bool $success,
         public readonly ?DescriptionVO $error = null,
-        public readonly ?MillisecondsVO $execution_time = null,
+        public readonly ?MillisecondsVO $execution_time_ms = null,
     ) {}
 }

@@ -33,30 +33,43 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
 
     public function run(RecurringTaskRecord $record): ExecutionResultRecord
     {
+
         $startTime = new Iso8601DateTimeVO;
 
-        if (! $this->validator->canRun($record)) {
+        // ✅ Vérification canRun
+        $canRun = $this->validator->canRun($record);
+
+        if (! $canRun) {
             $errors = $this->validator->getValidationErrors($record);
             $errorMessage = $errors->count() > 0 ? $errors->join(', ') : 'Task cannot run';
 
-            return ExecutionResultRecord::from([
+            $result = ExecutionResultRecord::from([
                 'success' => false,
                 'error' => TaskErrorRecord::from([
-                    'alias' => $record->alias->value,
+                    'alias' => $record->alias,
                     'fqcn' => $record->fqcn->getValue(),
                     'error' => 'Validation failed: '.$errorMessage,
                 ]),
+                'execution_time' => new DurationVO(0.0),
             ]);
+
+            return $result;
         }
 
-        if (! $this->validator->shouldRunAgain($record)) {
-            return ExecutionResultRecord::from([
+        // ✅ Vérification shouldRunAgain
+        $shouldRunAgain = $this->validator->shouldRunAgain($record);
+
+        if (! $shouldRunAgain) {
+            $result = ExecutionResultRecord::from([
                 'success' => true,
                 'error' => null,
                 'execution_time' => new DurationVO(0.0),
             ]);
+
+            return $result;
         }
 
+        // ✅ Exécution
         $this->logger->logStart($record);
 
         $task = $this->instantiateTask($record);
@@ -75,17 +88,22 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
             $this->logger->logFailure($record, new DescriptionVO($error));
         }
 
-        $this->repository->updateAfterRun($record, $success, $error !== null ? new DescriptionVO($error) : null);
+        // ✅ Mise à jour après exécution
+        $updateResult = $this->repository->updateAfterRun($record, $success, $error !== null ? new DescriptionVO($error) : null);
 
-        return ExecutionResultRecord::from([
+        $executionTime = $startTime->elapsed();
+
+        $result = ExecutionResultRecord::from([
             'success' => $success,
             'error' => $error ? TaskErrorRecord::from([
-                'alias' => $record->alias->value,
+                'alias' => $record->alias,
                 'fqcn' => $record->fqcn->getValue(),
                 'error' => $error,
             ]) : null,
-            'execution_time' => $startTime->elapsed(),
+            'execution_time' => $executionTime,
         ]);
+
+        return $result;
     }
 
     private function instantiateTask(RecurringTaskRecord $record): AbstractRecurringTask
@@ -97,6 +115,9 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
         $context->setEndAt($record->end_at);
         $context->setLastRunAt($record->last_run_at);
         $context->setLaravelApp($this->app);
+
+        // ✅ Passer le payload directement
+        $context->setPayload($record->payload);
 
         $className = $record->fqcn->getValue();
 

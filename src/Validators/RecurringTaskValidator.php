@@ -40,26 +40,32 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
             return false;
         }
 
+        $now = Carbon::now();
+
+        // ✅ Si start_at est null, considérer que la tâche commence maintenant
         if ($record->start_at === null) {
-            return false;
+            return true;
         }
 
-        $now = Carbon::now();
-        $startAt = Carbon::parse($record->start_at->value);
+        $startAt = Carbon::parse($record->start_at->getValue());
 
         return $startAt->lte($now);
     }
 
     public function isExpired(RecurringTaskRecord $record): bool
     {
+        if (! $this->isValidTaskClass($record)) {
+            return false;
+        }
+
         if ($record->end_at === null) {
             return false;
         }
 
         $now = Carbon::now();
-        $endAt = Carbon::parse($record->end_at->value);
+        $endAt = Carbon::parse($record->end_at->getValue());
 
-        return $now->gt($endAt);
+        return $endAt->lt($now);
     }
 
     public function shouldMoveToFinished(RecurringTaskRecord $record): bool
@@ -86,10 +92,10 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
         }
 
         $now = Carbon::now();
-        $lastRun = Carbon::parse($record->last_run_at->value);
-        $interval = $record->interval_seconds->value;
+        $lastRunAt = Carbon::parse($record->last_run_at->getValue());
+        $interval = $record->interval_seconds->getValue();
 
-        return $lastRun->diffInSeconds($now) >= $interval;
+        return $lastRunAt->addSeconds($interval)->lte($now);
     }
 
     public function getValidationErrors(RecurringTaskRecord $record): StringTypedCollection
@@ -97,42 +103,28 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
         $errors = new StringTypedCollection;
 
         if (! $this->isValidTaskClass($record)) {
-            $errors->add('Invalid task class: '.$record->fqcn.' does not exist or does not extend AbstractRecurringTask');
+            $errors->add('Invalid task class: '.$record->fqcn->getValue());
         }
 
+        // ✅ Messages spécifiques par statut
         if ($record->status === RecurringTaskStatus::WAITING) {
             $errors->add('Task is in WAITING state, not PLAYING');
-        }
-
-        if ($record->status === RecurringTaskStatus::PAUSED) {
+        } elseif ($record->status === RecurringTaskStatus::PAUSED) {
             $errors->add('Task is in PAUSED state');
-        }
-
-        if ($record->status === RecurringTaskStatus::FINISHED) {
+        } elseif ($record->status === RecurringTaskStatus::FINISHED) {
             $errors->add('Task is already FINISHED');
-        }
-
-        if ($record->status !== RecurringTaskStatus::PLAYING && $record->status !== RecurringTaskStatus::WAITING) {
-            $errors->add('Task is not in PLAYING or WAITING state');
+        } elseif ($record->status === RecurringTaskStatus::CANCELED) {
+            $errors->add('Task is CANCELED');
+        } elseif ($record->status !== RecurringTaskStatus::PLAYING) {
+            $errors->add('Task is in '.strtoupper($record->status->value).' state, not PLAYING');
         }
 
         if ($this->isExpired($record)) {
             $errors->add('Task has expired (end_at reached)');
         }
 
-        if (! $this->isReadyToRun($record) && $record->status === RecurringTaskStatus::WAITING) {
+        if ($record->status === RecurringTaskStatus::WAITING && ! $this->isReadyToRun($record)) {
             $errors->add('Task is not ready to run (start_at not reached)');
-        }
-
-        if ($record->status === RecurringTaskStatus::PLAYING && $record->last_run_at !== null) {
-            $now = Carbon::now();
-            $lastRun = Carbon::parse($record->last_run_at->value);
-            $interval = $record->interval_seconds->value;
-            $diff = $lastRun->diffInSeconds($now);
-
-            if ($diff < $interval) {
-                $errors->add('Interval not reached (next run in '.($interval - $diff).' seconds)');
-            }
         }
 
         return $errors;

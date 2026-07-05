@@ -5,13 +5,19 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Validators;
 
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
+use AndyDefer\Task\ValueObjects\DurationVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Support\Carbon;
+use Ramsey\Uuid\Uuid;
 
 final class RecurringTaskValidatorTest extends IntegrationTestCase
 {
@@ -32,19 +38,55 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    private function createAlias(string $name, string $uuid): array
+    {
+        return [
+            'type' => 'recurring',
+            'uuid' => $uuid,
+        ];
+    }
+
     private function createTaskRecord(array $data): RecurringTaskRecord
     {
-        return RecurringTaskRecord::from($data);
+        $uuid = $data['uuid'] ?? (string) Uuid::uuid4();
+        $aliasName = $data['alias'] ?? 'test';
+        $fqcn = $data['fqcn'] ?? TestRecurringTask::class;
+        $payload = $data['payload'] ?? ['test' => 'payload'];
+        $intervalSeconds = $data['interval_seconds'] ?? 3600;
+        $startAt = $data['start_at'] ?? Carbon::now()->subHours(2)->toIso8601String();
+        $endAt = $data['end_at'] ?? Carbon::now()->addDays(1)->toIso8601String();
+        $lastRunAt = $data['last_run_at'] ?? Carbon::now()->subHours(2)->toIso8601String();
+        $status = $data['status'] ?? RecurringTaskStatus::PLAYING;
+
+        $alias = [
+            'type' => 'recurring',
+            'uuid' => $uuid,
+        ];
+
+        return RecurringTaskRecord::from([
+            'id' => new UuidVO($uuid),
+            'alias' => $alias,
+            'fqcn' => new RecurringTaskFqcnVO($fqcn),
+            'payload' => StrictDataObject::from($payload),
+            'interval_seconds' => new DurationVO($intervalSeconds),
+            'start_at' => $startAt !== null ? new Iso8601DateTimeVO($startAt) : null,
+            'end_at' => $endAt !== null ? new Iso8601DateTimeVO($endAt) : null,
+            'last_run_at' => $lastRunAt !== null ? new Iso8601DateTimeVO($lastRunAt) : null,
+            'status' => $status,
+        ]);
     }
 
     // ==================== TESTS canRun ====================
 
     public function test_can_run_returns_true_for_valid_playing_task(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440000';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -57,10 +99,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_can_run_returns_false_when_status_is_waiting(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440001';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-waiting', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -73,10 +118,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_can_run_returns_false_when_status_is_paused(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440002';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-paused', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -89,10 +137,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_can_run_returns_false_when_status_is_finished(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440003';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-finished', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -105,10 +156,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_can_run_returns_false_when_expired(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440004';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-expired', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(48)->toIso8601String(),
             'end_at' => Carbon::now()->subHours(24)->toIso8601String(),
@@ -125,10 +179,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Task class "NonExistentClass" does not exist.');
 
+        $uuid = '550e8400-e29b-41d4-a716-446655440005';
+
         $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-invalid-class', $uuid),
             'fqcn' => 'NonExistentClass',
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -142,10 +199,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Class "AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask" must extend AndyDefer\Task\Abstract\AbstractRecurringTask');
 
+        $uuid = '550e8400-e29b-41d4-a716-446655440006';
+
         $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-unique', $uuid),
             'fqcn' => TestUniqueTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -158,10 +218,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_is_ready_to_run_returns_true_for_waiting_task_with_start_at_passed(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440007';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-ready', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'status' => RecurringTaskStatus::WAITING,
@@ -172,10 +235,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_is_ready_to_run_returns_false_for_waiting_task_with_start_at_future(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440008';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-not-ready', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->addHours(2)->toIso8601String(),
             'status' => RecurringTaskStatus::WAITING,
@@ -184,26 +250,30 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         $this->assertFalse($this->validator->isReadyToRun($record));
     }
 
-    public function test_is_ready_to_run_returns_false_for_waiting_task_with_null_start_at(): void
+    public function test_is_ready_to_run_returns_true_for_waiting_task_with_null_start_at(): void
     {
         $record = $this->createTaskRecord([
             'alias' => 'test',
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
-            'start_at' => null,
+            'start_at' => null,  // ✅ start_at null = maintenant
             'status' => RecurringTaskStatus::WAITING,
         ]);
 
-        $this->assertFalse($this->validator->isReadyToRun($record));
+        // ✅ Avec start_at = null, la tâche est prête
+        $this->assertTrue($this->validator->isReadyToRun($record));
     }
 
     public function test_is_ready_to_run_returns_false_for_non_waiting_task(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440010';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-playing', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'status' => RecurringTaskStatus::PLAYING,
@@ -212,29 +282,17 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         $this->assertFalse($this->validator->isReadyToRun($record));
     }
 
-    public function test_is_ready_to_run_throws_exception_when_class_does_not_exist(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Task class "NonExistentClass" does not exist.');
-
-        $this->createTaskRecord([
-            'alias' => 'test',
-            'fqcn' => 'NonExistentClass',
-            'payload' => [],
-            'interval_seconds' => 3600,
-            'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
-            'status' => RecurringTaskStatus::WAITING,
-        ]);
-    }
-
     // ==================== TESTS isExpired ====================
 
     public function test_is_expired_returns_true_when_end_at_passed(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440011';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-expired-true', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subDays(7)->toIso8601String(),
             'end_at' => Carbon::now()->subHours(24)->toIso8601String(),
@@ -246,10 +304,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_is_expired_returns_false_when_end_at_in_future(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440012';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-expired-false', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -261,10 +322,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_is_expired_returns_false_when_end_at_null(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440013';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-end-null', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => null,
@@ -278,10 +342,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_should_move_to_finished_returns_true_when_expired(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440014';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-move-finished', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subDays(7)->toIso8601String(),
             'end_at' => Carbon::now()->subHours(24)->toIso8601String(),
@@ -293,10 +360,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_should_move_to_finished_returns_false_when_not_expired(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440015';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-not-finished', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -310,10 +380,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_should_run_again_returns_true_when_interval_reached(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440016';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-run-again', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subDays(1)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(7)->toIso8601String(),
@@ -326,10 +399,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_should_run_again_returns_false_when_interval_not_reached(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440017';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-not-run-again', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subDays(1)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(7)->toIso8601String(),
@@ -342,10 +418,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_should_run_again_returns_true_when_last_run_at_null(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440018';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-first-run', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subDays(1)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(7)->toIso8601String(),
@@ -358,10 +437,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_should_run_again_returns_false_when_not_playing(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440019';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-not-playing', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subDays(1)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(7)->toIso8601String(),
@@ -374,10 +456,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_should_run_again_returns_false_when_expired(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440020';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-expired-run', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subDays(7)->toIso8601String(),
             'end_at' => Carbon::now()->subHours(24)->toIso8601String(),
@@ -389,31 +474,17 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         $this->assertTrue($this->validator->isExpired($record));
     }
 
-    public function test_should_run_again_throws_exception_when_class_does_not_exist(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Task class "NonExistentClass" does not exist.');
-
-        $this->createTaskRecord([
-            'alias' => 'test',
-            'fqcn' => 'NonExistentClass',
-            'payload' => [],
-            'interval_seconds' => 3600,
-            'start_at' => Carbon::now()->subDays(1)->toIso8601String(),
-            'end_at' => Carbon::now()->addDays(7)->toIso8601String(),
-            'last_run_at' => Carbon::now()->subHours(2)->toIso8601String(),
-            'status' => RecurringTaskStatus::PLAYING,
-        ]);
-    }
-
     // ==================== TESTS getValidationErrors ====================
 
     public function test_get_validation_errors_returns_empty_for_valid_playing_task(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440021';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-valid-errors', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -428,10 +499,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_get_validation_errors_returns_waiting_state_error(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440022';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-waiting-error', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -444,10 +518,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_get_validation_errors_returns_paused_state_error(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440023';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-paused-error', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -460,10 +537,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_get_validation_errors_returns_finished_state_error(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440024';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-finished-error', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
@@ -476,10 +556,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_get_validation_errors_returns_expired_error(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440025';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-expired-error', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->subHours(48)->toIso8601String(),
             'end_at' => Carbon::now()->subHours(24)->toIso8601String(),
@@ -492,10 +575,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_get_validation_errors_returns_not_ready_error_for_waiting_task(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440026';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-not-ready-error', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->addHours(2)->toIso8601String(),
             'status' => RecurringTaskStatus::WAITING,
@@ -507,10 +593,13 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_get_validation_errors_returns_multiple_errors(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440027';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
+            'alias' => $this->createAlias('test-multiple-errors', $uuid),
             'fqcn' => TestRecurringTask::class,
-            'payload' => [],
+            'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
             'start_at' => Carbon::now()->addHours(2)->toIso8601String(),
             'end_at' => Carbon::now()->subHours(24)->toIso8601String(),
@@ -522,37 +611,5 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         $this->assertContains('Task is in WAITING state, not PLAYING', $errors);
         $this->assertContains('Task has expired (end_at reached)', $errors);
         $this->assertContains('Task is not ready to run (start_at not reached)', $errors);
-    }
-
-    public function test_get_validation_errors_throws_exception_when_class_does_not_exist(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Task class "NonExistentClass" does not exist.');
-
-        $this->createTaskRecord([
-            'alias' => 'test',
-            'fqcn' => 'NonExistentClass',
-            'payload' => [],
-            'interval_seconds' => 3600,
-            'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
-            'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
-            'status' => RecurringTaskStatus::PLAYING,
-        ]);
-    }
-
-    public function test_get_validation_errors_throws_exception_when_class_not_extending(): void
-    {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('Class "AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask" must extend AndyDefer\Task\Abstract\AbstractRecurringTask');
-
-        $this->createTaskRecord([
-            'alias' => 'test',
-            'fqcn' => TestUniqueTask::class,
-            'payload' => [],
-            'interval_seconds' => 3600,
-            'start_at' => Carbon::now()->subHours(2)->toIso8601String(),
-            'end_at' => Carbon::now()->addDays(1)->toIso8601String(),
-            'status' => RecurringTaskStatus::PLAYING,
-        ]);
     }
 }

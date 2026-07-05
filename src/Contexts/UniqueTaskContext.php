@@ -8,14 +8,14 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Contracts\Contexts\UniqueTaskContextInterface;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Foundation\Application;
 
 final class UniqueTaskContext implements UniqueTaskContextInterface
 {
     private StrictDataObject $payload;
 
-    private TaskIdVO $taskId;
+    private UuidVO $taskId;
 
     private TaskAliasVO $alias;
 
@@ -33,12 +33,12 @@ final class UniqueTaskContext implements UniqueTaskContextInterface
         return $this->payload;
     }
 
-    public function setTaskId(TaskIdVO $taskId): void
+    public function setTaskId(UuidVO $taskId): void
     {
         $this->taskId = $taskId;
     }
 
-    public function getTaskId(): TaskIdVO
+    public function getTaskId(): UuidVO
     {
         return $this->taskId;
     }

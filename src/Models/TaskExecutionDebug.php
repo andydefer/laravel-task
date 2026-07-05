@@ -31,6 +31,7 @@ final class TaskExecutionDebug extends Model
         'started_at',
         'ended_at',
         'data',
+        'deleted_at',
     ];
 
     protected $casts = [

@@ -7,7 +7,7 @@ namespace AndyDefer\Task\Contracts\Contexts;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Foundation\Application;
 
 interface UniqueTaskContextInterface
@@ -16,9 +16,9 @@ interface UniqueTaskContextInterface
 
     public function getPayload(): StrictDataObject;
 
-    public function setTaskId(TaskIdVO $taskId): void;
+    public function setTaskId(UuidVO $taskId): void;
 
-    public function getTaskId(): TaskIdVO;
+    public function getTaskId(): UuidVO;
 
     public function setAlias(TaskAliasVO $alias): void;
 

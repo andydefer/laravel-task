@@ -82,7 +82,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                 'alias' => $alias,
                 'success' => false,
                 'error' => 'Task not found',
-                'execution_time' => new DurationVO(0.0),
             ]);
         }
 
@@ -96,7 +95,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                     'Task is not in PLAYING state (current: %s)',
                     $record->status->value
                 ),
-                'execution_time' => new DurationVO(0.0),
             ]);
         }
 
@@ -108,7 +106,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                 'alias' => $alias,
                 'success' => false,
                 'error' => 'Task has expired (end_at reached)',
-                'execution_time' => new DurationVO(0.0),
             ]);
         }
 
@@ -121,7 +118,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             return TaskRunResultRecord::from([
                 'alias' => $alias,
                 'success' => true,
-                'execution_time' => $startTime->elapsed(),
+                'execution_time_ms' => $startTime->elapsedInMilliseconds(),
             ]);
         } catch (\Throwable $e) {
             $this->repository->updateAfterRun($record, false, new DescriptionVO($e->getMessage()));
@@ -130,7 +127,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                 'alias' => $alias,
                 'success' => false,
                 'error' => $e->getMessage(),
-                'execution_time' => $startTime->elapsed(),
+                'execution_time_ms' => $startTime->elapsedInMilliseconds(),
             ]);
         }
     }
@@ -316,7 +313,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             }
 
             $this->repository->updateRaw(
-                $model->getId(),
+                $model->getId()->getValue(),
                 ['start_at' => $newStartAt->forDatabase()]
             );
 
@@ -346,7 +343,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             }
 
             $this->repository->updateRaw(
-                $model->getId(),
+                $model->getId()->getValue(),
                 ['interval_seconds' => $intervalSeconds->getValue()]
             );
 
@@ -371,7 +368,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             }
 
             $this->repository->updateRaw(
-                $model->getId(),
+                $model->getId()->getValue(),
                 ['end_at' => $newEndAt->forDatabase()]
             );
 
@@ -463,7 +460,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             if ($model === null) {
                 return false;
             }
-            $this->repository->delete($model->getId());
+            $this->repository->delete($model->getId()->getValue());
 
             return true;
         } catch (\Throwable $e) {

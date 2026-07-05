@@ -16,14 +16,15 @@ use AndyDefer\Logger\LoggerService;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
-use AndyDefer\Task\Contracts\Processors\ProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
+use AndyDefer\Task\Contracts\Processors\UniqueTaskProcessorInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskExecutionDebugRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Runners\RecurringTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
-use AndyDefer\Task\Contracts\Services\TasksWatchServiceInterface;
+use AndyDefer\Task\Contracts\Services\TaskExecutionDebugServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\WatchRendererServiceInterface;
 use AndyDefer\Task\Contracts\Services\WatchServiceInterface;
@@ -40,9 +41,8 @@ use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
 use AndyDefer\Task\Runners\RecurringTaskRunner;
 use AndyDefer\Task\Runners\UniqueTaskRunner;
-use AndyDefer\Task\Services\DurationFormatterService;
 use AndyDefer\Task\Services\RecurringTaskService;
-use AndyDefer\Task\Services\TasksWatchService;
+use AndyDefer\Task\Services\TaskExecutionDebugService;
 use AndyDefer\Task\Services\UniqueTaskService;
 use AndyDefer\Task\Services\WatchRendererService;
 use AndyDefer\Task\Services\WatchService;
@@ -99,7 +99,8 @@ final class TaskServiceProvider extends ServiceProvider
             abstract: RecurringTaskRepositoryInterface::class,
             concrete: function (Application $app) {
                 return new RecurringTaskRepository(
-                    debugRepository: $app->make(TaskExecutionDebugRepositoryInterface::class)
+                    debugRepository: $app->make(TaskExecutionDebugRepositoryInterface::class),
+                    logger: $app->make(LoggerInterface::class)
                 );
             }
         );
@@ -109,7 +110,8 @@ final class TaskServiceProvider extends ServiceProvider
             abstract: UniqueTaskRepositoryInterface::class,
             concrete: function (Application $app) {
                 return new UniqueTaskRepository(
-                    debugRepository: $app->make(TaskExecutionDebugRepositoryInterface::class)
+                    debugRepository: $app->make(TaskExecutionDebugRepositoryInterface::class),
+                    logger: $app->make(LoggerInterface::class)
                 );
             }
         );
@@ -122,12 +124,15 @@ final class TaskServiceProvider extends ServiceProvider
                 return new UniqueTaskValidator;
             }
         );
+        $this->app->alias(UniqueTaskValidatorInterface::class, UniqueTaskValidator::class);
+
         $this->app->singleton(
             abstract: RecurringTaskValidatorInterface::class,
             concrete: function () {
                 return new RecurringTaskValidator;
             }
         );
+        $this->app->alias(RecurringTaskValidatorInterface::class, RecurringTaskValidator::class);
 
         // ✅ LOGGERS (Task Loggers)
         $this->app->singleton(
@@ -139,6 +144,7 @@ final class TaskServiceProvider extends ServiceProvider
                 );
             }
         );
+        $this->app->alias(UniqueTaskLoggerInterface::class, UniqueTaskLogger::class);
 
         $this->app->singleton(
             abstract: RecurringTaskLoggerInterface::class,
@@ -149,6 +155,7 @@ final class TaskServiceProvider extends ServiceProvider
                 );
             }
         );
+        $this->app->alias(RecurringTaskLoggerInterface::class, RecurringTaskLogger::class);
 
         // ✅ RUNNERS
         $this->app->singleton(
@@ -159,7 +166,7 @@ final class TaskServiceProvider extends ServiceProvider
                     logger: $app->make(UniqueTaskLoggerInterface::class),
                     hydration: $app->make(HydrationService::class),
                     app: $app,
-                    repository: $app->make(UniqueTaskRepositoryInterface::class),
+                    repository: $app->make(UniqueTaskRepositoryInterface::class)
                 );
             }
         );
@@ -173,15 +180,15 @@ final class TaskServiceProvider extends ServiceProvider
                     logger: $app->make(RecurringTaskLoggerInterface::class),
                     hydration: $app->make(HydrationService::class),
                     app: $app,
-                    repository: $app->make(RecurringTaskRepositoryInterface::class),
+                    repository: $app->make(RecurringTaskRepositoryInterface::class)
                 );
             }
         );
         $this->app->alias(RecurringTaskRunnerInterface::class, RecurringTaskRunner::class);
 
-        // ✅ PROCESSORS
+        // ✅ PROCESSORS - Correction : Bind des classes concrètes, PAS de l'interface commune
         $this->app->singleton(
-            abstract: ProcessorInterface::class,
+            abstract: UniqueTaskProcessor::class,
             concrete: function (Application $app) {
                 return new UniqueTaskProcessor(
                     repository: $app->make(UniqueTaskRepositoryInterface::class),
@@ -190,10 +197,9 @@ final class TaskServiceProvider extends ServiceProvider
                 );
             }
         );
-        $this->app->alias(ProcessorInterface::class, UniqueTaskProcessor::class);
 
         $this->app->singleton(
-            abstract: ProcessorInterface::class,
+            abstract: RecurringTaskProcessor::class,
             concrete: function (Application $app) {
                 return new RecurringTaskProcessor(
                     repository: $app->make(RecurringTaskRepositoryInterface::class),
@@ -202,9 +208,24 @@ final class TaskServiceProvider extends ServiceProvider
                 );
             }
         );
-        $this->app->alias(ProcessorInterface::class, RecurringTaskProcessor::class);
+
+        // ✅ ALIASES pour les interfaces spécifiques (si elles existent)
+        $this->app->alias(UniqueTaskProcessor::class, UniqueTaskProcessorInterface::class);
+        $this->app->alias(RecurringTaskProcessor::class, RecurringTaskProcessorInterface::class);
 
         // ✅ SERVICES
+
+        // TaskExecutionDebugService
+        $this->app->singleton(
+            abstract: TaskExecutionDebugServiceInterface::class,
+            concrete: function (Application $app) {
+                return new TaskExecutionDebugService(
+                    repository: $app->make(TaskExecutionDebugRepositoryInterface::class),
+                    logger: $app->make(LoggerInterface::class)
+                );
+            }
+        );
+        $this->app->alias(TaskExecutionDebugServiceInterface::class, TaskExecutionDebugService::class);
 
         // UniqueTaskService
         $this->app->singleton(
@@ -214,7 +235,7 @@ final class TaskServiceProvider extends ServiceProvider
                     repository: $app->make(UniqueTaskRepositoryInterface::class),
                     logger: $app->make(LoggerInterface::class),
                     hydration: $app->make(HydrationService::class),
-                    app: $app,
+                    app: $app
                 );
             }
         );
@@ -228,7 +249,7 @@ final class TaskServiceProvider extends ServiceProvider
                     repository: $app->make(RecurringTaskRepositoryInterface::class),
                     logger: $app->make(LoggerInterface::class),
                     hydration: $app->make(HydrationService::class),
-                    app: $app,
+                    app: $app
                 );
             }
         );
@@ -248,7 +269,6 @@ final class TaskServiceProvider extends ServiceProvider
             }
         );
 
-        // ✅ TASKS WATCH DIRECTIVE
         $this->app->singleton(
             abstract: TasksWatchDirective::class,
             concrete: function (Application $app) {
@@ -265,19 +285,11 @@ final class TaskServiceProvider extends ServiceProvider
      */
     private function registerWatchServices(): void
     {
-        // ✅ DurationFormatterService (utilitaire)
-        $this->app->singleton(
-            abstract: DurationFormatterService::class,
-            concrete: DurationFormatterService::class
-        );
-
         // ✅ WatchService
         $this->app->singleton(
             abstract: WatchServiceInterface::class,
             concrete: function (Application $app) {
-                return new WatchService(
-                    formatter: $app->make(DurationFormatterService::class)
-                );
+                return new WatchService;
             }
         );
         $this->app->alias(WatchServiceInterface::class, WatchService::class);
@@ -287,21 +299,11 @@ final class TaskServiceProvider extends ServiceProvider
             abstract: WatchRendererServiceInterface::class,
             concrete: function (Application $app) {
                 return new WatchRendererService(
-                    interaction: $app->make(DirectiveInteractionService::class),
-                    formatter: $app->make(DurationFormatterService::class)
+                    interaction: $app->make(DirectiveInteractionService::class)
                 );
             }
         );
         $this->app->alias(WatchRendererServiceInterface::class, WatchRendererService::class);
-
-        // ✅ TasksWatchService (legacy, conservé pour compatibilité)
-        $this->app->singleton(
-            abstract: TasksWatchServiceInterface::class,
-            concrete: function () {
-                return new TasksWatchService;
-            }
-        );
-        $this->app->alias(TasksWatchServiceInterface::class, TasksWatchService::class);
     }
 
     private function registerLogger(): void
@@ -319,24 +321,22 @@ final class TaskServiceProvider extends ServiceProvider
             pathStrategy: $pathStrategy,
             fileSystem: $fs,
             context: $jsonlContext,
-            defaultBufferSize: $loggerConfig->bufferSize(),
+            defaultBufferSize: $loggerConfig->bufferSize()
         );
 
         $this->hydration = new HydrationService;
         $this->logger = new LoggerService(
             jsonlService: $jsonlService,
-            hydrationService: $this->hydration,
+            hydrationService: $this->hydration
         );
     }
 
     public function boot(): void
     {
-        // ✅ Publier les migrations
         $this->publishes([
             __DIR__.'/../database/migrations' => database_path('migrations'),
         ], 'task-migrations');
 
-        // ✅ Charger les migrations
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 }

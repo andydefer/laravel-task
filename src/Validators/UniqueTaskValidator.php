@@ -33,7 +33,7 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
         }
 
         $now = Carbon::now();
-        $scheduledAt = Carbon::parse($record->scheduled_at->value);
+        $scheduledAt = Carbon::parse($record->scheduled_at->getValue());  // ✅ getValue()
 
         return $scheduledAt->lte($now);
     }
@@ -45,15 +45,15 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
         }
 
         $now = Carbon::now();
-        $scheduledAt = Carbon::parse($record->scheduled_at->value);
-        $graceEnd = $scheduledAt->copy()->addSeconds($record->grace_period_seconds);
+        $scheduledAt = Carbon::parse($record->scheduled_at->getValue());  // ✅ getValue()
+        $graceEnd = $scheduledAt->copy()->addSeconds($record->grace_period_seconds->getValue());  // ✅ getValue()
 
         return $now->gt($graceEnd);
     }
 
     public function hasReachedMaxAttempts(UniqueTaskRecord $record): bool
     {
-        return $record->attempts->value >= $record->max_attempts->value;
+        return $record->attempts->getValue() >= $record->max_attempts->getValue();  // ✅ getValue()
     }
 
     public function getValidationErrors(UniqueTaskRecord $record): StringTypedCollection
@@ -61,7 +61,7 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
         $errors = new StringTypedCollection;
 
         if (! $this->isValidTaskClass($record)) {
-            $errors->add('Invalid task class: '.$record->fqcn.' does not exist or does not extend AbstractUniqueTask');
+            $errors->add('Invalid task class: '.$record->fqcn->getValue().' does not exist or does not extend AbstractUniqueTask');
         }
 
         if ($record->status !== UniqueTaskStatus::PENDING) {
@@ -85,12 +85,11 @@ final class UniqueTaskValidator implements UniqueTaskValidatorInterface
 
     private function isValidTaskClass(UniqueTaskRecord $record): bool
     {
-        if (! class_exists($record->fqcn->getValue())) {
+        if (! class_exists($record->fqcn->getValue())) {  // ✅ getValue()
             return false;
         }
 
-        if (! is_subclass_of($record->fqcn->getValue(), AbstractUniqueTask::class)) {
-
+        if (! is_subclass_of($record->fqcn->getValue(), AbstractUniqueTask::class)) {  // ✅ getValue()
             return false;
         }
 
