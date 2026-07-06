@@ -48,7 +48,7 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
                 'error' => TaskErrorRecord::from([
                     'alias' => $record->alias,
                     'fqcn' => $record->fqcn->getValue(),
-                    'error' => 'Validation failed: '.$errorMessage,
+                    'description' => 'Validation failed: '.$errorMessage,
                 ]),
                 'execution_time' => new DurationVO(0.0),
             ]);
@@ -98,7 +98,7 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
             'error' => $error ? TaskErrorRecord::from([
                 'alias' => $record->alias,
                 'fqcn' => $record->fqcn->getValue(),
-                'error' => $error,
+                'description' => $error,
             ]) : null,
             'execution_time' => $executionTime,
         ]);

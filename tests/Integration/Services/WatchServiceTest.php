@@ -12,6 +12,7 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\WatchInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
+use AndyDefer\Task\Models\UniqueTask;
 use AndyDefer\Task\Records\CycleResultRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
@@ -23,7 +24,6 @@ use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
-use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
@@ -49,13 +49,11 @@ final class WatchServiceTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // ✅ CAPTURER TOUTES LES SORTIES - Démarrer le buffer
         ob_start();
 
         $console = $this->app->make(Console::class);
         $this->service = new WatchService($console);
 
-        // ✅ Activer le mode testing pour tous les tests
         $this->testingService = new DirectiveTestingService($this->app);
         $this->service->enableTestingMode($this->testingService);
 
@@ -70,7 +68,6 @@ final class WatchServiceTest extends IntegrationTestCase
 
     protected function tearDown(): void
     {
-        // ✅ VIDER LE BUFFER - Supprime toutes les sorties
         $this->service->disableTestingMode();
         ob_end_clean();
 
@@ -100,23 +97,31 @@ final class WatchServiceTest extends IntegrationTestCase
         int $gracePeriodSeconds = 86400,
         int $attempts = 0,
         int $maxAttempts = 3
-    ): void {
+    ): TaskAliasVO {
         $scheduledAt = $scheduledAt ?? Carbon::now()->subMinutes(5);
         $id = $id ?? $this->getUuidForAlias($alias);
+        $aliasVO = $this->generateAliasFromName($alias, $id);
 
         $record = UniqueTaskRecord::from([
             'id' => new UuidVO($id),
-            'alias' => $this->generateAliasFromName($alias, $id),
+            'alias' => $aliasVO,
             'fqcn' => new UniqueTaskFqcnVO(TestUniqueTask::class),
             'payload' => StrictDataObject::from(['test' => 'unique']),
             'scheduled_at' => new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
-            'grace_period_seconds' => new DurationVO($gracePeriodSeconds),
+            'grace_period_seconds' => $gracePeriodSeconds,
             'status' => $status,
-            'attempts' => new CounterVO($attempts),
-            'max_attempts' => new MaxFailedAttemptsVO($maxAttempts),
+            'attempts' => $attempts,
+            'max_attempts' => $maxAttempts,
         ]);
 
         $this->uniqueRepository->create($record);
+
+        return $aliasVO;
+    }
+
+    private function findTaskByAlias(TaskAliasVO $alias): ?UniqueTask
+    {
+        return $this->uniqueRepository->findByAlias($alias);
     }
 
     // ==================== TESTS: Mode test ====================
@@ -228,22 +233,17 @@ final class WatchServiceTest extends IntegrationTestCase
 
     public function test_execute_cycle_creates_and_executes_real_task(): void
     {
-        // ✅ 1. Créer une vraie tâche en base de données
-        $this->createUniqueTask(
+        $alias = $this->createUniqueTask(
             alias: 'test-real-task',
             scheduledAt: Carbon::now()->subMinutes(5),
             attempts: 0,
             maxAttempts: 3
         );
 
-        // ✅ 2. Vérifier que la tâche existe en base
-        $task = $this->uniqueRepository->findByAlias(
-            $this->generateAliasFromName('test-real-task')
-        );
+        $task = $this->findTaskByAlias($alias);
         $this->assertNotNull($task);
         $this->assertEquals(UniqueTaskStatus::PENDING, $task->getStatus());
 
-        // ✅ 3. Exécuter un cycle en mode testing
         $cycleNumber = new CounterVO(1);
         $arguments = new StringTypedCollection;
         $arguments->add('--unique-only');
@@ -251,24 +251,20 @@ final class WatchServiceTest extends IntegrationTestCase
 
         $result = $this->service->executeCycle($cycleNumber, $arguments, $cycleStartedAt);
 
-        // ✅ 4. Vérifier que la tâche a été exécutée
         $this->assertInstanceOf(CycleResultRecord::class, $result);
         $this->assertEquals(1, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
 
-        // ✅ 5. Vérifier que la tâche est passée en COMPLETED
-        $taskAfter = $this->uniqueRepository->findByAlias(
-            $this->generateAliasFromName('test-real-task')
-        );
+        $taskAfter = $this->findTaskByAlias($alias);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $taskAfter->getStatus());
         $this->assertNotNull($taskAfter->getFinishedAt());
     }
 
     public function test_execute_cycle_with_multiple_real_tasks(): void
     {
-        // ✅ Créer 3 tâches
+        $aliases = [];
         for ($i = 1; $i <= 3; $i++) {
-            $this->createUniqueTask(
+            $aliases[] = $this->createUniqueTask(
                 alias: "test-real-task-{$i}",
                 scheduledAt: Carbon::now()->subMinutes(5),
                 attempts: 0,
@@ -286,19 +282,17 @@ final class WatchServiceTest extends IntegrationTestCase
         $this->assertEquals(3, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
 
-        for ($i = 1; $i <= 3; $i++) {
-            $task = $this->uniqueRepository->findByAlias(
-                $this->generateAliasFromName("test-real-task-{$i}")
-            );
+        foreach ($aliases as $alias) {
+            $task = $this->findTaskByAlias($alias);
             $this->assertEquals(UniqueTaskStatus::COMPLETED, $task->getStatus());
         }
     }
 
     public function test_execute_cycle_with_limit_on_real_tasks(): void
     {
-        // ✅ Créer 5 tâches
+        $aliases = [];
         for ($i = 1; $i <= 5; $i++) {
-            $this->createUniqueTask(
+            $aliases[] = $this->createUniqueTask(
                 alias: "test-limit-task-{$i}",
                 scheduledAt: Carbon::now()->subMinutes(5),
                 attempts: 0,
@@ -317,14 +311,11 @@ final class WatchServiceTest extends IntegrationTestCase
         $this->assertEquals(3, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
 
-        // ✅ Vérifier que les 3 premières sont COMPLETED et les 2 autres toujours PENDING
         $completedCount = 0;
         $pendingCount = 0;
 
-        for ($i = 1; $i <= 5; $i++) {
-            $task = $this->uniqueRepository->findByAlias(
-                $this->generateAliasFromName("test-limit-task-{$i}")
-            );
+        foreach ($aliases as $alias) {
+            $task = $this->findTaskByAlias($alias);
             if ($task->getStatus() === UniqueTaskStatus::COMPLETED) {
                 $completedCount++;
             } else {

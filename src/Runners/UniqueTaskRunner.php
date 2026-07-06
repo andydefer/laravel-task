@@ -44,7 +44,7 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
                 'error' => TaskErrorRecord::from([
                     'alias' => $record->alias,
                     'fqcn' => $record->fqcn->getValue(),
-                    'error' => 'Validation failed: '.$errors->join(', '),
+                    'description' => 'Validation failed: '.$errors->join(', '),
                 ]),
                 'execution_time' => new DurationVO(0.0), // ✅ Ajouté
             ]);
@@ -87,7 +87,7 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
             'error' => $error ? TaskErrorRecord::from([
                 'alias' => $record->alias,
                 'fqcn' => $record->fqcn,
-                'error' => $error,
+                'description' => $error,
             ]) : null,
             'execution_time' => $startTime->elapsed(),
         ]);

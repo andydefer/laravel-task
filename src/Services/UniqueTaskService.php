@@ -179,7 +179,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                     $errors->add(TaskErrorRecord::from([
                         'alias' => $result->alias,
                         'fqcn' => $record->fqcn,
-                        'error' => $result->error ?? 'Task execution failed',
+                        'description' => $result->error ?? 'Task execution failed',
                         'context' => sprintf(
                             'attempts: %d/%d',
                             $record->attempts->getValue(),
@@ -192,7 +192,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 $errors->add(TaskErrorRecord::from([
                     'alias' => $record->alias,
                     'fqcn' => $record->fqcn,
-                    'error' => $e->getMessage(),
+                    'description' => $e->getMessage(),
                     'context' => 'Exception during execution',
                 ]));
             }
@@ -206,7 +206,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             $errors->add(TaskErrorRecord::from([
                 'alias' => $taskRecord->alias,
                 'fqcn' => $taskRecord->fqcn,
-                'error' => 'Task expired',
+                'description' => 'Task expired',
                 'context' => sprintf(
                     'scheduled_at: %s, grace_period: %d',
                     $taskRecord->scheduled_at->getValue(),

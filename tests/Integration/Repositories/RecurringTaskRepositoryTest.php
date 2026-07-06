@@ -105,10 +105,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
     {
         $uuid = $uuid ?? $this->generateUuid();
 
-        return new TaskAliasVO(
-            type: ('recurring'),
-            uuid: $uuid
-        );
+        return new TaskAliasVO('recurring@'.$uuid);
     }
 
     private function createFqcnVO(string $fqcn = TestRecurringTask::class): TaskFqcnVO

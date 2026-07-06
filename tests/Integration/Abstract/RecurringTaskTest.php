@@ -68,10 +68,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         // ✅ Utiliser un UUID valide
         $this->context = new RecurringTaskContext;
-        $this->context->setAlias(new TaskAliasVO(
-            type: ('recurring'),
-            uuid: (string) Uuid::uuid4()
-        ));
+        $this->context->setAlias(new TaskAliasVO('recurring@'.(string) Uuid::uuid4()));
         $this->context->setIntervalSeconds(new DurationVO(3600));
         $this->context->setStartAt(new Iso8601DateTimeVO(Carbon::now()->toIso8601String()));
         $this->context->setNextRunAt(new Iso8601DateTimeVO(Carbon::now()->addSeconds(3600)->toIso8601String()));
@@ -244,10 +241,7 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_context_can_be_modified_after_creation(): void
     {
-        $newAlias = new TaskAliasVO(
-            type: ('recurring'),
-            uuid: (string) Uuid::uuid4()
-        );
+        $newAlias = new TaskAliasVO('recurring@'.Uuid::uuid4()->toString());
         $this->context->setAlias($newAlias);
 
         $this->assertStringContainsString('recurring@', $this->context->getAlias()->getValue());

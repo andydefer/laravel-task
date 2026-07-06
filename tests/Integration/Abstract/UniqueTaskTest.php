@@ -74,10 +74,7 @@ final class UniqueTaskTest extends IntegrationTestCase
         // ✅ Configuration du contexte Unique
         $this->context = new UniqueTaskContext;
         $this->context->setTaskId(new UuidVO((string) Uuid::uuid4()));
-        $this->context->setAlias(new TaskAliasVO(
-            type: ('unique'),
-            uuid: (string) Uuid::uuid4()
-        ));
+        $this->context->setAlias(new TaskAliasVO('unique@'.Uuid::uuid4()->toString()));
         $this->context->setScheduledAt(new Iso8601DateTimeVO(Carbon::now()->addMinutes(5)->toIso8601String()));
         $this->context->setLaravelApp($this->app);
 
@@ -263,10 +260,7 @@ final class UniqueTaskTest extends IntegrationTestCase
 
         $this->assertEquals($newTaskId->getValue(), $this->context->getTaskId()->getValue());
 
-        $newAlias = new TaskAliasVO(
-            type: ('unique'),
-            uuid: (string) Uuid::uuid4()
-        );
+        $newAlias = new TaskAliasVO('unique@'.Uuid::uuid4()->toString());
         $this->context->setAlias($newAlias);
 
         $this->assertStringContainsString('unique@', $this->context->getAlias()->getValue());
@@ -432,10 +426,7 @@ final class UniqueTaskTest extends IntegrationTestCase
 
     public function test_alias_can_be_set(): void
     {
-        $newAlias = new TaskAliasVO(
-            type: ('unique'),
-            uuid: (string) Uuid::uuid4()
-        );
+        $newAlias = new TaskAliasVO('unique@'.Uuid::uuid4()->toString());
         $this->context->setAlias($newAlias);
 
         $this->assertEquals($newAlias->getValue(), $this->context->getAlias()->getValue());
@@ -458,10 +449,7 @@ final class UniqueTaskTest extends IntegrationTestCase
     {
         $context2 = new UniqueTaskContext;
         $context2->setTaskId(new UuidVO((string) Uuid::uuid4()));
-        $context2->setAlias(new TaskAliasVO(
-            type: ('unique'),
-            uuid: (string) Uuid::uuid4()
-        ));
+        $context2->setAlias(new TaskAliasVO('unique@'.Uuid::uuid4()->toString()));
         $context2->setScheduledAt(new Iso8601DateTimeVO(Carbon::now()->addMinutes(10)->toIso8601String()));
         $context2->setLaravelApp($this->app);
 

@@ -55,7 +55,7 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
                 $errors->add(TaskErrorRecord::from([
                     'alias' => $taskRecord->alias,
                     'fqcn' => $taskRecord->fqcn->getValue(),
-                    'error' => 'Validation failed: '.$errorMessage,
+                    'description' => 'Validation failed: '.$errorMessage,
                     'context' => 'scheduled_at: '.$taskRecord->scheduled_at->getValue().', attempts: '.$taskRecord->attempts->getValue(),
                 ]));
 
@@ -84,7 +84,7 @@ final class UniqueTaskProcessor implements UniqueTaskProcessorInterface
                 $errors->add(TaskErrorRecord::from([
                     'alias' => $taskRecord->alias->getValue(),
                     'fqcn' => $taskRecord->fqcn->getValue(),
-                    'error' => 'Task expired',
+                    'description' => 'Task expired',
                     'context' => 'scheduled_at: '.$taskRecord->scheduled_at->getValue().', grace_period: '.$taskRecord->grace_period_seconds->getValue(),
                 ]));
             }

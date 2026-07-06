@@ -172,7 +172,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                     $errors->add(TaskErrorRecord::from([
                         'alias' => $runResult->alias,
                         'fqcn' => $record->fqcn,
-                        'error' => $runResult->error ?? 'Task execution failed',
+                        'description' => $runResult->error ?? 'Task execution failed',
                         'context' => sprintf(
                             'end_at: %s',
                             $record->end_at?->getValue() ?? 'null'
@@ -184,7 +184,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                 $errors->add(TaskErrorRecord::from([
                     'alias' => $record->alias,
                     'fqcn' => $record->fqcn,
-                    'error' => $e->getMessage(),
+                    'description' => $e->getMessage(),
                     'context' => 'Exception during execution',
                 ]));
             }

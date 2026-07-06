@@ -45,10 +45,7 @@ final class TaskExecutionDebugRepositoryTest extends IntegrationTestCase
 
     private function createAliasVO(string $uuid): TaskAliasVO
     {
-        return new TaskAliasVO(
-            type: ('unique'),
-            uuid: $uuid
-        );
+        return new TaskAliasVO('unique@'.$uuid);
     }
 
     private function createFqcnVO(string $fqcn): TaskFqcnVO

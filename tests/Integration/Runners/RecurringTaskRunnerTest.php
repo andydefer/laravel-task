@@ -18,7 +18,6 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\FailingRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
-use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
@@ -83,9 +82,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
     {
         $uuid = $uuid ?? $this->getUuidForAlias($name);
 
-        return new TaskAliasVO(
-            'recurring@'.$uuid
-        );
+        return new TaskAliasVO('recurring@'.$uuid);
     }
 
     private function createTaskRecord(
@@ -107,7 +104,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
             'alias' => $alias,
             'fqcn' => $fqcn,
             'payload' => StrictDataObject::from(['test' => 'runner']),
-            'interval_seconds' => new DurationVO(3600),
+            'interval_seconds' => 3600,
             'start_at' => $startAt,
             'end_at' => $endAt,
             'status' => $status,
@@ -119,12 +116,14 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
         return $record;
     }
 
-    private function findTaskByAliasName(string $aliasName): ?RecurringTask
+    private function findTaskByAlias(TaskAliasVO $alias): ?RecurringTask
     {
-        $id = $this->getUuidForAlias($aliasName);
-        $alias = $this->generateAliasFromName($aliasName, $id);
-
         return $this->repository->findByAlias($alias);
+    }
+
+    private function findDebugByAlias(TaskAliasVO $alias)
+    {
+        return $this->debugRepository->findByAlias($alias);
     }
 
     // ==================== TESTS ====================
@@ -139,12 +138,11 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
         $this->assertNull($result->error);
         $this->assertIsFloat($result->execution_time->getValue());
 
-        $task = $this->findTaskByAliasName('test-run-success');
+        $task = $this->findTaskByAlias($record->alias);
         $this->assertNotNull($task);
         $this->assertNotNull($task->getLastRunAt());
 
-        $alias = $this->generateAliasFromName('test-run-success');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(1, $debugs);
 
         $debug = $debugs->first();
@@ -161,9 +159,9 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertStringContainsString('Validation failed', $result->error->error->getValue());
+        $this->assertStringContainsString('Validation failed', $result->error->description->getValue());
 
-        $task = $this->findTaskByAliasName('test-run-waiting');
+        $task = $this->findTaskByAlias($record->alias);
         $this->assertNotNull($task);
         $this->assertNull($task->getLastRunAt());
     }
@@ -180,7 +178,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
             'alias' => $alias,
             'fqcn' => TestRecurringTask::class,
             'payload' => StrictDataObject::from(['test' => 'runner']),
-            'interval_seconds' => new DurationVO(3600),
+            'interval_seconds' => 3600,
             'start_at' => $now->addSeconds(-604800),
             'end_at' => $now->addSeconds(-86400),
             'status' => RecurringTaskStatus::PLAYING,
@@ -192,7 +190,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertStringContainsString('Validation failed', $result->error->error->getValue());
+        $this->assertStringContainsString('Validation failed', $result->error->description->getValue());
     }
 
     public function test_run_skips_execution_when_interval_not_reached(): void
@@ -214,15 +212,14 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
         $this->assertNull($result->error);
         $this->assertEquals(0.0, $result->execution_time->getValue());
 
-        $task = $this->findTaskByAliasName('test-run-skip');
+        $task = $this->findTaskByAlias($record->alias);
         $this->assertNotNull($task);
         $this->assertEquals(
             $lastRunAt->format('Y-m-d H:i'),
             $task->getLastRunAt()->format('Y-m-d H:i')
         );
 
-        $alias = $this->generateAliasFromName('test-run-skip');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(0, $debugs);
     }
 
@@ -238,7 +235,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
             'alias' => $alias,
             'fqcn' => FailingRecurringTask::class,
             'payload' => StrictDataObject::from(['should_fail' => true, 'fail_message' => 'Test failure']),
-            'interval_seconds' => new DurationVO(3600),
+            'interval_seconds' => 3600,
             'start_at' => $now->addSeconds(-86400),
             'end_at' => $now->addSeconds(604800),
             'status' => RecurringTaskStatus::PLAYING,
@@ -250,14 +247,13 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals('Test failure', $result->error->error->getValue());
+        $this->assertEquals('Test failure', $result->error->description->getValue());
 
-        $task = $this->findTaskByAliasName('test-run-failing');
+        $task = $this->findTaskByAlias($record->alias);
         $this->assertNotNull($task);
         $this->assertNotNull($task->getLastRunAt());
 
-        $alias = $this->generateAliasFromName('test-run-failing');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(1, $debugs);
 
         $debug = $debugs->first();
@@ -285,8 +281,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
 
         $this->assertTrue($result->success);
 
-        $alias = $this->generateAliasFromName('test-run-logs');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(1, $debugs);
 
         $debug = $debugs->first();
@@ -303,7 +298,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
 
         $this->assertTrue($result->success);
 
-        $task = $this->findTaskByAliasName('test-run-preserve');
+        $task = $this->findTaskByAlias($record->alias);
         $this->assertNotNull($task);
         $this->assertEquals(RecurringTaskStatus::PLAYING, $task->getStatus());
     }
@@ -321,7 +316,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
             'alias' => $alias,
             'fqcn' => TestRecurringTask::class,
             'payload' => StrictDataObject::from(['test' => 'runner', 'data' => 'should_persist']),
-            'interval_seconds' => new DurationVO(7200),
+            'interval_seconds' => 7200,
             'start_at' => $now->addSeconds(-172800),
             'end_at' => $now->addSeconds(1209600),
             'status' => RecurringTaskStatus::PLAYING,
@@ -332,7 +327,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
         $result = $this->runner->run($record);
         $this->assertTrue($result->success);
 
-        $task = $this->findTaskByAliasName($aliasName);
+        $task = $this->findTaskByAlias($record->alias);
         $this->assertNotNull($task);
         $this->assertEquals(TestRecurringTask::class, $task->getFqcn());
         $this->assertEquals(7200, $task->getIntervalSeconds()->getValue());
@@ -352,7 +347,7 @@ final class RecurringTaskRunnerTest extends IntegrationTestCase
 
         $this->assertTrue($result->success);
 
-        $task = $this->findTaskByAliasName('test-run-first');
+        $task = $this->findTaskByAlias($record->alias);
         $this->assertNotNull($task);
         $this->assertNotNull($task->getLastRunAt());
     }

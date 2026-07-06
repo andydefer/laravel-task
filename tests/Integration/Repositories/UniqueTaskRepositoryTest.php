@@ -106,10 +106,7 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
     {
         $uuid = $uuid ?? $this->generateUuid();
 
-        return new TaskAliasVO(
-            type: ('unique'),
-            uuid: $uuid
-        );
+        return new TaskAliasVO('unique@'.$uuid);
     }
 
     private function createFqcnVO(): UniqueTaskFqcnVO

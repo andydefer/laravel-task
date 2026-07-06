@@ -14,7 +14,7 @@ final class TaskErrorRecord extends AbstractRecord
     public function __construct(
         public readonly TaskAliasVO $alias,
         public readonly TaskFqcnVO $fqcn,
-        public readonly DescriptionVO $error,
+        public readonly DescriptionVO $description,
         public readonly ?DescriptionVO $context = null,
     ) {}
 }

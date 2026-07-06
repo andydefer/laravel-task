@@ -19,10 +19,7 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTaskWithCustomConfig;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
@@ -47,7 +44,6 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // ✅ FIXER LE TEMPS
         Carbon::setTestNow(Carbon::create(2026, 7, 5, 18, 58, 52));
 
         $this->debugRepository = new TaskExecutionDebugRepository;
@@ -111,10 +107,10 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
             'fqcn' => new UniqueTaskFqcnVO($fqcn),
             'payload' => StrictDataObject::from(['test' => 'runner']),
             'scheduled_at' => $scheduledAt,
-            'grace_period_seconds' => new DurationVO($gracePeriodSeconds),
+            'grace_period_seconds' => $gracePeriodSeconds,
             'status' => $status,
-            'attempts' => new CounterVO($attempts),
-            'max_attempts' => new MaxFailedAttemptsVO($maxAttempts),
+            'attempts' => $attempts,
+            'max_attempts' => $maxAttempts,
         ]);
 
         $this->repository->create($record);
@@ -125,6 +121,11 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
     private function findTaskById(string $id): ?UniqueTask
     {
         return $this->repository->findById(new UuidVO($id));
+    }
+
+    private function findDebugByAlias(TaskAliasVO $alias)
+    {
+        return $this->debugRepository->findByAlias($alias);
     }
 
     // ==================== TESTS ====================
@@ -144,8 +145,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
 
-        $alias = $this->generateAliasFromName('test-run-success');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(1, $debugs);
 
         $debug = $debugs->first();
@@ -166,9 +166,9 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals($record->alias->getValue(), $result->error->alias);
-        $this->assertStringContainsString('Validation failed', $result->error->error->getValue());
-        $this->assertStringContainsString('Task is not in PENDING state', $result->error->error->getValue());
+        $this->assertEquals($record->alias->getValue(), $result->error->alias->getValue());
+        $this->assertStringContainsString('Validation failed', $result->error->description->getValue());
+        $this->assertStringContainsString('Task is not in PENDING state', $result->error->description->getValue());
     }
 
     public function test_run_returns_failure_when_scheduled_at_in_future(): void
@@ -186,9 +186,9 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals($record->alias->getValue(), $result->error->alias);
-        $this->assertStringContainsString('Validation failed', $result->error->error->getValue());
-        $this->assertStringContainsString('Task is not ready to run', $result->error->error->getValue());
+        $this->assertEquals($record->alias->getValue(), $result->error->alias->getValue());
+        $this->assertStringContainsString('Validation failed', $result->error->description->getValue());
+        $this->assertStringContainsString('Task is not ready to run', $result->error->description->getValue());
     }
 
     public function test_run_returns_failure_when_max_attempts_reached(): void
@@ -207,9 +207,9 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals($record->alias->getValue(), $result->error->alias);
-        $this->assertStringContainsString('Validation failed', $result->error->error->getValue());
-        $this->assertStringContainsString('Maximum attempts reached', $result->error->error->getValue());
+        $this->assertEquals($record->alias->getValue(), $result->error->alias->getValue());
+        $this->assertStringContainsString('Validation failed', $result->error->description->getValue());
+        $this->assertStringContainsString('Maximum attempts reached', $result->error->description->getValue());
     }
 
     public function test_run_returns_failure_when_task_expired(): void
@@ -226,9 +226,9 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals($record->alias->getValue(), $result->error->alias);
-        $this->assertStringContainsString('Validation failed', $result->error->error->getValue());
-        $this->assertStringContainsString('Task has expired', $result->error->error->getValue());
+        $this->assertEquals($record->alias->getValue(), $result->error->alias->getValue());
+        $this->assertStringContainsString('Validation failed', $result->error->description->getValue());
+        $this->assertStringContainsString('Task has expired', $result->error->description->getValue());
     }
 
     public function test_run_handles_task_exception(): void
@@ -248,15 +248,14 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
         $this->assertNotNull($result->error);
-        $this->assertEquals('Test exception', $result->error->error->getValue());
+        $this->assertEquals('Test exception', $result->error->description->getValue());
 
         $task = $this->findTaskById($record->id->getValue());
         $this->assertNotNull($task);
         $this->assertEquals(UniqueTaskStatus::FAILED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
 
-        $alias = $this->generateAliasFromName('test-run-failing');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(1, $debugs);
 
         $debug = $debugs->first();
@@ -284,15 +283,13 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertTrue($result->success);
 
-        $alias = $this->generateAliasFromName('test-run-logs');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(1, $debugs);
 
         $debug = $debugs->first();
         $debugData = $debug->getData();
         $this->assertEquals('succeeded', $debug->getStatus()->value);
         $this->assertEquals('Task executed successfully', $debugData->toArray()['info']);
-        // ✅ Pas d'assertion sur acted_at car il n'existe pas
     }
 
     public function test_run_sets_completed_status_on_success(): void
@@ -344,10 +341,10 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
             'fqcn' => new UniqueTaskFqcnVO(TestUniqueTask::class),
             'payload' => StrictDataObject::from(['test' => 'runner', 'data' => 'should_persist']),
             'scheduled_at' => (new Iso8601DateTimeVO)->addSeconds(-7200),
-            'grace_period_seconds' => new DurationVO(86400),
+            'grace_period_seconds' => 86400,
             'status' => UniqueTaskStatus::PENDING,
-            'attempts' => new CounterVO(0),
-            'max_attempts' => new MaxFailedAttemptsVO(3),
+            'attempts' => 0,
+            'max_attempts' => 3,
         ]);
 
         $this->repository->create($record);
@@ -396,10 +393,10 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
             'fqcn' => new UniqueTaskFqcnVO(TestUniqueTask::class),
             'payload' => StrictDataObject::from([]),
             'scheduled_at' => (new Iso8601DateTimeVO)->addSeconds(-7200),
-            'grace_period_seconds' => new DurationVO(86400),
+            'grace_period_seconds' => 86400,
             'status' => UniqueTaskStatus::PENDING,
-            'attempts' => new CounterVO(0),
-            'max_attempts' => new MaxFailedAttemptsVO(3),
+            'attempts' => 0,
+            'max_attempts' => 3,
         ]);
 
         $this->repository->create($record);
@@ -421,8 +418,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertTrue($result->success);
 
-        $alias = $this->generateAliasFromName('test-run-debug-success');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(1, $debugs);
 
         $debug = $debugs->first();
@@ -448,8 +444,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
 
         $this->assertFalse($result->success);
 
-        $alias = $this->generateAliasFromName('test-run-debug-failure');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(1, $debugs);
 
         $debug = $debugs->first();
@@ -478,8 +473,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
         $this->assertEquals(UniqueTaskStatus::PENDING, $task->getStatus());
         $this->assertNull($task->getFinishedAt());
 
-        $alias = $this->generateAliasFromName('test-run-no-update');
-        $debugs = $this->debugRepository->findByAlias($alias);
+        $debugs = $this->findDebugByAlias($record->alias);
         $this->assertCount(0, $debugs);
     }
 }
