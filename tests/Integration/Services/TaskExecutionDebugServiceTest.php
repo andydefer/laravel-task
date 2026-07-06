@@ -15,7 +15,6 @@ use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\TaskFqcnVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
@@ -52,22 +51,16 @@ final class TaskExecutionDebugServiceTest extends IntegrationTestCase
 
     private function generateAliasFromName(string $name): TaskAliasVO
     {
-        $uuid = Uuid::uuid5(Uuid::NAMESPACE_DNS, $name);
+        $uuid = Uuid::uuid4()->toString();
 
-        return new TaskAliasVO(
-            new TaskTypeVO('unique'),
-            $uuid->toString()
-        );
+        return new TaskAliasVO('unique@'.$uuid);
     }
 
     private function generateRecurringAliasFromName(string $name): TaskAliasVO
     {
-        $uuid = Uuid::uuid5(Uuid::NAMESPACE_DNS, $name);
+        $uuid = Uuid::uuid4()->toString();
 
-        return new TaskAliasVO(
-            new TaskTypeVO('recurring'),  // ✅ Type 'recurring'
-            $uuid->toString()
-        );
+        return new TaskAliasVO('recurring@'.$uuid);
     }
 
     private function generateFqcn(string $class): TaskFqcnVO
@@ -161,7 +154,7 @@ final class TaskExecutionDebugServiceTest extends IntegrationTestCase
 
         $first = $results->first();
         $this->assertEquals($alias->getValue(), $first->alias->getValue());
-        $this->assertEquals('recurring', $first->alias->getType()->getValue());
+        $this->assertEquals('recurring', $first->alias->getType()->value);
     }
 
     public function test_find_by_recurring_task_returns_empty_when_not_found(): void
@@ -194,7 +187,7 @@ final class TaskExecutionDebugServiceTest extends IntegrationTestCase
 
         $first = $results->first();
         $this->assertEquals($alias->getValue(), $first->alias->getValue());
-        $this->assertEquals('unique', $first->alias->getType()->getValue());
+        $this->assertEquals('unique', $first->alias->getType()->value);
     }
 
     public function test_find_by_unique_task_returns_empty_when_not_found(): void

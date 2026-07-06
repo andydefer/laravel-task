@@ -8,6 +8,7 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Collections\UniqueTaskRecordCollection;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\TaskRunResultRecord;
+use AndyDefer\Task\Records\UniqueTaskConfigRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
@@ -15,7 +16,6 @@ use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\UniqueTaskConfigVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 
 interface UniqueTaskServiceInterface
@@ -27,13 +27,13 @@ interface UniqueTaskServiceInterface
      *
      * @param  UniqueTaskFqcnVO  $fqcn  Classe de la tâche (doit étendre AbstractUniqueTask)
      * @param  StrictDataObject  $payload  Données de la tâche
-     * @param  UniqueTaskConfigVO  $config  Configuration de la tâche
+     * @param  UniqueTaskConfigRecord  $config  Configuration de la tâche
      * @return TaskAliasVO Alias de la tâche créée
      */
     public function register(
         UniqueTaskFqcnVO $fqcn,
         StrictDataObject $payload,
-        UniqueTaskConfigVO $config
+        UniqueTaskConfigRecord $config
     ): TaskAliasVO;
 
     // ==================== EXÉCUTION ====================

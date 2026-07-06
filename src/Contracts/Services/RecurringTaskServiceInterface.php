@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Contracts\Services;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
 use AndyDefer\Task\Records\ProcessResultRecord;
+use AndyDefer\Task\Records\RecurringTaskConfigRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskRunResultRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
@@ -14,7 +15,6 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
-use AndyDefer\Task\ValueObjects\RecurringTaskConfigVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 
@@ -25,7 +25,7 @@ interface RecurringTaskServiceInterface
     public function register(
         RecurringTaskFqcnVO $fqcn,
         StrictDataObject $payload,
-        RecurringTaskConfigVO $config
+        RecurringTaskConfigRecord $config
     ): TaskAliasVO;
 
     // ==================== EXÉCUTION ====================

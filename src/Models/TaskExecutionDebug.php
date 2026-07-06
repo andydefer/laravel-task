@@ -9,7 +9,6 @@ use AndyDefer\Task\Enums\ExecutionStatus;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\TaskFqcnVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -48,12 +47,7 @@ final class TaskExecutionDebug extends Model
 
     public function getAlias(): TaskAliasVO
     {
-        [$type, $uuid] = explode('@', $this->alias, 2);
-
-        return new TaskAliasVO(
-            type: new TaskTypeVO($type),
-            uuid: $uuid
-        );
+        return new TaskAliasVO($this->alias);
     }
 
     public function getAliasString(): string

@@ -14,11 +14,13 @@ use AndyDefer\Task\Collections\UniqueTaskRecordCollection;
 use AndyDefer\Task\Contexts\UniqueTaskContext;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
+use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask as ModelsUniqueTask;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Records\TaskRunResultRecord;
+use AndyDefer\Task\Records\UniqueTaskConfigRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
@@ -26,7 +28,6 @@ use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\UniqueTaskConfigVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Foundation\Application;
@@ -44,7 +45,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
     public function register(
         UniqueTaskFqcnVO $fqcn,
         StrictDataObject $payload,
-        UniqueTaskConfigVO $config
+        UniqueTaskConfigRecord $config
     ): TaskAliasVO {
         $className = $fqcn->getValue();
 
@@ -61,21 +62,17 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
         $uuid = (string) Uuid::uuid4();
 
-        $alias = new TaskAliasVO(
-            type: $config->type,
-            uuid: $uuid
-        );
-
+        $alias = new TaskAliasVO(TaskType::UNIQUE->value.'@'.$uuid);
         $record = UniqueTaskRecord::from([
             'id' => new UuidVO($uuid),                           // ✅ AJOUTÉ
             'alias' => $alias,
             'fqcn' => $fqcn,
             'payload' => $payload,
-            'scheduled_at' => $config->getScheduledAt(),
-            'grace_period_seconds' => $config->getGracePeriod()->getValue(), // ✅ INT
+            'scheduled_at' => $config->scheduled_at,
+            'grace_period_seconds' => $config->grace_period, // ✅ INT
             'status' => UniqueTaskStatus::PENDING,
             'attempts' => 0,                                     // ✅ AJOUTÉ
-            'max_attempts' => $config->getMaxAttempts()->getValue(), // ✅ INT
+            'max_attempts' => $config->max_attempts, // ✅ INT
         ]);
 
         $model = $this->repository->create($record);
@@ -180,8 +177,8 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                 } else {
                     $failed++;
                     $errors->add(TaskErrorRecord::from([
-                        'alias' => $result->alias->getValue(),
-                        'fqcn' => $record->fqcn->getValue(),
+                        'alias' => $result->alias,
+                        'fqcn' => $record->fqcn,
                         'error' => $result->error ?? 'Task execution failed',
                         'context' => sprintf(
                             'attempts: %d/%d',
@@ -193,8 +190,8 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             } catch (\Throwable $e) {
                 $failed++;
                 $errors->add(TaskErrorRecord::from([
-                    'alias' => $record->alias->getValue(),
-                    'fqcn' => $record->fqcn->getValue(),
+                    'alias' => $record->alias,
+                    'fqcn' => $record->fqcn,
                     'error' => $e->getMessage(),
                     'context' => 'Exception during execution',
                 ]));
@@ -207,8 +204,8 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             $this->repository->moveToFailed($taskRecord);
             $failed++;
             $errors->add(TaskErrorRecord::from([
-                'alias' => $taskRecord->alias->getValue(),
-                'fqcn' => $taskRecord->fqcn->getValue(),
+                'alias' => $taskRecord->alias,
+                'fqcn' => $taskRecord->fqcn,
                 'error' => 'Task expired',
                 'context' => sprintf(
                     'scheduled_at: %s, grace_period: %d',

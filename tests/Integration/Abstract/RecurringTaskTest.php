@@ -20,7 +20,6 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\Carbon;
 use Ramsey\Uuid\Uuid;
@@ -70,7 +69,7 @@ final class RecurringTaskTest extends IntegrationTestCase
         // ✅ Utiliser un UUID valide
         $this->context = new RecurringTaskContext;
         $this->context->setAlias(new TaskAliasVO(
-            type: new TaskTypeVO('recurring'),
+            type: ('recurring'),
             uuid: (string) Uuid::uuid4()
         ));
         $this->context->setIntervalSeconds(new DurationVO(3600));
@@ -167,7 +166,7 @@ final class RecurringTaskTest extends IntegrationTestCase
         $endAt = new Iso8601DateTimeVO(Carbon::now()->addDays(7)->toIso8601String());
         $this->context->setEndAt($endAt);
 
-        $this->assertEquals($endAt->value, $this->context->getEndAt()->value);
+        $this->assertEquals($endAt->getValue(), $this->context->getEndAt()->getValue());
     }
 
     public function test_handles_last_run_at_context(): void
@@ -175,7 +174,7 @@ final class RecurringTaskTest extends IntegrationTestCase
         $lastRunAt = new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String());
         $this->context->setLastRunAt($lastRunAt);
 
-        $this->assertEquals($lastRunAt->value, $this->context->getLastRunAt()->value);
+        $this->assertEquals($lastRunAt->getValue(), $this->context->getLastRunAt()->getValue());
     }
 
     public function test_handles_start_at_context(): void
@@ -183,7 +182,7 @@ final class RecurringTaskTest extends IntegrationTestCase
         $startAt = new Iso8601DateTimeVO(Carbon::now()->addHours(3)->toIso8601String());
         $this->context->setStartAt($startAt);
 
-        $this->assertEquals($startAt->value, $this->context->getStartAt()->value);
+        $this->assertEquals($startAt->getValue(), $this->context->getStartAt()->getValue());
     }
 
     public function test_handles_next_run_at_context(): void
@@ -191,7 +190,7 @@ final class RecurringTaskTest extends IntegrationTestCase
         $nextRunAt = new Iso8601DateTimeVO(Carbon::now()->addHours(5)->toIso8601String());
         $this->context->setNextRunAt($nextRunAt);
 
-        $this->assertEquals($nextRunAt->value, $this->context->getNextRunAt()->value);
+        $this->assertEquals($nextRunAt->getValue(), $this->context->getNextRunAt()->getValue());
     }
 
     public function test_context_has_laravel_app(): void
@@ -246,7 +245,7 @@ final class RecurringTaskTest extends IntegrationTestCase
     public function test_context_can_be_modified_after_creation(): void
     {
         $newAlias = new TaskAliasVO(
-            type: new TaskTypeVO('recurring'),
+            type: ('recurring'),
             uuid: (string) Uuid::uuid4()
         );
         $this->context->setAlias($newAlias);

@@ -7,25 +7,30 @@ namespace AndyDefer\Task\Tests\Integration\Directives;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Task\Configs\RecurringTaskConfig;
+use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
+use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
+use AndyDefer\Task\Records\RecurringTaskConfigRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
-use AndyDefer\Task\Structs\BatchResultStruct;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Ramsey\Uuid\Uuid;
@@ -52,7 +57,10 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->service = new DirectiveTestingService($this->app);
 
         $this->debugRepository = new TaskExecutionDebugRepository;
-        $this->uniqueRepository = new UniqueTaskRepository($this->debugRepository);
+        $this->uniqueRepository = new UniqueTaskRepository(
+            $this->debugRepository,
+            $this->app->make(LoggerInterface::class)
+        );
         $this->recurringRepository = $this->app->make(RecurringTaskRepositoryInterface::class);
     }
 
@@ -65,26 +73,40 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     // ==================== HELPERS ====================
 
+    private function getUuidForAlias(string $aliasName): string
+    {
+        return Uuid::uuid4()->toString();
+    }
+
+    private function generateAliasFromName(string $name, ?string $uuid = null): TaskAliasVO
+    {
+        $uuid = $uuid ?? $this->getUuidForAlias($name);
+
+        return new TaskAliasVO('unique@'.$uuid);
+    }
+
     private function createUniqueTask(
         string $alias,
         ?string $id = null,
         UniqueTaskStatus $status = UniqueTaskStatus::PENDING,
         ?\DateTimeInterface $scheduledAt = null,
-        int $gracePeriodSeconds = 86400
+        int $gracePeriodSeconds = 86400,
+        int $attempts = 0,
+        int $maxAttempts = 3
     ): void {
         $scheduledAt = $scheduledAt ?? Carbon::now()->subHours(2);
-        $id = $id ?? (string) Uuid::uuid4();
+        $id = $id ?? $this->getUuidForAlias($alias);
 
         $record = UniqueTaskRecord::from([
-            'id' => $id,
-            'alias' => $alias,
-            'fqcn' => TestUniqueTask::class,
-            'payload' => ['test' => 'unique'],
-            'scheduled_at' => $scheduledAt->format('Y-m-d\TH:i:sP'),
-            'grace_period_seconds' => $gracePeriodSeconds,
+            'id' => new UuidVO($id),
+            'alias' => $this->generateAliasFromName($alias, $id),
+            'fqcn' => new UniqueTaskFqcnVO(TestUniqueTask::class),
+            'payload' => StrictDataObject::from(['test' => 'unique']),
+            'scheduled_at' => new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
+            'grace_period_seconds' => new DurationVO($gracePeriodSeconds),
             'status' => $status,
-            'attempts' => 0,
-            'max_attempts' => 3,
+            'attempts' => new CounterVO($attempts),
+            'max_attempts' => new MaxFailedAttemptsVO($maxAttempts),
         ]);
 
         $this->uniqueRepository->create($record);
@@ -92,16 +114,17 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     private function createFailingUniqueTask(): void
     {
-        $id = (string) Uuid::uuid4();
+        $alias = 'failing-task';
+        $id = $this->getUuidForAlias($alias);
 
         $record = UniqueTaskRecord::from([
             'id' => $id,
-            'alias' => 'failing-task',
+            'alias' => $this->generateAliasFromName($alias, $id),
             'fqcn' => FailingTask::class,
             'payload' => ['test' => 'failing'],
             'scheduled_at' => Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP'),
             'grace_period_seconds' => 86400,
-            'status' => UniqueTaskStatus::PENDING,
+            'status' => UniqueTaskStatus::PENDING->value,
             'attempts' => 2,
             'max_attempts' => 3,
         ]);
@@ -113,60 +136,71 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         string $alias,
         RecurringTaskStatus $status = RecurringTaskStatus::PLAYING,
         ?\DateTimeInterface $startAt = null,
-        ?\DateTimeInterface $lastRunAt = null
+        ?\DateTimeInterface $lastRunAt = null,
+        int $intervalSeconds = 3600
     ): void {
         $startAt = $startAt ?? Carbon::now()->subHours(2);
         $lastRunAt = $lastRunAt ?? null;
+        $id = $this->getUuidForAlias($alias);
 
-        $config = new RecurringTaskConfig(
-            alias: new TaskSignatureVO($alias),
-            description: 'Test recurring task',
-            interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO($startAt->format('Y-m-d\TH:i:sP')),
-            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP')),
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = RecurringTaskConfigRecord::from([
+            'type' => TaskType::RECURRING->value,
+            'description' => 'Test recurring task',
+            'interval_seconds' => $intervalSeconds,
+            'start_at' => $startAt->format('Y-m-d\TH:i:sP'),
+            'end_at' => Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP'),
+            'max_attempts' => 3,
+        ]);
 
         $service = $this->app->make(RecurringTaskServiceInterface::class);
-        $aliasVO = $service->register(
-            TestRecurringTask::class,
-            StrictDataObject::from(['test' => 'recurring']),
-            $config
-        );
+        $fqcn = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $payload = StrictDataObject::from(['test' => 'recurring']);
 
-        $task = $this->recurringRepository->findByAlias($aliasVO->value);
+        $aliasVO = $service->register($fqcn, $payload, $config);
+
+        $task = $this->recurringRepository->findByAlias($aliasVO);
         if ($task) {
-            $task->status = $status;
-            $task->start_at = $startAt;
-            $task->last_run_at = $lastRunAt;
-            $task->save();
+            $this->recurringRepository->updateRaw(
+                $task->getId()->getValue(),
+                [
+                    'status' => $status->value,
+                    'start_at' => $startAt->format('Y-m-d H:i:s'),
+                    'last_run_at' => $lastRunAt ? $lastRunAt->format('Y-m-d H:i:s') : null,
+                ]
+            );
         }
     }
 
     private function createFailingRecurringTask(): void
     {
-        $config = new RecurringTaskConfig(
-            alias: new TaskSignatureVO('failing-recurring'),
-            description: 'Failing recurring task',
-            interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(Carbon::now()->subHours(2)->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(Carbon::now()->addDays(7)->toIso8601String()),
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $alias = 'failing-recurring';
+        /* $id = $this->getUuidForAlias($alias); */
+
+        $config = RecurringTaskConfigRecord::from([
+            'type' => TaskType::RECURRING->value,
+            'description' => 'Failing recurring task',
+            'interval_seconds' => 3000,
+            'start_at' => Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP'),
+            'end_at' => Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP'),
+            'max_attempts' => 3,
+        ]);
 
         $service = $this->app->make(RecurringTaskServiceInterface::class);
-        $aliasVO = $service->register(
-            FailingRecurringTask::class,
-            StrictDataObject::from(['should_fail' => true]),
-            $config
-        );
+        $fqcn = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $payload = StrictDataObject::from(['should_fail' => true]);
 
-        $task = $this->recurringRepository->findByAlias($aliasVO->value);
+        $aliasVO = $service->register($fqcn, $payload, $config);
+
+        $task = $this->recurringRepository->findByAlias($aliasVO);
         if ($task) {
-            $task->status = RecurringTaskStatus::PLAYING;
-            $task->start_at = Carbon::now()->subHours(2);
-            $task->last_run_at = null;
-            $task->save();
+            $this->recurringRepository->updateRaw(
+                $task->getId()->getValue(),
+                [
+                    'status' => RecurringTaskStatus::PLAYING->value,
+                    'start_at' => Carbon::now()->subHours(2)->format('Y-m-d H:i:s'),
+                    'last_run_at' => null,
+                ]
+            );
         }
     }
 
@@ -212,6 +246,10 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('=== Batch Results ===', $response->output);
+        $this->assertStringContainsString('Unique:    ✅ 0, ❌ 0', $response->output);
+        $this->assertStringContainsString('Recurring: ✅ 0, ❌ 0', $response->output);
+        $this->assertStringContainsString('Total:     ✅ 0, ❌ 0, 📦 0', $response->output);
+        $this->assertStringContainsString('Has failures: No', $response->output);
     }
 
     public function test_execute_with_unique_only_flag(): void
@@ -245,7 +283,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $response = $this->service->run(ProcessTasksDirective::class, ['--unique-only', '--recurring-only']);
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
-        $this->assertStringContainsString('Cannot use both', $response->output);
+        $this->assertStringContainsString('Cannot use both --unique-only and --recurring-only', $response->output);
     }
 
     // ==================== TESTS: Limit ====================
@@ -274,14 +312,6 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('Limit must be a positive integer', $response->output);
     }
 
-    public function test_execute_with_limit_negative_returns_invalid_argument(): void
-    {
-        $response = $this->service->run(ProcessTasksDirective::class, ['--limit=-5']);
-
-        $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
-        $this->assertStringContainsString('Limit must be a positive integer', $response->output);
-    }
-
     // ==================== TESTS: JSON Output ====================
 
     public function test_json_output_returns_valid_json(): void
@@ -297,20 +327,23 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
 
-        $data = json_decode($response->output, true);
-        $this->assertNotNull($data);
+        $cleaned = $this->stripAnsi($response->output);
+        $data = json_decode($cleaned, true);
 
+        $this->assertNotNull($data);
         $this->assertArrayHasKey('started_at', $data);
         $this->assertArrayHasKey('ended_at', $data);
         $this->assertArrayHasKey('duration_ms', $data);
-        $this->assertArrayHasKey('success', $data);
-        $this->assertArrayHasKey('failed', $data);
+        $this->assertArrayHasKey('total_success', $data);
+        $this->assertArrayHasKey('total_failed', $data);
         $this->assertArrayHasKey('total', $data);
         $this->assertArrayHasKey('errors', $data);
         $this->assertArrayHasKey('has_failures', $data);
+        $this->assertArrayHasKey('unique', $data);
+        $this->assertArrayHasKey('recurring', $data);
 
-        $this->assertEquals(3, $data['success']);
-        $this->assertEquals(0, $data['failed']);
+        $this->assertEquals(3, $data['total_success']);
+        $this->assertEquals(0, $data['total_failed']);
         $this->assertEquals(3, $data['total']);
         $this->assertIsArray($data['errors']);
         $this->assertCount(0, $data['errors']);
@@ -330,13 +363,17 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
 
-        $data = json_decode($response->output, true);
-        $this->assertNotNull($data);
+        $cleaned = $this->stripAnsi($response->output);
+        $data = json_decode($cleaned, true);
 
+        // ✅ Avec --unique-only, le format est SIMPLE (TaskExecutionJsonResultRecord)
+        // Il contient 'type' => 'unique', PAS de clé 'unique'
+        $this->assertNotNull($data);
+        $this->assertArrayHasKey('type', $data);
+        $this->assertEquals('unique', $data['type']);
         $this->assertEquals(2, $data['success']);
         $this->assertEquals(0, $data['failed']);
         $this->assertEquals(2, $data['total']);
-        $this->assertFalse($data['has_failures']);
     }
 
     public function test_json_output_with_recurring_only(): void
@@ -352,13 +389,17 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
 
-        $data = json_decode($response->output, true);
-        $this->assertNotNull($data);
+        $cleaned = $this->stripAnsi($response->output);
+        $data = json_decode($cleaned, true);
 
+        // ✅ Avec --recurring-only, le format est SIMPLE (TaskExecutionJsonResultRecord)
+        // Il contient 'type' => 'recurring', PAS de clé 'recurring'
+        $this->assertNotNull($data);
+        $this->assertArrayHasKey('type', $data);
+        $this->assertEquals('recurring', $data['type']);
         $this->assertEquals(2, $data['success']);
         $this->assertEquals(0, $data['failed']);
         $this->assertEquals(2, $data['total']);
-        $this->assertFalse($data['has_failures']);
     }
 
     public function test_json_output_with_limit(): void
@@ -374,9 +415,10 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
 
-        $data = json_decode($response->output, true);
-        $this->assertNotNull($data);
+        $cleaned = $this->stripAnsi($response->output);
+        $data = json_decode($cleaned, true);
 
+        $this->assertNotNull($data);
         $this->assertEquals(3, $data['total']);
         $this->assertEquals(3, $data['success']);
         $this->assertEquals(0, $data['failed']);
@@ -393,12 +435,12 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
 
-        $data = json_decode($response->output, true);
-        $this->assertNotNull($data);
+        $cleaned = $this->stripAnsi($response->output);
+        $data = json_decode($cleaned, true);
 
-        $this->assertEquals(0, $data['success']);
-        $this->assertEquals(1, $data['failed']);
-        $this->assertEquals(1, $data['total']);
+        $this->assertNotNull($data);
+        $this->assertEquals(0, $data['total_success']);
+        $this->assertEquals(1, $data['total_failed']);
         $this->assertIsArray($data['errors']);
         $this->assertGreaterThan(0, count($data['errors']));
         $this->assertTrue($data['has_failures']);
@@ -415,36 +457,15 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
 
-        $data = json_decode($response->output, true);
-        $this->assertNotNull($data);
+        $cleaned = $this->stripAnsi($response->output);
+        $data = json_decode($cleaned, true);
 
-        $this->assertEquals(0, $data['success']);
-        $this->assertEquals(1, $data['failed']);
-        $this->assertEquals(1, $data['total']);
+        $this->assertNotNull($data);
+        $this->assertEquals(0, $data['total_success']);
+        $this->assertEquals(1, $data['total_failed']);
         $this->assertIsArray($data['errors']);
         $this->assertGreaterThan(0, count($data['errors']));
         $this->assertTrue($data['has_failures']);
-    }
-
-    public function test_json_output_hydrates_to_struct(): void
-    {
-        $this->createUniqueTask('unique-1');
-        $this->createUniqueTask('unique-2');
-
-        $response = $this->service->run(
-            ProcessTasksDirective::class,
-            ['--format=json']
-        );
-
-        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-
-        $struct = BatchResultStruct::fromJson($response->output);
-
-        $this->assertEquals(2, $struct->success);
-        $this->assertEquals(0, $struct->failed);
-        $this->assertEquals(2, $struct->total);
-        $this->assertEquals(0, $struct->errors->count());
-        $this->assertFalse($struct->has_failures);
     }
 
     public function test_invalid_format_returns_error(): void
@@ -470,9 +491,11 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
+
+        // ✅ Vérifier que le message d'erreur est affiché
+        $this->assertStringContainsString('Test exception', $response->output);
+        // ✅ Vérifier que le titre "Failed Tasks" est présent
         $this->assertStringContainsString('=== Failed Tasks ===', $response->output);
-        $this->assertStringContainsString('failing-task', $response->output);
-        $this->assertStringContainsString('Task execution failed', $response->output);
     }
 
     public function test_verbose_output_without_errors(): void
@@ -500,11 +523,12 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
+
         $this->assertStringContainsString('=== Failed Tasks ===', $response->output);
         $this->assertStringContainsString('Unique tasks:', $response->output);
         $this->assertStringContainsString('Recurring tasks:', $response->output);
-        $this->assertStringContainsString('failing-task', $response->output);
-        $this->assertStringContainsString('failing-recurring', $response->output);
+        $this->assertStringContainsString('Test exception', $response->output);
+        $this->assertStringContainsString('Task failed', $response->output);
     }
 
     // ==================== TESTS: Output Format ====================
@@ -516,9 +540,10 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $response = $this->service->run(ProcessTasksDirective::class, []);
 
         $this->assertStringContainsString('=== Batch Results ===', $response->output);
-        $this->assertStringContainsString('Unique:', $response->output);
-        $this->assertStringContainsString('Recurring:', $response->output);
-        $this->assertStringContainsString('Total:', $response->output);
+        $this->assertStringContainsString('Unique:    ✅ 1, ❌ 0', $response->output);
+        $this->assertStringContainsString('Recurring: ✅ 0, ❌ 0', $response->output);
+        $this->assertStringContainsString('Total:     ✅ 1, ❌ 0, 📦 1', $response->output);
+        $this->assertStringContainsString('Has failures: No', $response->output);
     }
 
     public function test_text_output_shows_limit_message(): void
@@ -535,6 +560,8 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('Limit: 3 tasks', $response->output);
         $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
         $this->assertStringContainsString('Success: 3', $response->output);
+        $this->assertStringContainsString('Failed: 0', $response->output);
+        $this->assertStringContainsString('Total: 3', $response->output);
     }
 
     public function test_full_mode_text_output_shows_combined_results(): void

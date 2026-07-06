@@ -27,7 +27,6 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -108,7 +107,7 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $uuid = $uuid ?? $this->generateUuid();
 
         return new TaskAliasVO(
-            type: new TaskTypeVO('unique'),
+            type: ('unique'),
             uuid: $uuid
         );
     }

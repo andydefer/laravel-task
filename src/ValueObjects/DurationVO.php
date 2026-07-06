@@ -97,35 +97,44 @@ final class DurationVO extends AbstractValueObject
      * Examples:
      * - 45s → "45s"
      * - 90s → "1m 30s"
-     * - 3661s → "1h 1m"
-     * - 90061s → "1d 1h"
+     * - 3661s → "1h 1m 1s"
+     * - 90061s → "1d 1h 1m 1s"
      *
      * @return string Human-readable duration string
      */
     public function format(): string
     {
-        if ($this->seconds < 60) {
-            return $this->formatFloat($this->seconds).'s';
+        $seconds = (int) $this->seconds;
+        $parts = [];
+
+        if ($seconds >= 86400) {
+            $days = (int) floor($seconds / 86400);
+            $parts[] = $days.'d';
+            $seconds = $seconds % 86400;
         }
 
-        if ($this->seconds < 3600) {
-            $minutes = floor($this->seconds / 60);
-            $remainingSeconds = $this->seconds % 60;
-
-            return $minutes.'m '.$this->formatFloat($remainingSeconds).'s';
+        if ($seconds >= 3600) {
+            $hours = (int) floor($seconds / 3600);
+            $parts[] = $hours.'h';
+            $seconds = $seconds % 3600;
         }
 
-        if ($this->seconds < 86400) {
-            $hours = floor($this->seconds / 3600);
-            $remainingMinutes = floor(($this->seconds % 3600) / 60);
-
-            return $hours.'h '.$remainingMinutes.'m';
+        if ($seconds >= 60) {
+            $minutes = (int) floor($seconds / 60);
+            $parts[] = $minutes.'m';
+            $seconds = $seconds % 60;
         }
 
-        $days = floor($this->seconds / 86400);
-        $remainingHours = floor(($this->seconds % 86400) / 3600);
+        if ($seconds > 0) {
+            $parts[] = $seconds.'s';
+        }
 
-        return $days.'d '.$remainingHours.'h';
+        // Si aucun part (durée = 0)
+        if (empty($parts)) {
+            return '0s';
+        }
+
+        return implode(' ', $parts);
     }
 
     /**

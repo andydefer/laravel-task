@@ -11,7 +11,6 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -64,12 +63,7 @@ final class RecurringTask extends Model
 
     public function getAlias(): TaskAliasVO
     {
-        [$type, $uuid] = explode('@', $this->alias, 2);
-
-        return new TaskAliasVO(
-            type: new TaskTypeVO($type),
-            uuid: $uuid
-        );
+        return new TaskAliasVO($this->alias);
     }
 
     public function getFqcn(): RecurringTaskFqcnVO

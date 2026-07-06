@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
+use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
-use AndyDefer\Task\Contracts\Services\WatchServiceInterface;
+use AndyDefer\Task\Contracts\Services\WatchInterface;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
 use AndyDefer\Task\Records\CycleResultRecord;
 use AndyDefer\Task\Records\FullBatchJsonResultRecord;
@@ -17,22 +18,28 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use Symfony\Component\Process\Process;
 
-final class WatchService implements WatchServiceInterface
+final class WatchService implements WatchInterface
 {
     private ?DirectiveTestingService $testingService = null;
 
     private bool $testingMode = false;
 
+    public function __construct(
+        private readonly Console $console,
+    ) {}
+
     public function enableTestingMode(DirectiveTestingService $testingService): void
     {
         $this->testingMode = true;
         $this->testingService = $testingService;
+        $this->console->info('🧪 Testing mode enabled');
     }
 
     public function disableTestingMode(): void
     {
         $this->testingMode = false;
         $this->testingService = null;
+        $this->console->info('🔬 Testing mode disabled');
     }
 
     public function isTestingMode(): bool
@@ -73,24 +80,41 @@ final class WatchService implements WatchServiceInterface
         Iso8601DateTimeVO $cycleStartedAt
     ): CycleResultRecord {
         try {
+            $this->console->line(sprintf(
+                '🔄 Cycle #%d started at %s',
+                $cycleNumber->getValue(),
+                $cycleStartedAt->format('H:i:s')
+            ));
+
             $jsonArguments = $arguments->merge(StringTypedCollection::from(['--format=json']));
             $output = $this->callProcessTasks($jsonArguments);
 
-            $data = json_decode($output, true);
+            $cleanOutput = $this->stripAnsi($output);
+
+            $data = json_decode($cleanOutput, true);
 
             if ($this->isFullBatchResponse($data)) {
-                $result = FullBatchJsonResultRecord::fromJson($output);
+                $result = FullBatchJsonResultRecord::from($cleanOutput);
                 $success = $result->total_success;
                 $failed = $result->total_failed;
                 $errors = $result->errors->count();
                 $hasErrors = $result->has_failures;
             } else {
-                $result = TaskExecutionJsonResultRecord::fromJson($output);
+                $result = TaskExecutionJsonResultRecord::from($cleanOutput);
                 $success = $result->success;
                 $failed = $result->failed;
                 $errors = $result->errors->count();
                 $hasErrors = $result->has_failures;
             }
+
+            $elapsed = $cycleStartedAt->elapsed();
+
+            $this->console->info(sprintf(
+                '✅ %d tasks succeeded, ❌ %d tasks failed (%.2f s)',
+                $success->getValue(),
+                $failed->getValue(),
+                $elapsed->seconds
+            ));
 
             return CycleResultRecord::from([
                 'success' => $success,
@@ -99,6 +123,8 @@ final class WatchService implements WatchServiceInterface
                 'hasErrors' => $hasErrors,
             ]);
         } catch (\Throwable $e) {
+            $this->console->error('❌ Cycle failed: '.$e->getMessage());
+
             return CycleResultRecord::from([
                 'success' => new CounterVO(0),
                 'failed' => new CounterVO(0),
@@ -111,22 +137,29 @@ final class WatchService implements WatchServiceInterface
 
     private function callProcessTasks(StringTypedCollection $arguments): string
     {
+        // ✅ Mode test : utiliser DirectiveTestingService
         if ($this->testingMode && $this->testingService !== null) {
             $args = [];
             foreach ($arguments->toArray() as $arg) {
                 $args[] = $arg;
             }
 
+            $this->console->logDebug('🔬 Running in testing mode...');
             $response = $this->testingService->run(ProcessTasksDirective::class, $args);
 
-            return $response->output;
+            return $this->stripAnsi($response->output);
         }
+
+        // ✅ Mode réel : exécuter la commande
+        $directivePath = $this->getDirectivePath();
 
         $command = new StringTypedCollection;
         $command->add(PHP_BINARY);
-        $command->add(base_path('vendor/bin/directive'));
+        $command->add($directivePath);
         $command->add('process-tasks');
         $command = $command->merge($arguments);
+
+        $this->console->logDebug('🔧 Executing: '.$command->join(' '));
 
         $process = new Process($command->toArray());
         $process->setTimeout(null);
@@ -137,7 +170,30 @@ final class WatchService implements WatchServiceInterface
             throw new \RuntimeException('process-tasks failed: '.$errorOutput);
         }
 
-        return $process->getOutput();
+        return $this->stripAnsi($process->getOutput());
+    }
+
+    /**
+     * Trouve le chemin absolu du fichier directive.
+     *
+     * @return string Le chemin absolu du fichier directive
+     *
+     * @throws \RuntimeException Si le fichier directive n'est pas trouvé
+     */
+    private function getDirectivePath(): string
+    {
+        $path = getcwd().'/vendor/bin/directive';
+
+        if (file_exists($path)) {
+            return $path;
+        }
+
+        throw new \RuntimeException('Could not find directive executable at: '.$path);
+    }
+
+    private function stripAnsi(string $text): string
+    {
+        return preg_replace('/\033\[[0-9;]*m/', '', $text);
     }
 
     private function isFullBatchResponse(array $data): bool
@@ -170,6 +226,10 @@ final class WatchService implements WatchServiceInterface
         for ($i = 0; $i < $intervalSeconds; $i++) {
             if (! $shouldContinueCallback()) {
                 break;
+            }
+
+            if ($i % 10 === 0 && $i > 0) {
+                $this->console->logDebug(sprintf('⏳ Waiting... %d/%d seconds', $i, $intervalSeconds));
             }
 
             sleep(1);

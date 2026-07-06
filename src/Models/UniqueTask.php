@@ -9,7 +9,6 @@ use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Database\Eloquent\Model;
@@ -58,12 +57,7 @@ final class UniqueTask extends Model
 
     public function getAlias(): TaskAliasVO
     {
-        [$type, $uuid] = explode('@', $this->alias, 2);
-
-        return new TaskAliasVO(
-            type: new TaskTypeVO($type),
-            uuid: $uuid
-        );
+        return new TaskAliasVO($this->alias);
     }
 
     public function getFqcn(): UniqueTaskFqcnVO

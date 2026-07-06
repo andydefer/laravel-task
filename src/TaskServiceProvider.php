@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task;
 
-use AndyDefer\Directive\Contexts\DirectiveContext;
-use AndyDefer\Directive\Services\DirectiveInteractionService;
+use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
 use AndyDefer\LaravelJsonl\JsonlService;
@@ -26,12 +25,10 @@ use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\TaskExecutionDebugServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
-use AndyDefer\Task\Contracts\Services\WatchRendererServiceInterface;
-use AndyDefer\Task\Contracts\Services\WatchServiceInterface;
+use AndyDefer\Task\Contracts\Services\WatchInterface;
+use AndyDefer\Task\Contracts\Services\WatchRendererInterface;
 use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
-use AndyDefer\Task\Directives\ProcessTasksDirective;
-use AndyDefer\Task\Directives\TasksWatchDirective;
 use AndyDefer\Task\Loggers\RecurringTaskLogger;
 use AndyDefer\Task\Loggers\UniqueTaskLogger;
 use AndyDefer\Task\Processors\RecurringTaskProcessor;
@@ -85,6 +82,15 @@ final class TaskServiceProvider extends ServiceProvider
                 return new UuidFactory;
             }
         );
+
+        // ✅ CONSOLE WRITER
+        $this->app->singleton(
+            abstract: Console::class,
+            concrete: function () {
+                return new Console;
+            }
+        );
+        $this->app->alias(Console::class, 'console.writer');
 
         // ✅ REPOSITORIES
         $this->app->singleton(
@@ -186,7 +192,7 @@ final class TaskServiceProvider extends ServiceProvider
         );
         $this->app->alias(RecurringTaskRunnerInterface::class, RecurringTaskRunner::class);
 
-        // ✅ PROCESSORS - Correction : Bind des classes concrètes, PAS de l'interface commune
+        // ✅ PROCESSORS
         $this->app->singleton(
             abstract: UniqueTaskProcessor::class,
             concrete: function (Application $app) {
@@ -209,7 +215,7 @@ final class TaskServiceProvider extends ServiceProvider
             }
         );
 
-        // ✅ ALIASES pour les interfaces spécifiques (si elles existent)
+        // ✅ ALIASES
         $this->app->alias(UniqueTaskProcessor::class, UniqueTaskProcessorInterface::class);
         $this->app->alias(RecurringTaskProcessor::class, RecurringTaskProcessorInterface::class);
 
@@ -258,26 +264,8 @@ final class TaskServiceProvider extends ServiceProvider
         // ✅ WATCH SERVICES
         $this->registerWatchServices();
 
-        // ✅ DIRECTIVES
-        $this->app->singleton(
-            abstract: ProcessTasksDirective::class,
-            concrete: function (Application $app) {
-                return new ProcessTasksDirective(
-                    context: $app->make(DirectiveContext::class),
-                    interaction: $app->make(DirectiveInteractionService::class)
-                );
-            }
-        );
-
-        $this->app->singleton(
-            abstract: TasksWatchDirective::class,
-            concrete: function (Application $app) {
-                return new TasksWatchDirective(
-                    context: $app->make(DirectiveContext::class),
-                    interaction: $app->make(DirectiveInteractionService::class)
-                );
-            }
-        );
+        // ❌ DIRECTIVES - PAS BESOIN DE LES BINDER
+        // Elles sont gérées automatiquement par laravel-directive
     }
 
     /**
@@ -285,25 +273,27 @@ final class TaskServiceProvider extends ServiceProvider
      */
     private function registerWatchServices(): void
     {
-        // ✅ WatchService
+        // ✅ WatchService avec Console
         $this->app->singleton(
-            abstract: WatchServiceInterface::class,
+            abstract: WatchInterface::class,
             concrete: function (Application $app) {
-                return new WatchService;
-            }
-        );
-        $this->app->alias(WatchServiceInterface::class, WatchService::class);
-
-        // ✅ WatchRendererService
-        $this->app->singleton(
-            abstract: WatchRendererServiceInterface::class,
-            concrete: function (Application $app) {
-                return new WatchRendererService(
-                    interaction: $app->make(DirectiveInteractionService::class)
+                return new WatchService(
+                    console: $app->make(Console::class)
                 );
             }
         );
-        $this->app->alias(WatchRendererServiceInterface::class, WatchRendererService::class);
+        $this->app->alias(WatchInterface::class, WatchService::class);
+
+        // ✅ WatchRendererService avec Console
+        $this->app->singleton(
+            abstract: WatchRendererInterface::class,
+            concrete: function (Application $app) {
+                return new WatchRendererService(
+                    console: $app->make(Console::class)
+                );
+            }
+        );
+        $this->app->alias(WatchRendererInterface::class, WatchRendererService::class);
     }
 
     private function registerLogger(): void

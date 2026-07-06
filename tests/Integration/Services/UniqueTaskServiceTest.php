@@ -10,6 +10,7 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask;
+use AndyDefer\Task\Records\UniqueTaskConfigRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
@@ -25,8 +26,6 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
-use AndyDefer\Task\ValueObjects\UniqueTaskConfigVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
@@ -73,12 +72,9 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
     private function generateAliasFromName(string $name): TaskAliasVO
     {
-        $uuid = Uuid::uuid5(Uuid::NAMESPACE_DNS, $name);
+        $uuid = Uuid::uuid4()->toString();
 
-        return new TaskAliasVO(
-            new TaskTypeVO('unique'),
-            $uuid->toString()
-        );
+        return new TaskAliasVO('unique@'.$uuid);
     }
 
     private function findTaskByAlias(TaskAliasVO $alias): ?UniqueTask
@@ -113,6 +109,21 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         }
     }
 
+    private function createConfig(
+        string $type = 'unique',
+        string $description = 'Test task',
+        ?Iso8601DateTimeVO $scheduledAt = null,
+        int $maxAttempts = 3,
+        int $gracePeriod = 86400
+    ): UniqueTaskConfigRecord {
+        return new UniqueTaskConfigRecord(
+            description: new DescriptionVO($description),
+            scheduled_at: $scheduledAt ?? new Iso8601DateTimeVO,
+            max_attempts: new MaxFailedAttemptsVO($maxAttempts),
+            grace_period: new DurationVO($gracePeriod),
+        );
+    }
+
     // ==================== TESTS REGISTER ====================
 
     public function test_register_creates_task(): void
@@ -120,11 +131,9 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $payload = StrictDataObject::from(['test' => 'data']);
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
 
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test task'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
+        $config = $this->createConfig(
+            description: 'Test task',
+            scheduledAt: new Iso8601DateTimeVO
         );
 
         $alias = $this->service->register($fqcn, $payload, $config);
@@ -146,12 +155,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         );
 
         $fqcn = new UniqueTaskFqcnVO(SomeClass::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $this->service->register($fqcn, StrictDataObject::from([]), $config);
     }
@@ -163,11 +167,10 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $scheduledAt = (new Iso8601DateTimeVO)->addSeconds(604800);
 
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Custom config'),
-            scheduled_at: $scheduledAt,
-            max_attempts: new MaxFailedAttemptsVO(5),
+        $config = $this->createConfig(
+            description: 'Custom config',
+            scheduledAt: $scheduledAt,
+            maxAttempts: 5
         );
 
         $alias = $this->service->register($fqcn, $payload, $config);
@@ -182,11 +185,9 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_run_executes_pending_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
-            max_attempts: new MaxFailedAttemptsVO(3),
+        $config = $this->createConfig(
+            description: 'Test',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
@@ -212,12 +213,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_run_returns_false_for_completed_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->updateTaskStatus($alias, UniqueTaskStatus::COMPLETED);
@@ -231,11 +227,9 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_run_handles_task_failure(): void
     {
         $fqcn = new UniqueTaskFqcnVO(FailingTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
-            max_attempts: new MaxFailedAttemptsVO(3),
+        $config = $this->createConfig(
+            description: 'Test',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
@@ -255,12 +249,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_cancel_cancels_pending_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
@@ -284,12 +273,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_cancel_returns_false_for_completed_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->updateTaskStatus($alias, UniqueTaskStatus::COMPLETED);
@@ -302,12 +286,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_cancel_returns_false_for_failed_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(FailingTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->updateTaskStatus($alias, UniqueTaskStatus::FAILED);
@@ -322,12 +301,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_reschedule_updates_scheduled_at(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
@@ -355,12 +329,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_reschedule_returns_false_for_completed_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->updateTaskStatus($alias, UniqueTaskStatus::COMPLETED);
@@ -375,12 +344,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_extend_grace_period_adds_seconds(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
@@ -401,16 +365,10 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $this->expectExceptionMessage('Duration cannot be negative');
 
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
-        // ✅ DurationVO lance une exception pour les valeurs négatives
         $this->service->extendGracePeriod($alias, new DurationVO(-3600));
     }
 
@@ -425,12 +383,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_extend_grace_period_returns_false_for_completed_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->updateTaskStatus($alias, UniqueTaskStatus::COMPLETED);
@@ -446,11 +399,9 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     {
         for ($i = 1; $i <= 3; $i++) {
             $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-            $config = new UniqueTaskConfigVO(
-                type: new TaskTypeVO('unique'),
-                description: new DescriptionVO("Task {$i}"),
-                scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
-                max_attempts: new MaxFailedAttemptsVO(3),
+            $config = $this->createConfig(
+                description: "Task {$i}",
+                scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
             );
 
             $this->service->register(
@@ -471,11 +422,9 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     {
         for ($i = 1; $i <= 5; $i++) {
             $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-            $config = new UniqueTaskConfigVO(
-                type: new TaskTypeVO('unique'),
-                description: new DescriptionVO("Task {$i}"),
-                scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
-                max_attempts: new MaxFailedAttemptsVO(3),
+            $config = $this->createConfig(
+                description: "Task {$i}",
+                scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
             );
 
             $this->service->register(
@@ -497,12 +446,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_find_returns_task_record(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
@@ -526,12 +470,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_exists_returns_true_for_existing_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
@@ -541,12 +480,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_exists_returns_true_for_canceled_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->service->cancel($alias, new DescriptionVO('Test'));
@@ -565,12 +499,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_delete_removes_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
 
@@ -585,12 +514,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_delete_removes_canceled_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->service->cancel($alias, new DescriptionVO('Test'));
@@ -616,12 +540,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_count_returns_total_tasks(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $this->service->register($fqcn, StrictDataObject::from([]), $config);
         $this->service->register($fqcn, StrictDataObject::from([]), $config);
@@ -632,12 +551,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_count_pending_returns_pending_tasks(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $this->service->register($fqcn, StrictDataObject::from([]), $config);
         $this->service->register($fqcn, StrictDataObject::from([]), $config);
@@ -648,11 +562,8 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_count_completed_returns_completed_tasks(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
-            max_attempts: new MaxFailedAttemptsVO(3),
+        $config = $this->createConfig(
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
@@ -664,17 +575,13 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_count_failed_returns_failed_tasks(): void
     {
         $fqcn = new UniqueTaskFqcnVO(FailingTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: (new Iso8601DateTimeVO)->addSeconds(-7200),
-            max_attempts: new MaxFailedAttemptsVO(3),
+        $config = $this->createConfig(
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
         );
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->updateTaskAttempts($alias, 3);
 
-        // ✅ Le run doit marquer la tâche comme FAILED
         $result = $this->service->run($alias);
         $this->assertFalse($result->success);
 
@@ -684,12 +591,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
     public function test_count_canceled_returns_canceled_tasks(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
-        $config = new UniqueTaskConfigVO(
-            type: new TaskTypeVO('unique'),
-            description: new DescriptionVO('Test'),
-            scheduled_at: new Iso8601DateTimeVO,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        $config = $this->createConfig();
 
         $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'data']), $config);
         $this->service->cancel($alias, new DescriptionVO('Test'));

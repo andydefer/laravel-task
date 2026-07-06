@@ -15,8 +15,10 @@ use AndyDefer\Task\Contexts\RecurringTaskContext;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
+use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Models\RecurringTask as ModelsRecurringTask;
 use AndyDefer\Task\Records\ProcessResultRecord;
+use AndyDefer\Task\Records\RecurringTaskConfigRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Records\TaskErrorRecord;
 use AndyDefer\Task\Records\TaskRunResultRecord;
@@ -25,7 +27,6 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
-use AndyDefer\Task\ValueObjects\RecurringTaskConfigVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
@@ -44,7 +45,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
     public function register(
         RecurringTaskFqcnVO $fqcn,
         StrictDataObject $payload,
-        RecurringTaskConfigVO $config
+        RecurringTaskConfigRecord $config
     ): TaskAliasVO {
         $className = $fqcn->getValue();
 
@@ -61,25 +62,21 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
         $uuid = (string) Uuid::uuid4();
 
-        $alias = new TaskAliasVO(
-            type: $config->type,
-            uuid: $uuid
-        );
-
+        $alias = new TaskAliasVO(TaskType::RECURRING->value.'@'.$uuid);
         $now = new Iso8601DateTimeVO;
-        $startAt = $config->getStartAt() ?? $now;
+        $startAt = $config->start_at ?? $now;
 
         $record = RecurringTaskRecord::from([
             'id' => new UuidVO($uuid),                              // ✅ AJOUTÉ
             'alias' => $alias,
             'fqcn' => $fqcn,
             'payload' => $payload,
-            'interval_seconds' => $config->getIntervalSeconds()->getValue(), // ✅ INT
+            'interval_seconds' => $config->interval_seconds->getValue(), // ✅ INT
             'start_at' => $startAt,
-            'end_at' => $config->getEndAt(),
+            'end_at' => $config->end_at,
             'status' => RecurringTaskStatus::WAITING,
             'failed_attempts' => 0,                                  // ✅ AJOUTÉ
-            'max_failed_attempts' => $config->getMaxAttempts()->getValue(), // ✅ INT
+            'max_failed_attempts' => $config->max_attempts->getValue(), // ✅ INT
         ]);
 
         $model = $this->repository->create($record);
@@ -173,7 +170,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                 } else {
                     $failed++;
                     $errors->add(TaskErrorRecord::from([
-                        'alias' => $runResult->alias->getValue(),
+                        'alias' => $runResult->alias,
                         'fqcn' => $record->fqcn,
                         'error' => $runResult->error ?? 'Task execution failed',
                         'context' => sprintf(
@@ -185,7 +182,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             } catch (\Throwable $e) {
                 $failed++;
                 $errors->add(TaskErrorRecord::from([
-                    'alias' => $record->alias->getValue(),
+                    'alias' => $record->alias,
                     'fqcn' => $record->fqcn,
                     'error' => $e->getMessage(),
                     'context' => 'Exception during execution',

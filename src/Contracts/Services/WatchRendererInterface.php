@@ -12,7 +12,7 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
-interface WatchRendererServiceInterface
+interface WatchRendererInterface
 {
     public function renderStartMessage(
         ?DurationVO $duration,

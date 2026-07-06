@@ -4,21 +4,22 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services;
 
-use AndyDefer\Directive\Services\DirectiveInteractionService;
+use AndyDefer\ConsoleWriter\Console\Components\KeyValue;
+use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
-use AndyDefer\Task\Contracts\Services\WatchRendererServiceInterface;
+use AndyDefer\DomainStructures\Utils\MapCollection;
+use AndyDefer\Task\Contracts\Services\WatchRendererInterface;
 use AndyDefer\Task\Enums\SignalName;
 use AndyDefer\Task\Records\CycleResultRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\StyledTextVO;
 
-final class WatchRendererService implements WatchRendererServiceInterface
+final class WatchRendererService implements WatchRendererInterface
 {
     public function __construct(
-        private readonly DirectiveInteractionService $interaction,
+        private readonly Console $console,
     ) {}
 
     public function renderStartMessage(
@@ -27,54 +28,46 @@ final class WatchRendererService implements WatchRendererServiceInterface
         StringTypedCollection $options,
         bool $testingMode
     ): void {
-        $text = StyledTextVO::empty()
-            ->newLine()
-            ->append('🚀 Starting tasks watch loop...')
-            ->newLine();
+        $this->console->title('🚀 Starting tasks watch loop...');
 
         if ($testingMode) {
-            $text = $text->append('   🔬 Mode: TESTING (in-process execution)')
-                ->newLine();
+            $this->console->info('🔬 Mode: TESTING (in-process execution)');
         }
 
         if ($duration !== null) {
-            $text = $text->append(sprintf(
-                '   Duration: %s (%s)',
+            $this->console->info(sprintf(
+                'Duration: %s (%s)',
                 (string) $duration->seconds,
                 $duration->format()
-            ))->newLine();
+            ));
         } else {
-            $text = $text->append('   Duration: unlimited (Ctrl+C to stop)')
-                ->newLine();
+            $this->console->info('Duration: unlimited (Ctrl+C to stop)');
         }
 
-        $text = $text->append(sprintf(
-            '   Interval: %s (%s)',
+        $this->console->info(sprintf(
+            'Interval: %s (%s)',
             (string) $intervalSeconds->seconds,
             $intervalSeconds->format()
-        ))->newLine();
+        ));
 
         if ($options->isNotEmpty()) {
-            $text = $text->append('   Options: ')->append($options->join(' '))
-                ->newLine();
+            $this->console->info('Options: '.$options->join(' '));
         }
 
-        $text = $text->newLine()
-            ->append(str_repeat('=', 80))
-            ->newLine()
-            ->newLine();
-
-        $this->interaction->line($text->value);
+        $this->console->line();
+        $this->console->line(str_repeat('=', 80));
+        $this->console->newLine(2);
     }
 
     public function renderCycleStart(CounterVO $cycleNumber, Iso8601DateTimeVO $startedAt): void
     {
         $time = $startedAt->format('H:i:s');
 
-        $text = StyledTextVO::empty()
-            ->append(sprintf('🔄 Cycle #%d (started at %s):', $cycleNumber->getValue(), $time));
-
-        $this->interaction->line($text->value);
+        $this->console->info(sprintf(
+            '🔄 Cycle #%d (started at %s):',
+            $cycleNumber->getValue(),
+            $time
+        ));
     }
 
     public function renderCycleEnd(
@@ -84,32 +77,31 @@ final class WatchRendererService implements WatchRendererServiceInterface
     ): void {
         $totalProcessed = $result->success->getValue() + $result->failed->getValue();
 
-        $text = StyledTextVO::empty();
-
         if ($totalProcessed === 0) {
-            $text = $text->append('  ⏳ No tasks to process');
+            $this->console->info('⏳ No tasks to process');
         } else {
-            $text = $text->append(sprintf(
-                '  ✅ %d tasks succeeded, ❌ %d tasks failed',
+            $this->console->info(sprintf(
+                '✅ %d tasks succeeded, ❌ %d tasks failed',
                 $result->success->getValue(),
                 $result->failed->getValue()
             ));
         }
 
         $elapsed = $startedAt->elapsed();
-        $text = $text->newLine()
-            ->append(sprintf('  ⏱️  Cycle duration: %.2f seconds', $elapsed->seconds))
-            ->newLine();
+        $this->console->info(sprintf(
+            '⏱️  Cycle duration: %.2f seconds',
+            $elapsed->seconds
+        ));
 
         $remaining = $intervalSeconds->seconds - $elapsed->seconds;
         if ($remaining > 0) {
-            $text = $text->append(sprintf('  ⏳ Next cycle in %.0f seconds...', $remaining))
-                ->newLine();
+            $this->console->info(sprintf(
+                '⏳ Next cycle in %.0f seconds...',
+                $remaining
+            ));
         }
 
-        $text = $text->newLine();
-
-        $this->interaction->line($text->value);
+        $this->console->line();
     }
 
     public function renderSummary(
@@ -123,70 +115,51 @@ final class WatchRendererService implements WatchRendererServiceInterface
         bool $durationReached,
         ?DescriptionVO $exception = null
     ): void {
-        $text = StyledTextVO::empty()
-            ->newLine()
-            ->append(str_repeat('=', 80))
-            ->newLine()
-            ->append('📊 === Summary ===')
-            ->newLine();
+        $this->console->line();
+        $this->console->line(str_repeat('=', 80));
+        $this->console->title('📊 Summary');
 
         if ($testingMode) {
-            $text = $text->append('   🔬 Mode: TESTING')
-                ->newLine();
+            $this->console->info('🔬 Mode: TESTING');
         }
 
         $totalDuration = $startedAt->elapsed();
 
-        $text = $text->append(sprintf('  Cycles executed:  %d', $cycleCount->getValue()))
-            ->newLine()
-            ->append(sprintf('  Total success:    %d', $totalSuccess->getValue()))
-            ->newLine()
-            ->append(sprintf('  Total failures:   %d', $totalFailed->getValue()))
-            ->newLine()
-            ->append(sprintf('  Total errors:     %d', $totalErrors->getValue()))
-            ->newLine()
-            ->append(sprintf('  Total duration:   %s', $totalDuration->format()))
-            ->newLine()
-            ->newLine();
+        // ✅ Utilisation de KeyValue pour un affichage plus propre
+        $data = MapCollection::from([
+            'Cycles executed' => $cycleCount->getValue(),
+            'Total success' => $totalSuccess->getValue(),
+            'Total failures' => $totalFailed->getValue(),
+            'Total errors' => $totalErrors->getValue(),
+            'Total duration' => $totalDuration->format(),
+        ]);
+
+        $this->console->raw(KeyValue::renderWithValueColor($data, 'cyan'));
 
         if ($stoppedBySignal) {
-            $text = $text->append('🛑 Stopped by user signal')
-                ->newLine();
+            $this->console->info('🛑 Stopped by user signal');
         } elseif ($durationReached) {
-            $text = $text->append('⏰ Duration reached. Stopping gracefully...')
-                ->newLine();
+            $this->console->info('⏰ Duration reached. Stopping gracefully...');
         }
 
-        $text = $text->append(str_repeat('=', 80))
-            ->newLine()
-            ->newLine();
+        $this->console->line(str_repeat('=', 80));
+        $this->console->line();
 
         if ($exception !== null) {
-            $text = $text->red()
-                ->append('Error: ')
-                ->append($exception->getValue())
-                ->reset()
-                ->newLine();
+            $this->console->error('Error: '.$exception->getValue());
         }
-
-        $this->interaction->line($text->value);
     }
 
     public function renderInterruptSignal(SignalName $signalName): void
     {
-        $text = StyledTextVO::empty()
-            ->append("\n⚠️  Received ")
-            ->append($signalName->getLabel())
-            ->append(', stopping after current cycle...');
-
-        $this->interaction->warn($text->value);
+        $this->console->logWarning(sprintf(
+            '⚠️  Received %s, stopping after current cycle...',
+            $signalName->getLabel()
+        ));
     }
 
     public function renderTestingModeEnabled(): void
     {
-        $text = StyledTextVO::empty()
-            ->append('🧪 Testing mode enabled');
-
-        $this->interaction->info($text->value);
+        $this->console->info('🧪 Testing mode enabled');
     }
 }

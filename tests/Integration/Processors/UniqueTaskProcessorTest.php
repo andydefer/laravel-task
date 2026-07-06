@@ -24,7 +24,6 @@ use AndyDefer\Task\Validators\UniqueTaskValidator;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
@@ -86,7 +85,7 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
 
     private function getUuidForAlias(string $aliasName): string
     {
-        return Uuid::uuid5(Uuid::NAMESPACE_DNS, $aliasName)->toString();
+        return Uuid::uuid4()->toString();
     }
 
     private function generateAliasFromName(string $name, ?string $uuid = null): TaskAliasVO
@@ -94,8 +93,7 @@ final class UniqueTaskProcessorTest extends IntegrationTestCase
         $uuid = $uuid ?? $this->getUuidForAlias($name);
 
         return new TaskAliasVO(
-            new TaskTypeVO('unique'),
-            $uuid
+            'unique@'.$uuid
         );
     }
 

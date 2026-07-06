@@ -30,7 +30,6 @@ use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\TaskFqcnVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
@@ -107,7 +106,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $uuid = $uuid ?? $this->generateUuid();
 
         return new TaskAliasVO(
-            type: new TaskTypeVO('recurring'),
+            type: ('recurring'),
             uuid: $uuid
         );
     }

@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Directives;
 
+use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\AbstractDirective;
-use AndyDefer\Directive\Contexts\DirectiveContext;
 use AndyDefer\Directive\Enums\ExitCode;
-use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
-use AndyDefer\Task\Contracts\Services\WatchRendererServiceInterface;
-use AndyDefer\Task\Contracts\Services\WatchServiceInterface;
+use AndyDefer\Task\Contracts\Services\WatchInterface;
+use AndyDefer\Task\Contracts\Services\WatchRendererInterface;
 use AndyDefer\Task\Enums\SignalName;
 use AndyDefer\Task\Records\CycleResultRecord;
 use AndyDefer\Task\Services\WatchService;
@@ -24,34 +23,6 @@ use AndyDefer\Task\ValueObjects\LimitVO;
 final class TasksWatchDirective extends AbstractDirective
 {
     private const MIN_INTERVAL_SECONDS = 3;
-
-    private bool $shouldStop = false;
-
-    private CounterVO $cycleCount;
-
-    private CounterVO $totalSuccess;
-
-    private CounterVO $totalFailed;
-
-    private CounterVO $totalErrors;
-
-    private ?Iso8601DateTimeVO $startedAt = null;
-
-    private WatchServiceInterface $service;
-
-    private WatchRendererServiceInterface $renderer;
-
-    public function __construct(
-        DirectiveContext $context,
-        DirectiveInteractionService $interaction,
-    ) {
-        parent::__construct($context, $interaction);
-
-        $this->cycleCount = new CounterVO(0);
-        $this->totalSuccess = new CounterVO(0);
-        $this->totalFailed = new CounterVO(0);
-        $this->totalErrors = new CounterVO(0);
-    }
 
     public function getSignature(): string
     {
@@ -70,90 +41,112 @@ final class TasksWatchDirective extends AbstractDirective
 
     protected function execute(): ExitCode
     {
-        $this->initializeServices();
-        $this->handleTestingMode();
+        // ✅ TOUTE L'INITIALISATION ICI
+        $app = $this->getLaravel();
 
-        $validationResult = $this->validateOptions();
+        if ($app === null) {
+            throw new \RuntimeException('Laravel container is not available');
+        }
+
+        $service = $app->make(WatchInterface::class);
+        $renderer = $app->make(WatchRendererInterface::class);
+        $console = $app->make(Console::class);
+
+        // ✅ Variables locales
+        $shouldStop = false;
+        $cycleCount = new CounterVO(0);
+        $totalSuccess = new CounterVO(0);
+        $totalFailed = new CounterVO(0);
+        $totalErrors = new CounterVO(0);
+        $startedAt = null;
+
+        // ✅ Mode test
+        if ($this->hasOption('testing') && $service instanceof WatchService) {
+            $testingService = new DirectiveTestingService($app);
+            $service->enableTestingMode($testingService);
+            $renderer->renderTestingModeEnabled();
+        }
+
+        // ✅ Validation
+        $validationResult = $this->validateOptions($console);
         if ($validationResult !== null) {
             return $validationResult;
         }
 
-        $this->installSignalHandlers();
+        // ✅ Signaux
+        $this->installSignalHandlers($renderer, $shouldStop);
 
-        $this->startedAt = new Iso8601DateTimeVO;
-        $this->displayStartMessage();
+        $startedAt = new Iso8601DateTimeVO;
+        $this->displayStartMessage($renderer, $console);
 
         $hasErrors = false;
         $lastException = null;
 
-        while ($this->shouldContinue()) {
-            $this->cycleCount = $this->cycleCount->increment();
+        while ($this->shouldContinue($service, $shouldStop, $startedAt)) {
+            $cycleCount = $cycleCount->increment();
 
-            $cycleResult = $this->executeCycle();
+            $cycleResult = $this->executeCycle(
+                $service,
+                $renderer,
+                $cycleCount,
+                $shouldStop
+            );
 
             if ($cycleResult !== null) {
                 $hasErrors = $hasErrors || $cycleResult->hasErrors;
 
-                $this->totalSuccess = $this->totalSuccess->add($cycleResult->success);
-                $this->totalFailed = $this->totalFailed->add($cycleResult->failed);
-                $this->totalErrors = $this->totalErrors->add($cycleResult->errors);
+                $totalSuccess = $totalSuccess->add($cycleResult->success);
+                $totalFailed = $totalFailed->add($cycleResult->failed);
+                $totalErrors = $totalErrors->add($cycleResult->errors);
 
                 $lastException = $cycleResult->message;
             }
 
-            if ($this->shouldStop) {
-                $this->renderer->renderInterruptSignal($this->getSignalName(SIGINT));
+            if ($shouldStop) {
+                $renderer->renderInterruptSignal($this->getSignalName(SIGINT));
                 break;
             }
 
-            if ($this->shouldContinue()) {
-                $this->waitForInterval();
+            if ($this->shouldContinue($service, $shouldStop, $startedAt)) {
+                $this->waitForInterval($service, $shouldStop, $startedAt);
             }
         }
 
-        $this->renderSummary($lastException);
+        $this->renderSummary(
+            $renderer,
+            $cycleCount,
+            $totalSuccess,
+            $totalFailed,
+            $totalErrors,
+            $startedAt,
+            $shouldStop,
+            $lastException
+        );
 
         return $hasErrors ? ExitCode::FAILURE : ExitCode::SUCCESS;
     }
 
-    private function initializeServices(): void
-    {
-        $this->service = $this->getLaravel()->make(WatchServiceInterface::class);
-        $this->renderer = $this->getLaravel()->make(WatchRendererServiceInterface::class);
-    }
-
-    private function handleTestingMode(): void
-    {
-        if (! $this->hasOption('testing') || ! $this->service instanceof WatchService) {
-            return;
-        }
-
-        $testingService = new DirectiveTestingService($this->getLaravel());
-        $this->service->enableTestingMode($testingService);
-        $this->renderer->renderTestingModeEnabled();
-    }
-
-    private function validateOptions(): ?ExitCode
+    private function validateOptions(Console $console): ?ExitCode
     {
         $uniqueOnly = $this->hasOption('unique-only');
         $recurringOnly = $this->hasOption('recurring-only');
 
         if ($uniqueOnly && $recurringOnly) {
-            $this->interaction->error('Cannot use both --unique-only and --recurring-only');
+            $console->error('Cannot use both --unique-only and --recurring-only');
 
             return ExitCode::INVALID_ARGUMENT;
         }
 
         $duration = $this->option('duration');
         if ($duration !== null && (int) $duration <= 0) {
-            $this->interaction->error('Duration must be a positive integer (in seconds)');
+            $console->error('Duration must be a positive integer (in seconds)');
 
             return ExitCode::INVALID_ARGUMENT;
         }
 
         $interval = $this->option('interval');
         if ($interval !== null && (int) $interval < self::MIN_INTERVAL_SECONDS) {
-            $this->interaction->error(sprintf(
+            $console->error(sprintf(
                 'Interval must be at least %d seconds',
                 self::MIN_INTERVAL_SECONDS
             ));
@@ -163,7 +156,7 @@ final class TasksWatchDirective extends AbstractDirective
 
         $limit = $this->option('limit');
         if ($limit !== null && (int) $limit <= 0) {
-            $this->interaction->error('Limit must be a positive integer');
+            $console->error('Limit must be a positive integer');
 
             return ExitCode::INVALID_ARGUMENT;
         }
@@ -171,20 +164,21 @@ final class TasksWatchDirective extends AbstractDirective
         return null;
     }
 
-    private function installSignalHandlers(): void
+    private function installSignalHandlers(WatchRendererInterface $renderer, bool &$shouldStop): void
     {
         if (! function_exists('pcntl_signal')) {
             return;
         }
 
-        pcntl_signal(SIGINT, [$this, 'handleSignal']);
-        pcntl_signal(SIGTERM, [$this, 'handleSignal']);
-    }
+        pcntl_signal(SIGINT, function () use ($renderer, &$shouldStop) {
+            $shouldStop = true;
+            $renderer->renderInterruptSignal($this->getSignalName(SIGINT));
+        });
 
-    public function handleSignal(int $signal): void
-    {
-        $this->shouldStop = true;
-        $this->renderer->renderInterruptSignal($this->getSignalName($signal));
+        pcntl_signal(SIGTERM, function () use ($renderer, &$shouldStop) {
+            $shouldStop = true;
+            $renderer->renderInterruptSignal($this->getSignalName(SIGTERM));
+        });
     }
 
     private function getSignalName(int $signal): SignalName
@@ -199,42 +193,10 @@ final class TasksWatchDirective extends AbstractDirective
         }
     }
 
-    private function executeCycle(): ?CycleResultRecord
-    {
-        $this->dispatchSignals();
-
-        if ($this->shouldStop) {
-            return null;
-        }
-
-        $cycleStartedAt = new Iso8601DateTimeVO;
-        $this->renderer->renderCycleStart($this->cycleCount, $cycleStartedAt);
-
-        $limit = $this->option('limit') !== null
-            ? new LimitVO((int) $this->option('limit'))
-            : null;
-
-        $arguments = $this->service->buildArguments(
-            uniqueOnly: $this->hasOption('unique-only'),
-            recurringOnly: $this->hasOption('recurring-only'),
-            limit: $limit,
-            verbose: $this->hasOption('verbose')
-        );
-
-        $result = $this->service->executeCycle(
-            $this->cycleCount,
-            $arguments,
-            $cycleStartedAt
-        );
-
-        $intervalSeconds = new DurationVO((float) ($this->option('interval') ?? 60));
-        $this->renderer->renderCycleEnd($result, $cycleStartedAt, $intervalSeconds);
-
-        return $result;
-    }
-
-    private function displayStartMessage(): void
-    {
+    private function displayStartMessage(
+        WatchRendererInterface $renderer,
+        Console $console
+    ): void {
         $duration = $this->option('duration') !== null
             ? new DurationVO((float) $this->option('duration'))
             : null;
@@ -259,7 +221,7 @@ final class TasksWatchDirective extends AbstractDirective
             $options->add('--verbose');
         }
 
-        $this->renderer->renderStartMessage(
+        $renderer->renderStartMessage(
             duration: $duration,
             intervalSeconds: $intervalSeconds,
             options: $options,
@@ -267,47 +229,97 @@ final class TasksWatchDirective extends AbstractDirective
         );
     }
 
-    private function renderSummary(?DescriptionVO $exception = null): void
-    {
-        $duration = $this->option('duration');
-        $durationReached = $duration !== null;
+    private function executeCycle(
+        WatchInterface $service,
+        WatchRendererInterface $renderer,
+        CounterVO $cycleCount,
+        bool &$shouldStop
+    ): ?CycleResultRecord {
+        $this->dispatchSignals();
 
-        $exceptionVO = $exception !== null ? $exception : null;
+        if ($shouldStop) {
+            return null;
+        }
 
-        $this->renderer->renderSummary(
-            cycleCount: $this->cycleCount,
-            totalSuccess: $this->totalSuccess,
-            totalFailed: $this->totalFailed,
-            totalErrors: $this->totalErrors,
-            startedAt: $this->startedAt,
-            testingMode: $this->hasOption('testing'),
-            stoppedBySignal: $this->shouldStop,
-            durationReached: $durationReached,
-            exception: $exceptionVO
+        $cycleStartedAt = new Iso8601DateTimeVO;
+        $renderer->renderCycleStart($cycleCount, $cycleStartedAt);
+
+        $limit = $this->option('limit') !== null
+            ? new LimitVO((int) $this->option('limit'))
+            : null;
+
+        $arguments = $service->buildArguments(
+            uniqueOnly: $this->hasOption('unique-only'),
+            recurringOnly: $this->hasOption('recurring-only'),
+            limit: $limit,
+            verbose: $this->hasOption('verbose')
         );
+
+        $result = $service->executeCycle(
+            $cycleCount,
+            $arguments,
+            $cycleStartedAt
+        );
+
+        $intervalSeconds = new DurationVO((float) ($this->option('interval') ?? 60));
+        $renderer->renderCycleEnd($result, $cycleStartedAt, $intervalSeconds);
+
+        return $result;
     }
 
-    private function shouldContinue(): bool
-    {
+    private function shouldContinue(
+        WatchInterface $service,
+        bool $shouldStop,
+        ?Iso8601DateTimeVO $startedAt
+    ): bool {
         $this->dispatchSignals();
 
         $duration = $this->option('duration') !== null
             ? new DurationVO((float) $this->option('duration'))
             : null;
 
-        return $this->service->shouldContinue(
-            $this->shouldStop,
+        return $service->shouldContinue(
+            $shouldStop,
             $duration,
-            $this->startedAt
+            $startedAt
         );
     }
 
-    private function waitForInterval(): void
-    {
+    private function waitForInterval(
+        WatchInterface $service,
+        bool &$shouldStop,
+        ?Iso8601DateTimeVO $startedAt
+    ): void {
         $intervalSeconds = new DurationVO((float) ($this->option('interval') ?? 60));
 
-        $this->service->waitForInterval($intervalSeconds, function (): bool {
-            return $this->shouldContinue();
+        $service->waitForInterval($intervalSeconds, function () use ($service, $shouldStop, $startedAt): bool {
+            return $this->shouldContinue($service, $shouldStop, $startedAt);
         });
+    }
+
+    private function renderSummary(
+        WatchRendererInterface $renderer,
+        CounterVO $cycleCount,
+        CounterVO $totalSuccess,
+        CounterVO $totalFailed,
+        CounterVO $totalErrors,
+        Iso8601DateTimeVO $startedAt,
+        bool $shouldStop,
+        ?DescriptionVO $lastException = null
+    ): void {
+        $duration = $this->option('duration');
+        $durationReached = $duration !== null;
+
+        $renderer->renderSummary(
+            cycleCount: $cycleCount,
+            totalSuccess: $totalSuccess,
+            totalFailed: $totalFailed,
+            totalErrors: $totalErrors,
+            startedAt: $startedAt,
+            testingMode: $this->hasOption('testing'),
+            stoppedBySignal: $shouldStop,
+            durationReached: $durationReached,
+            exception: $lastException
+        );
     }
 }

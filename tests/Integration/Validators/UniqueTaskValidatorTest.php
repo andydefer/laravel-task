@@ -16,7 +16,6 @@ use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Support\Carbon;
@@ -52,10 +51,7 @@ final class UniqueTaskValidatorTest extends IntegrationTestCase
         $attempts = $data['attempts'] ?? 0;
         $maxAttempts = $data['max_attempts'] ?? 3;
 
-        $alias = new TaskAliasVO(
-            new TaskTypeVO('unique'),
-            $uuid
-        );
+        $alias = new TaskAliasVO('unique@'.$uuid);
 
         return UniqueTaskRecord::from([
             'id' => new UuidVO($uuid),

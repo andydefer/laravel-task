@@ -16,7 +16,6 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\TaskFqcnVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Collection;
 use Ramsey\Uuid\Uuid;
@@ -47,7 +46,7 @@ final class TaskExecutionDebugRepositoryTest extends IntegrationTestCase
     private function createAliasVO(string $uuid): TaskAliasVO
     {
         return new TaskAliasVO(
-            type: new TaskTypeVO('unique'),
+            type: ('unique'),
             uuid: $uuid
         );
     }

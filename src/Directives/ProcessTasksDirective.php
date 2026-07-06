@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Directives;
 
+use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\AbstractDirective;
-use AndyDefer\Directive\Contexts\DirectiveContext;
 use AndyDefer\Directive\Enums\ExitCode;
-use AndyDefer\Directive\Services\DirectiveInteractionService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
@@ -17,17 +16,10 @@ use AndyDefer\Task\Records\FullBatchJsonResultRecord;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\TaskExecutionJsonResultRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\StyledTextVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
 
 final class ProcessTasksDirective extends AbstractDirective
 {
-    public function __construct(
-        DirectiveContext $context,
-        DirectiveInteractionService $interaction,
-    ) {
-        parent::__construct($context, $interaction);
-    }
-
     public function getSignature(): string
     {
         return 'process-tasks {--unique-only} {--recurring-only} {--verbose} {--limit=} {--format=}';
@@ -49,7 +41,16 @@ final class ProcessTasksDirective extends AbstractDirective
 
     public function execute(): ExitCode
     {
-        $validationResult = $this->validateOptions();
+        // ✅ TOUTE L'INITIALISATION ICI
+        $app = $this->getLaravel();
+
+        if ($app === null) {
+            throw new \RuntimeException('Laravel container is not available');
+        }
+
+        $console = $app->make(Console::class);
+
+        $validationResult = $this->validateOptions($console);
 
         if ($validationResult !== null) {
             return $validationResult;
@@ -67,38 +68,42 @@ final class ProcessTasksDirective extends AbstractDirective
         $hasFailures = false;
 
         if ($uniqueOnly) {
+
             $result = $this->processUniqueOnly($uniqueService, $limit);
             $hasFailures = $result->failed->isPositive();
 
             if ($format === 'json') {
-                $this->outputUniqueJson($result);
+                $this->outputUniqueJson($console, $result);
             } else {
-                $this->displayProcessingStart($limit);
-                $this->displayUniqueResults($result);
-                $this->displayErrorsIfVerbose($verbose, $result->errors, 'Unique');
+                $this->displayProcessingStart($console, $limit);
+                $this->displayUniqueResults($console, $result);
+                $this->displayErrorsIfVerbose($console, $verbose, $result->errors, 'Unique');
             }
         } elseif ($recurringOnly) {
+
             $result = $this->processRecurringOnly($recurringService, $limit);
             $hasFailures = $result->failed->isPositive();
 
             if ($format === 'json') {
-                $this->outputRecurringJson($result);
+                $this->outputRecurringJson($console, $result);
             } else {
-                $this->displayProcessingStart($limit);
-                $this->displayRecurringResults($result);
-                $this->displayErrorsIfVerbose($verbose, $result->errors, 'Recurring');
+                $this->displayProcessingStart($console, $limit);
+                $this->displayRecurringResults($console, $result);
+                $this->displayErrorsIfVerbose($console, $verbose, $result->errors, 'Recurring');
             }
         } else {
+
             $uniqueResult = $this->processUniqueOnly($uniqueService, $limit);
             $recurringResult = $this->processRecurringOnly($recurringService, $limit);
+
             $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
 
             if ($format === 'json') {
-                $this->outputFullJson($uniqueResult, $recurringResult);
+                $this->outputFullJson($console, $uniqueResult, $recurringResult);
             } else {
-                $this->displayProcessingStart($limit);
-                $this->displayFullResults($uniqueResult, $recurringResult);
-                $this->displayFullErrorsIfVerbose($verbose, $uniqueResult, $recurringResult);
+                $this->displayProcessingStart($console, $limit);
+                $this->displayFullResults($console, $uniqueResult, $recurringResult);
+                $this->displayFullErrorsIfVerbose($console, $verbose, $uniqueResult, $recurringResult);
             }
         }
 
@@ -127,13 +132,13 @@ final class ProcessTasksDirective extends AbstractDirective
         return $laravel->make(RecurringTaskServiceInterface::class);
     }
 
-    private function validateOptions(): ?ExitCode
+    private function validateOptions(Console $console): ?ExitCode
     {
         $uniqueOnly = $this->hasOption('unique-only');
         $recurringOnly = $this->hasOption('recurring-only');
 
         if ($uniqueOnly && $recurringOnly) {
-            $this->error('Cannot use both --unique-only and --recurring-only');
+            $console->error('Cannot use both --unique-only and --recurring-only');
 
             return ExitCode::INVALID_ARGUMENT;
         }
@@ -141,7 +146,7 @@ final class ProcessTasksDirective extends AbstractDirective
         $limit = $this->option('limit');
 
         if ($limit !== null && (int) $limit <= 0) {
-            $this->error('Limit must be a positive integer');
+            $console->error('Limit must be a positive integer');
 
             return ExitCode::INVALID_ARGUMENT;
         }
@@ -149,7 +154,7 @@ final class ProcessTasksDirective extends AbstractDirective
         $format = $this->option('format');
 
         if ($format !== null && ! in_array($format, ['text', 'json'], true)) {
-            $this->error('Format must be "text" or "json"');
+            $console->error('Format must be "text" or "json"');
 
             return ExitCode::INVALID_ARGUMENT;
         }
@@ -164,21 +169,13 @@ final class ProcessTasksDirective extends AbstractDirective
         return $limit !== null ? (int) $limit : null;
     }
 
-    private function displayProcessingStart(?int $limit): void
+    private function displayProcessingStart(Console $console, ?int $limit): void
     {
-        $text = StyledTextVO::empty()
-            ->append('Processing tasks...')
-            ->newLine();
+        $console->info('Processing tasks...');
 
         if ($limit !== null) {
-            $text = $text->append('Limit: ')
-                ->yellow()
-                ->append((string) $limit)
-                ->reset()
-                ->append(' tasks');
+            $console->info('Limit: '.$limit.' tasks');
         }
-
-        $this->info($text->value);
     }
 
     // ==================== UNIQUE TASKS ====================
@@ -187,30 +184,25 @@ final class ProcessTasksDirective extends AbstractDirective
         UniqueTaskServiceInterface $service,
         ?int $limit
     ): ProcessResultRecord {
-        return $service->process($limit);
+        if ($limit !== null) {
+            return $service->process(new LimitVO($limit));
+        }
+
+        return $service->process();
     }
 
-    private function displayUniqueResults(ProcessResultRecord $result): void
+    private function displayUniqueResults(Console $console, ProcessResultRecord $result): void
     {
         $total = $result->success->getValue() + $result->failed->getValue();
 
-        $text = StyledTextVO::empty()
-            ->newLine()
-            ->cyan()->append('=== Unique Batch Results ===')->reset()
-            ->newLine()
-            ->append('  Success: ')
-            ->cyan()->append((string) $result->success->getValue())->reset()
-            ->newLine()
-            ->append('  Failed: ')
-            ->red()->append((string) $result->failed->getValue())->reset()
-            ->newLine()
-            ->append('  Total: ')
-            ->yellow()->append((string) $total)->reset();
-
-        $this->info($text->value);
+        $console->line();
+        $console->title('=== Unique Batch Results ===');
+        $console->info('  Success: '.$result->success->getValue());
+        $console->error('  Failed: '.$result->failed->getValue());
+        $console->info('  Total: '.$total);
     }
 
-    private function outputUniqueJson(ProcessResultRecord $result): void
+    private function outputUniqueJson(Console $console, ProcessResultRecord $result): void
     {
         $endedAt = new Iso8601DateTimeVO;
         $duration = $this->getDurationMilliseconds($result->started_at);
@@ -228,7 +220,7 @@ final class ProcessTasksDirective extends AbstractDirective
             'type' => 'unique',
         ]);
 
-        $this->line((string) $jsonResult);
+        $console->jsonRaw($jsonResult->toArray());
     }
 
     // ==================== RECURRING TASKS ====================
@@ -237,30 +229,25 @@ final class ProcessTasksDirective extends AbstractDirective
         RecurringTaskServiceInterface $service,
         ?int $limit
     ): ProcessResultRecord {
-        return $service->process($limit);
+        if ($limit !== null) {
+            return $service->process(new LimitVO($limit));
+        }
+
+        return $service->process();
     }
 
-    private function displayRecurringResults(ProcessResultRecord $result): void
+    private function displayRecurringResults(Console $console, ProcessResultRecord $result): void
     {
         $total = $result->success->getValue() + $result->failed->getValue();
 
-        $text = StyledTextVO::empty()
-            ->newLine()
-            ->cyan()->append('=== Recurring Batch Results ===')->reset()
-            ->newLine()
-            ->append('  Success: ')
-            ->cyan()->append((string) $result->success->getValue())->reset()
-            ->newLine()
-            ->append('  Failed: ')
-            ->red()->append((string) $result->failed->getValue())->reset()
-            ->newLine()
-            ->append('  Total: ')
-            ->yellow()->append((string) $total)->reset();
-
-        $this->info($text->value);
+        $console->line();
+        $console->title('=== Recurring Batch Results ===');
+        $console->info('  Success: '.$result->success->getValue());
+        $console->error('  Failed: '.$result->failed->getValue());
+        $console->info('  Total: '.$total);
     }
 
-    private function outputRecurringJson(ProcessResultRecord $result): void
+    private function outputRecurringJson(Console $console, ProcessResultRecord $result): void
     {
         $endedAt = new Iso8601DateTimeVO;
         $duration = $this->getDurationMilliseconds($result->started_at);
@@ -278,12 +265,13 @@ final class ProcessTasksDirective extends AbstractDirective
             'type' => 'recurring',
         ]);
 
-        $this->line((string) $jsonResult);
+        $console->jsonRaw($jsonResult->toArray());
     }
 
     // ==================== FULL (BOTH) ====================
 
     private function displayFullResults(
+        Console $console,
         ProcessResultRecord $uniqueResult,
         ProcessResultRecord $recurringResult
     ): void {
@@ -292,34 +280,16 @@ final class ProcessTasksDirective extends AbstractDirective
         $totalProcessed = $totalSuccess + $totalFailed;
         $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
 
-        $text = StyledTextVO::empty()
-            ->newLine()
-            ->cyan()->append('=== Batch Results ===')->reset()
-            ->newLine()
-            ->append('  Unique:    ')
-            ->green()->append('✅ ')->append((string) $uniqueResult->success->getValue())->reset()
-            ->append(', ')
-            ->red()->append('❌ ')->append((string) $uniqueResult->failed->getValue())->reset()
-            ->newLine()
-            ->append('  Recurring: ')
-            ->green()->append('✅ ')->append((string) $recurringResult->success->getValue())->reset()
-            ->append(', ')
-            ->red()->append('❌ ')->append((string) $recurringResult->failed->getValue())->reset()
-            ->newLine()
-            ->append('  Total:     ')
-            ->green()->append('✅ ')->append((string) $totalSuccess)->reset()
-            ->append(', ')
-            ->red()->append('❌ ')->append((string) $totalFailed)->reset()
-            ->append(', ')
-            ->blue()->append('📦 ')->append((string) $totalProcessed)->reset()
-            ->newLine()
-            ->append('  Has failures: ')
-            ->append($hasFailures ? 'Yes' : 'No');
-
-        $this->info($text->value);
+        $console->line();
+        $console->title('=== Batch Results ===');
+        $console->info('  Unique:    ✅ '.$uniqueResult->success->getValue().', ❌ '.$uniqueResult->failed->getValue());
+        $console->info('  Recurring: ✅ '.$recurringResult->success->getValue().', ❌ '.$recurringResult->failed->getValue());
+        $console->info('  Total:     ✅ '.$totalSuccess.', ❌ '.$totalFailed.', 📦 '.$totalProcessed);
+        $console->info('  Has failures: '.($hasFailures ? 'Yes' : 'No'));
     }
 
     private function outputFullJson(
+        Console $console,
         ProcessResultRecord $uniqueResult,
         ProcessResultRecord $recurringResult
     ): void {
@@ -364,12 +334,13 @@ final class ProcessTasksDirective extends AbstractDirective
             'recurring' => $recurringBatch,
         ]);
 
-        $this->line((string) $fullResult);
+        $console->jsonRaw($fullResult->toArray());
     }
 
     // ==================== ERRORS ====================
 
     private function displayErrorsIfVerbose(
+        Console $console,
         bool $verbose,
         iterable $errors,
         string $type
@@ -383,22 +354,17 @@ final class ProcessTasksDirective extends AbstractDirective
             return;
         }
 
-        $text = StyledTextVO::empty()
-            ->newLine()
-            ->red()->append('=== Failed ')->append($type)->append(' Tasks ===')->reset();
+        $console->line();
+        $console->error('=== Failed '.$type.' Tasks ===');
 
         foreach ($errorsArray as $error) {
             $displayName = $error->alias ?? $error->identifier;
-            $text = $text
-                ->newLine()
-                ->append('    ')
-                ->red()->append('❌ ')->append($displayName)->append(': ')->append($error->error)->reset();
+            $console->error('    ❌ '.$displayName.': '.$error->error);
         }
-
-        $this->info($text->value);
     }
 
     private function displayFullErrorsIfVerbose(
+        Console $console,
         bool $verbose,
         ProcessResultRecord $uniqueResult,
         ProcessResultRecord $recurringResult
@@ -414,39 +380,30 @@ final class ProcessTasksDirective extends AbstractDirective
             return;
         }
 
-        $text = StyledTextVO::empty()
-            ->newLine()
-            ->red()->append('=== Failed Tasks ===')->reset();
+        $console->line();
+        $console->error('=== Failed Tasks ===');
 
         if ($hasUniqueErrors) {
-            $text = $text->newLine()->append('  Unique tasks:');
+            $console->info('  Unique tasks:');
             foreach ($uniqueResult->errors as $error) {
                 $displayName = $error->alias ?? $error->identifier;
-                $text = $text
-                    ->newLine()
-                    ->append('    ')
-                    ->red()->append('❌ ')->append($displayName)->append(': ')->append($error->error)->reset();
+                $console->error('    ❌ '.$displayName.': '.$error->error);
             }
         }
 
         if ($hasRecurringErrors) {
-            $text = $text->newLine()->append('  Recurring tasks:');
+            $console->info('  Recurring tasks:');
             foreach ($recurringResult->errors as $error) {
                 $displayName = $error->alias ?? $error->identifier;
-                $text = $text
-                    ->newLine()
-                    ->append('    ')
-                    ->red()->append('❌ ')->append($displayName)->append(': ')->append($error->error)->reset();
+                $console->error('    ❌ '.$displayName.': '.$error->error);
             }
         }
-
-        $this->info($text->value);
     }
 
     private function getDurationMilliseconds(Iso8601DateTimeVO $start): int
     {
-        $startTimestamp = $start->toDateTime()->getTimestamp();
-        $endTimestamp = (new Iso8601DateTimeVO)->toDateTime()->getTimestamp();
+        $startTimestamp = $start->toCarbon()->getTimestamp();
+        $endTimestamp = (new Iso8601DateTimeVO)->toCarbon()->getTimestamp();
 
         return (int) (($endTimestamp - $startTimestamp) * 1000);
     }

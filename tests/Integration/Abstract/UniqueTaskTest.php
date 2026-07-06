@@ -22,7 +22,6 @@ use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\Carbon;
@@ -76,7 +75,7 @@ final class UniqueTaskTest extends IntegrationTestCase
         $this->context = new UniqueTaskContext;
         $this->context->setTaskId(new UuidVO((string) Uuid::uuid4()));
         $this->context->setAlias(new TaskAliasVO(
-            type: new TaskTypeVO('unique'),
+            type: ('unique'),
             uuid: (string) Uuid::uuid4()
         ));
         $this->context->setScheduledAt(new Iso8601DateTimeVO(Carbon::now()->addMinutes(5)->toIso8601String()));
@@ -242,9 +241,9 @@ final class UniqueTaskTest extends IntegrationTestCase
 
     public function test_preserves_context_data(): void
     {
-        $taskId = $this->context->getTaskId()->value;
+        $taskId = $this->context->getTaskId()->getValue();
         $alias = $this->context->getAlias()->getValue();
-        $scheduledAt = $this->context->getScheduledAt()->value;
+        $scheduledAt = $this->context->getScheduledAt()->getValue();
 
         $this->assertNotEmpty($taskId);
         $this->assertStringContainsString('unique@', $alias);
@@ -262,10 +261,10 @@ final class UniqueTaskTest extends IntegrationTestCase
         $newTaskId = new UuidVO((string) Uuid::uuid4());
         $this->context->setTaskId($newTaskId);
 
-        $this->assertEquals($newTaskId->value, $this->context->getTaskId()->value);
+        $this->assertEquals($newTaskId->getValue(), $this->context->getTaskId()->getValue());
 
         $newAlias = new TaskAliasVO(
-            type: new TaskTypeVO('unique'),
+            type: ('unique'),
             uuid: (string) Uuid::uuid4()
         );
         $this->context->setAlias($newAlias);
@@ -275,7 +274,7 @@ final class UniqueTaskTest extends IntegrationTestCase
         $newScheduledAt = new Iso8601DateTimeVO(Carbon::now()->addHours(2)->toIso8601String());
         $this->context->setScheduledAt($newScheduledAt);
 
-        $this->assertEquals($newScheduledAt->value, $this->context->getScheduledAt()->value);
+        $this->assertEquals($newScheduledAt->getValue(), $this->context->getScheduledAt()->getValue());
     }
 
     // ==================== LOGGING TESTS ====================
@@ -389,7 +388,7 @@ final class UniqueTaskTest extends IntegrationTestCase
 
     public function test_scheduled_at_is_future(): void
     {
-        $scheduledAt = $this->context->getScheduledAt()->value;
+        $scheduledAt = $this->context->getScheduledAt()->getValue();
         $this->assertTrue(Carbon::parse($scheduledAt)->isFuture());
     }
 
@@ -398,15 +397,15 @@ final class UniqueTaskTest extends IntegrationTestCase
         $pastScheduledAt = new Iso8601DateTimeVO(Carbon::now()->subMinutes(10)->toIso8601String());
         $this->context->setScheduledAt($pastScheduledAt);
 
-        $this->assertEquals($pastScheduledAt->value, $this->context->getScheduledAt()->value);
-        $this->assertTrue(Carbon::parse($pastScheduledAt->value)->isPast());
+        $this->assertEquals($pastScheduledAt->getValue(), $this->context->getScheduledAt()->getValue());
+        $this->assertTrue(Carbon::parse($pastScheduledAt->getValue())->isPast());
     }
 
     // ==================== TASK ID TESTS ====================
 
     public function test_task_id_is_valid_uuid(): void
     {
-        $taskId = $this->context->getTaskId()->value;
+        $taskId = $this->context->getTaskId()->getValue();
         $this->assertTrue(Uuid::isValid($taskId));
     }
 
@@ -415,8 +414,8 @@ final class UniqueTaskTest extends IntegrationTestCase
         $newTaskId = new UuidVO((string) Uuid::uuid4());
         $this->context->setTaskId($newTaskId);
 
-        $this->assertEquals($newTaskId->value, $this->context->getTaskId()->value);
-        $this->assertTrue(Uuid::isValid($this->context->getTaskId()->value));
+        $this->assertEquals($newTaskId->getValue(), $this->context->getTaskId()->getValue());
+        $this->assertTrue(Uuid::isValid($this->context->getTaskId()->getValue()));
     }
 
     // ==================== ALIAS TESTS ====================
@@ -434,7 +433,7 @@ final class UniqueTaskTest extends IntegrationTestCase
     public function test_alias_can_be_set(): void
     {
         $newAlias = new TaskAliasVO(
-            type: new TaskTypeVO('unique'),
+            type: ('unique'),
             uuid: (string) Uuid::uuid4()
         );
         $this->context->setAlias($newAlias);
@@ -460,7 +459,7 @@ final class UniqueTaskTest extends IntegrationTestCase
         $context2 = new UniqueTaskContext;
         $context2->setTaskId(new UuidVO((string) Uuid::uuid4()));
         $context2->setAlias(new TaskAliasVO(
-            type: new TaskTypeVO('unique'),
+            type: ('unique'),
             uuid: (string) Uuid::uuid4()
         ));
         $context2->setScheduledAt(new Iso8601DateTimeVO(Carbon::now()->addMinutes(10)->toIso8601String()));
@@ -481,6 +480,6 @@ final class UniqueTaskTest extends IntegrationTestCase
         $this->assertTrue($this->task->processCalled);
         $this->assertTrue($task2->processCalled);
 
-        $this->assertNotSame($this->context->getTaskId()->value, $context2->getTaskId()->value);
+        $this->assertNotSame($this->context->getTaskId()->getValue(), $context2->getTaskId()->getValue());
     }
 }

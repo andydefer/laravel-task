@@ -9,7 +9,9 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
+use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Models\RecurringTask;
+use AndyDefer\Task\Records\RecurringTaskConfigRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Repositories\RecurringTaskRepository;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
@@ -18,16 +20,12 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\FailingRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\SomeClass;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
-use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
-use AndyDefer\Task\ValueObjects\RecurringTaskConfigVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
@@ -96,38 +94,38 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
         int $intervalSeconds = 3600,
         ?Iso8601DateTimeVO $startAt = null,
         ?Iso8601DateTimeVO $endAt = null
-    ): RecurringTaskConfigVO {
+    ): RecurringTaskConfigRecord {
         $now = new Iso8601DateTimeVO;
         $startAt = $startAt ?? $now->addSeconds(7200);
         $endAt = $endAt ?? $now->addSeconds(604800);
 
-        return new RecurringTaskConfigVO(
-            type: new TaskTypeVO('recurring'),
-            description: new DescriptionVO('Test recurring task'),
-            interval_seconds: new CounterVO($intervalSeconds),
-            start_at: $startAt,
-            end_at: $endAt,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        return RecurringTaskConfigRecord::from([
+            'type' => TaskType::RECURRING->value,
+            'description' => 'Test recurring task',
+            'interval_seconds' => $intervalSeconds,
+            'start_at' => $startAt,
+            'end_at' => $endAt,
+            'max_attempts' => 3,
+        ]);
     }
 
     private function createConfigWithPastStart(
         int $intervalSeconds = 3600,
         ?Iso8601DateTimeVO $startAt = null,
         ?Iso8601DateTimeVO $endAt = null
-    ): RecurringTaskConfigVO {
+    ): RecurringTaskConfigRecord {
         $now = new Iso8601DateTimeVO;
         $startAt = $startAt ?? $now->addSeconds(-7200);
         $endAt = $endAt ?? $now->addSeconds(604800);
 
-        return new RecurringTaskConfigVO(
-            type: new TaskTypeVO('recurring'),
-            description: new DescriptionVO('Test recurring task'),
-            interval_seconds: new CounterVO($intervalSeconds),
-            start_at: $startAt,
-            end_at: $endAt,
-            max_attempts: new MaxFailedAttemptsVO(3),
-        );
+        return RecurringTaskConfigRecord::from([
+            'type' => TaskType::RECURRING->value,
+            'description' => 'Test recurring task',
+            'interval_seconds' => $intervalSeconds,
+            'start_at' => $startAt,
+            'end_at' => $endAt,
+            'max_attempts' => 3,
+        ]);
     }
 
     // ==================== TESTS REGISTER ====================
@@ -194,10 +192,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_run_returns_failure_for_non_existing_task(): void
     {
-        $alias = new TaskAliasVO(
-            new TaskTypeVO('recurring'),
-            (string) Uuid::uuid4()
-        );
+        $alias = new TaskAliasVO('recurring@'.Uuid::uuid4()->toString());
         $result = $this->service->run($alias);
 
         $this->assertFalse($result->success);
@@ -262,10 +257,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_cancel_returns_false_for_non_existing_task(): void
     {
-        $alias = new TaskAliasVO(
-            new TaskTypeVO('recurring'),
-            (string) Uuid::uuid4()
-        );
+        $alias = new TaskAliasVO('recurring@'.Uuid::uuid4()->toString());
         $result = $this->service->cancel($alias, new DescriptionVO('Test'));
 
         $this->assertFalse($result);
@@ -372,10 +364,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_exists_returns_false_for_non_existing_task(): void
     {
-        $alias = new TaskAliasVO(
-            new TaskTypeVO('recurring'),
-            (string) Uuid::uuid4()
-        );
+        $alias = new TaskAliasVO('recurring@'.Uuid::uuid4()->toString());
         $this->assertFalse($this->service->exists($alias));
     }
 
@@ -401,10 +390,7 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
 
     public function test_delete_returns_false_for_non_existing_task(): void
     {
-        $alias = new TaskAliasVO(
-            new TaskTypeVO('recurring'),
-            (string) Uuid::uuid4()
-        );
+        $alias = new TaskAliasVO('recurring@'.Uuid::uuid4()->toString());
         $result = $this->service->delete($alias);
 
         $this->assertFalse($result);

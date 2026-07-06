@@ -24,7 +24,6 @@ use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
-use AndyDefer\Task\ValueObjects\TaskTypeVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
@@ -79,20 +78,16 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
     }
 
     // ==================== HELPERS ====================
-
     private function getUuidForAlias(string $aliasName): string
     {
-        return Uuid::uuid5(Uuid::NAMESPACE_DNS, $aliasName)->toString();
+        return Uuid::uuid4()->toString();
     }
 
     private function generateAliasFromName(string $name, ?string $uuid = null): TaskAliasVO
     {
         $uuid = $uuid ?? $this->getUuidForAlias($name);
 
-        return new TaskAliasVO(
-            new TaskTypeVO('unique'),
-            $uuid
-        );
+        return new TaskAliasVO('unique@'.$uuid);
     }
 
     private function createTaskRecord(
