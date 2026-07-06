@@ -12,9 +12,9 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
-use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Support\Carbon;
 use Ramsey\Uuid\Uuid;
@@ -38,18 +38,14 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         parent::tearDown();
     }
 
-    private function createAlias(string $name, string $uuid): array
+    private function generateAlias(string $uuid): TaskAliasVO
     {
-        return [
-            'type' => 'recurring',
-            'uuid' => $uuid,
-        ];
+        return new TaskAliasVO('recurring@'.$uuid);
     }
 
     private function createTaskRecord(array $data): RecurringTaskRecord
     {
         $uuid = $data['uuid'] ?? (string) Uuid::uuid4();
-        $aliasName = $data['alias'] ?? 'test';
         $fqcn = $data['fqcn'] ?? TestRecurringTask::class;
         $payload = $data['payload'] ?? ['test' => 'payload'];
         $intervalSeconds = $data['interval_seconds'] ?? 3600;
@@ -58,17 +54,14 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
         $lastRunAt = $data['last_run_at'] ?? Carbon::now()->subHours(2)->toIso8601String();
         $status = $data['status'] ?? RecurringTaskStatus::PLAYING;
 
-        $alias = [
-            'type' => 'recurring',
-            'uuid' => $uuid,
-        ];
+        $alias = $this->generateAlias($uuid);
 
         return RecurringTaskRecord::from([
             'id' => new UuidVO($uuid),
             'alias' => $alias,
             'fqcn' => new RecurringTaskFqcnVO($fqcn),
             'payload' => StrictDataObject::from($payload),
-            'interval_seconds' => new DurationVO($intervalSeconds),
+            'interval_seconds' => $intervalSeconds,
             'start_at' => $startAt !== null ? new Iso8601DateTimeVO($startAt) : null,
             'end_at' => $endAt !== null ? new Iso8601DateTimeVO($endAt) : null,
             'last_run_at' => $lastRunAt !== null ? new Iso8601DateTimeVO($lastRunAt) : null,
@@ -84,7 +77,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -103,7 +95,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-waiting', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -122,7 +113,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-paused', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -141,7 +131,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-finished', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -160,7 +149,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-expired', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -183,7 +171,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-invalid-class', $uuid),
             'fqcn' => 'NonExistentClass',
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -203,7 +190,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-unique', $uuid),
             'fqcn' => TestUniqueTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -222,7 +208,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-ready', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -239,7 +224,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-not-ready', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -252,16 +236,17 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
     public function test_is_ready_to_run_returns_true_for_waiting_task_with_null_start_at(): void
     {
+        $uuid = '550e8400-e29b-41d4-a716-446655440009';
+
         $record = $this->createTaskRecord([
-            'alias' => 'test',
+            'uuid' => $uuid,
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
-            'start_at' => null,  // ✅ start_at null = maintenant
+            'start_at' => null,
             'status' => RecurringTaskStatus::WAITING,
         ]);
 
-        // ✅ Avec start_at = null, la tâche est prête
         $this->assertTrue($this->validator->isReadyToRun($record));
     }
 
@@ -271,7 +256,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-playing', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -290,7 +274,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-expired-true', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -308,7 +291,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-expired-false', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -326,7 +308,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-end-null', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -346,7 +327,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-move-finished', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -364,7 +344,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-not-finished', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -384,7 +363,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-run-again', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -403,7 +381,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-not-run-again', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -422,7 +399,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-first-run', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -441,7 +417,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-not-playing', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -460,7 +435,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-expired-run', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -482,7 +456,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-valid-errors', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -503,7 +476,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-waiting-error', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -522,7 +494,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-paused-error', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -541,7 +512,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-finished-error', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -560,7 +530,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-expired-error', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -579,7 +548,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-not-ready-error', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
@@ -597,7 +565,6 @@ final class RecurringTaskValidatorTest extends IntegrationTestCase
 
         $record = $this->createTaskRecord([
             'uuid' => $uuid,
-            'alias' => $this->createAlias('test-multiple-errors', $uuid),
             'fqcn' => TestRecurringTask::class,
             'payload' => ['test' => 'payload'],
             'interval_seconds' => 3600,
