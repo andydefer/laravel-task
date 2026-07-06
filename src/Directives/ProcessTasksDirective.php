@@ -17,19 +17,42 @@ use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\TaskExecutionJsonResultRecord;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
+use RuntimeException;
 
+/**
+ * Console directive for processing pending tasks in batch mode.
+ *
+ * Allows processing of unique and/or recurring tasks with support for
+ * various output formats and filtering options. Provides comprehensive
+ * logging and error reporting for batch task execution.
+ */
 final class ProcessTasksDirective extends AbstractDirective
 {
+    /**
+     * Returns the command signature with available options.
+     *
+     * @return string The command signature
+     */
     public function getSignature(): string
     {
         return 'process-tasks {--unique-only} {--recurring-only} {--verbose} {--limit=} {--format=}';
     }
 
+    /**
+     * Returns the command description.
+     *
+     * @return string The command description
+     */
     public function getDescription(): string
     {
         return 'Process all pending tasks in a single batch (no polling, no waiting)';
     }
 
+    /**
+     * Returns the command aliases.
+     *
+     * @return StringTypedCollection Collection of command aliases
+     */
     public function getAliases(): StringTypedCollection
     {
         $aliases = new StringTypedCollection;
@@ -39,19 +62,24 @@ final class ProcessTasksDirective extends AbstractDirective
         return $aliases;
     }
 
+    /**
+     * Executes the task processing directive.
+     *
+     * @return ExitCode The exit code indicating success or failure
+     *
+     * @throws RuntimeException When Laravel container is not available
+     */
     public function execute(): ExitCode
     {
-        // ✅ TOUTE L'INITIALISATION ICI
         $app = $this->getLaravel();
 
         if ($app === null) {
-            throw new \RuntimeException('Laravel container is not available');
+            throw new RuntimeException('Laravel container is not available');
         }
 
         $console = $app->make(Console::class);
 
         $validationResult = $this->validateOptions($console);
-
         if ($validationResult !== null) {
             return $validationResult;
         }
@@ -68,7 +96,6 @@ final class ProcessTasksDirective extends AbstractDirective
         $hasFailures = false;
 
         if ($uniqueOnly) {
-
             $result = $this->processUniqueOnly($uniqueService, $limit);
             $hasFailures = $result->failed->isPositive();
 
@@ -80,7 +107,6 @@ final class ProcessTasksDirective extends AbstractDirective
                 $this->displayErrorsIfVerbose($console, $verbose, $result->errors, 'Unique');
             }
         } elseif ($recurringOnly) {
-
             $result = $this->processRecurringOnly($recurringService, $limit);
             $hasFailures = $result->failed->isPositive();
 
@@ -92,7 +118,6 @@ final class ProcessTasksDirective extends AbstractDirective
                 $this->displayErrorsIfVerbose($console, $verbose, $result->errors, 'Recurring');
             }
         } else {
-
             $uniqueResult = $this->processUniqueOnly($uniqueService, $limit);
             $recurringResult = $this->processRecurringOnly($recurringService, $limit);
 
@@ -100,7 +125,6 @@ final class ProcessTasksDirective extends AbstractDirective
 
             if ($format === 'json') {
                 $this->outputFullJson($console, $uniqueResult, $recurringResult);
-
             } else {
                 $this->displayProcessingStart($console, $limit);
                 $this->displayFullResults($console, $uniqueResult, $recurringResult);
@@ -111,28 +135,48 @@ final class ProcessTasksDirective extends AbstractDirective
         return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
     }
 
+    /**
+     * Retrieves the unique task service from the container.
+     *
+     * @return UniqueTaskServiceInterface The unique task service
+     *
+     * @throws RuntimeException When Laravel container is not available
+     */
     private function getUniqueTaskService(): UniqueTaskServiceInterface
     {
         $laravel = $this->getLaravel();
 
         if ($laravel === null) {
-            throw new \RuntimeException('Laravel container is not available. Task processing requires Laravel.');
+            throw new RuntimeException('Laravel container is not available. Task processing requires Laravel.');
         }
 
         return $laravel->make(UniqueTaskServiceInterface::class);
     }
 
+    /**
+     * Retrieves the recurring task service from the container.
+     *
+     * @return RecurringTaskServiceInterface The recurring task service
+     *
+     * @throws RuntimeException When Laravel container is not available
+     */
     private function getRecurringTaskService(): RecurringTaskServiceInterface
     {
         $laravel = $this->getLaravel();
 
         if ($laravel === null) {
-            throw new \RuntimeException('Laravel container is not available. Task processing requires Laravel.');
+            throw new RuntimeException('Laravel container is not available. Task processing requires Laravel.');
         }
 
         return $laravel->make(RecurringTaskServiceInterface::class);
     }
 
+    /**
+     * Validates the command options.
+     *
+     * @param  Console  $console  The console instance for error output
+     * @return ExitCode|null Exit code if validation fails, null otherwise
+     */
     private function validateOptions(Console $console): ?ExitCode
     {
         $uniqueOnly = $this->hasOption('unique-only');
@@ -163,6 +207,11 @@ final class ProcessTasksDirective extends AbstractDirective
         return null;
     }
 
+    /**
+     * Returns the validated limit value.
+     *
+     * @return int|null The limit or null if not set
+     */
     private function getValidatedLimit(): ?int
     {
         $limit = $this->option('limit');
@@ -170,6 +219,12 @@ final class ProcessTasksDirective extends AbstractDirective
         return $limit !== null ? (int) $limit : null;
     }
 
+    /**
+     * Displays the processing start message.
+     *
+     * @param  Console  $console  The console instance
+     * @param  int|null  $limit  The task limit if set
+     */
     private function displayProcessingStart(Console $console, ?int $limit): void
     {
         $console->info('Processing tasks...');
@@ -181,6 +236,13 @@ final class ProcessTasksDirective extends AbstractDirective
 
     // ==================== UNIQUE TASKS ====================
 
+    /**
+     * Processes only unique tasks.
+     *
+     * @param  UniqueTaskServiceInterface  $service  The unique task service
+     * @param  int|null  $limit  Optional limit for processing
+     * @return ProcessResultRecord The processing result
+     */
     private function processUniqueOnly(
         UniqueTaskServiceInterface $service,
         ?int $limit
@@ -192,6 +254,12 @@ final class ProcessTasksDirective extends AbstractDirective
         return $service->process();
     }
 
+    /**
+     * Displays unique task processing results.
+     *
+     * @param  Console  $console  The console instance
+     * @param  ProcessResultRecord  $result  The processing result
+     */
     private function displayUniqueResults(Console $console, ProcessResultRecord $result): void
     {
         $total = $result->success->getValue() + $result->failed->getValue();
@@ -203,10 +271,16 @@ final class ProcessTasksDirective extends AbstractDirective
         $console->info('  Total: '.$total);
     }
 
+    /**
+     * Outputs unique task results in JSON format.
+     *
+     * @param  Console  $console  The console instance
+     * @param  ProcessResultRecord  $result  The processing result
+     */
     private function outputUniqueJson(Console $console, ProcessResultRecord $result): void
     {
         $endedAt = new Iso8601DateTimeVO;
-        $duration = $this->getDurationMilliseconds($result->started_at);
+        $duration = $this->calculateDurationMilliseconds($result->started_at);
         $total = $result->success->getValue() + $result->failed->getValue();
 
         $jsonResult = TaskExecutionJsonResultRecord::from([
@@ -226,6 +300,13 @@ final class ProcessTasksDirective extends AbstractDirective
 
     // ==================== RECURRING TASKS ====================
 
+    /**
+     * Processes only recurring tasks.
+     *
+     * @param  RecurringTaskServiceInterface  $service  The recurring task service
+     * @param  int|null  $limit  Optional limit for processing
+     * @return ProcessResultRecord The processing result
+     */
     private function processRecurringOnly(
         RecurringTaskServiceInterface $service,
         ?int $limit
@@ -237,6 +318,12 @@ final class ProcessTasksDirective extends AbstractDirective
         return $service->process();
     }
 
+    /**
+     * Displays recurring task processing results.
+     *
+     * @param  Console  $console  The console instance
+     * @param  ProcessResultRecord  $result  The processing result
+     */
     private function displayRecurringResults(Console $console, ProcessResultRecord $result): void
     {
         $total = $result->success->getValue() + $result->failed->getValue();
@@ -248,10 +335,16 @@ final class ProcessTasksDirective extends AbstractDirective
         $console->info('  Total: '.$total);
     }
 
+    /**
+     * Outputs recurring task results in JSON format.
+     *
+     * @param  Console  $console  The console instance
+     * @param  ProcessResultRecord  $result  The processing result
+     */
     private function outputRecurringJson(Console $console, ProcessResultRecord $result): void
     {
         $endedAt = new Iso8601DateTimeVO;
-        $duration = $this->getDurationMilliseconds($result->started_at);
+        $duration = $this->calculateDurationMilliseconds($result->started_at);
         $total = $result->success->getValue() + $result->failed->getValue();
 
         $jsonResult = TaskExecutionJsonResultRecord::from([
@@ -271,6 +364,13 @@ final class ProcessTasksDirective extends AbstractDirective
 
     // ==================== FULL (BOTH) ====================
 
+    /**
+     * Displays combined results for both task types.
+     *
+     * @param  Console  $console  The console instance
+     * @param  ProcessResultRecord  $uniqueResult  The unique task result
+     * @param  ProcessResultRecord  $recurringResult  The recurring task result
+     */
     private function displayFullResults(
         Console $console,
         ProcessResultRecord $uniqueResult,
@@ -289,13 +389,20 @@ final class ProcessTasksDirective extends AbstractDirective
         $console->info('  Has failures: '.($hasFailures ? 'Yes' : 'No'));
     }
 
+    /**
+     * Outputs combined results in JSON format.
+     *
+     * @param  Console  $console  The console instance
+     * @param  ProcessResultRecord  $uniqueResult  The unique task result
+     * @param  ProcessResultRecord  $recurringResult  The recurring task result
+     */
     private function outputFullJson(
         Console $console,
         ProcessResultRecord $uniqueResult,
         ProcessResultRecord $recurringResult
     ): void {
         $endedAt = new Iso8601DateTimeVO;
-        $duration = $this->getDurationMilliseconds($uniqueResult->started_at);
+        $duration = $this->calculateDurationMilliseconds($uniqueResult->started_at);
 
         $totalSuccess = $uniqueResult->success->getValue() + $recurringResult->success->getValue();
         $totalFailed = $uniqueResult->failed->getValue() + $recurringResult->failed->getValue();
@@ -314,13 +421,7 @@ final class ProcessTasksDirective extends AbstractDirective
             'errors' => $recurringResult->errors,
         ]);
 
-        $allErrors = new TaskErrorRecordCollection;
-        foreach ($uniqueResult->errors as $error) {
-            $allErrors->add($error);
-        }
-        foreach ($recurringResult->errors as $error) {
-            $allErrors->add($error);
-        }
+        $allErrors = $this->mergeErrorCollections($uniqueResult->errors, $recurringResult->errors);
 
         $fullResult = FullBatchJsonResultRecord::from([
             'started_at' => $uniqueResult->started_at,
@@ -340,6 +441,14 @@ final class ProcessTasksDirective extends AbstractDirective
 
     // ==================== ERRORS ====================
 
+    /**
+     * Displays errors for a single task type when verbose mode is enabled.
+     *
+     * @param  Console  $console  The console instance
+     * @param  bool  $verbose  Whether verbose mode is enabled
+     * @param  iterable  $errors  The error collection
+     * @param  string  $type  The task type label
+     */
     private function displayErrorsIfVerbose(
         Console $console,
         bool $verbose,
@@ -364,6 +473,14 @@ final class ProcessTasksDirective extends AbstractDirective
         }
     }
 
+    /**
+     * Displays errors for both task types when verbose mode is enabled.
+     *
+     * @param  Console  $console  The console instance
+     * @param  bool  $verbose  Whether verbose mode is enabled
+     * @param  ProcessResultRecord  $uniqueResult  The unique task result
+     * @param  ProcessResultRecord  $recurringResult  The recurring task result
+     */
     private function displayFullErrorsIfVerbose(
         Console $console,
         bool $verbose,
@@ -401,7 +518,37 @@ final class ProcessTasksDirective extends AbstractDirective
         }
     }
 
-    private function getDurationMilliseconds(Iso8601DateTimeVO $start): int
+    /**
+     * Merges two error collections into one.
+     *
+     * @param  TaskErrorRecordCollection  $uniqueErrors  The unique task errors
+     * @param  TaskErrorRecordCollection  $recurringErrors  The recurring task errors
+     * @return TaskErrorRecordCollection The merged error collection
+     */
+    private function mergeErrorCollections(
+        TaskErrorRecordCollection $uniqueErrors,
+        TaskErrorRecordCollection $recurringErrors
+    ): TaskErrorRecordCollection {
+        $allErrors = new TaskErrorRecordCollection;
+
+        foreach ($uniqueErrors as $error) {
+            $allErrors->add($error);
+        }
+
+        foreach ($recurringErrors as $error) {
+            $allErrors->add($error);
+        }
+
+        return $allErrors;
+    }
+
+    /**
+     * Calculates duration in milliseconds between start and current time.
+     *
+     * @param  Iso8601DateTimeVO  $start  The start timestamp
+     * @return int The duration in milliseconds
+     */
+    private function calculateDurationMilliseconds(Iso8601DateTimeVO $start): int
     {
         $startTimestamp = $start->toCarbon()->getTimestamp();
         $endTimestamp = (new Iso8601DateTimeVO)->toCarbon()->getTimestamp();

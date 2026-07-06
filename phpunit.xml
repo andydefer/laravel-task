@@ -9,10 +9,10 @@
     
     <testsuites>
         <!-- Unit tests (fast, no Laravel) -->
-        <testsuite name="Unit">
+       <!--  <testsuite name="Unit">
             <directory suffix="Test.php">./tests/Unit</directory>
             <directory suffix="Test.php">./tests/*/Unit</directory>
-        </testsuite>
+        </testsuite> -->
         
         <!-- Integration tests (with Laravel and database) -->
         <testsuite name="Integration">

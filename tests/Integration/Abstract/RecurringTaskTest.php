@@ -23,7 +23,15 @@ use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\Carbon;
 use Ramsey\Uuid\Uuid;
+use RuntimeException;
+use Throwable;
 
+/**
+ * Integration tests for recurring task execution and lifecycle management.
+ *
+ * Tests the complete workflow including execution, logging, error handling,
+ * and lifecycle hooks for recurring tasks.
+ */
 final class RecurringTaskTest extends IntegrationTestCase
 {
     private TestRecurringTask $task;
@@ -66,7 +74,6 @@ final class RecurringTaskTest extends IntegrationTestCase
             hydrationService: $this->hydration,
         );
 
-        // ✅ Utiliser un UUID valide
         $this->context = new RecurringTaskContext;
         $this->context->setAlias(new TaskAliasVO('recurring@'.(string) Uuid::uuid4()));
         $this->context->setIntervalSeconds(new DurationVO(3600));
@@ -91,11 +98,15 @@ final class RecurringTaskTest extends IntegrationTestCase
         }
     }
 
-    // ✅ Récupérer l'alias pour les assertions
+    /**
+     * Returns the alias value for assertions.
+     */
     private function getAliasValue(): string
     {
         return $this->context->getAlias()->getValue();
     }
+
+    // ==================== TASK EXECUTION TESTS ====================
 
     public function test_executes_task_successfully(): void
     {
@@ -118,18 +129,18 @@ final class RecurringTaskTest extends IntegrationTestCase
 
     public function test_logs_error_on_failure(): void
     {
-        $this->task->setFailOn('Recurring failure');
+        $this->task->setFailureTrigger('Recurring failure');
 
         $payload = StrictDataObject::from([
             'test_data' => 'recurring_fail',
         ]);
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Recurring failure');
 
         try {
             $this->task->execute($payload);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->flush();
             $fs = new FileSystemService;
             $today = Carbon::now()->format('Y-m-d');
@@ -146,6 +157,8 @@ final class RecurringTaskTest extends IntegrationTestCase
             throw $e;
         }
     }
+
+    // ==================== CONTEXT TESTS ====================
 
     public function test_preserves_context_data(): void
     {
@@ -195,6 +208,8 @@ final class RecurringTaskTest extends IntegrationTestCase
         $this->assertNotNull($this->context->getLaravelApp());
     }
 
+    // ==================== LOGGING TESTS ====================
+
     public function test_task_has_logger(): void
     {
         $this->assertNotNull($this->task);
@@ -239,6 +254,8 @@ final class RecurringTaskTest extends IntegrationTestCase
         $this->assertStringContainsString('Error without execution', $content);
     }
 
+    // ==================== CONTEXT MODIFICATION TESTS ====================
+
     public function test_context_can_be_modified_after_creation(): void
     {
         $newAlias = new TaskAliasVO('recurring@'.Uuid::uuid4()->toString());
@@ -251,6 +268,8 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $this->assertEquals(7200, $this->context->getIntervalSeconds()->seconds);
     }
+
+    // ==================== PAYLOAD TESTS ====================
 
     public function test_task_execution_with_empty_payload(): void
     {
@@ -290,6 +309,8 @@ final class RecurringTaskTest extends IntegrationTestCase
         $this->assertEquals([1, 2, 3, 4, 5], $logPayload['items']);
     }
 
+    // ==================== HOOK TESTS ====================
+
     public function test_before_hook_executed(): void
     {
         $payload = StrictDataObject::from(['test' => 'before_hook']);
@@ -306,25 +327,27 @@ final class RecurringTaskTest extends IntegrationTestCase
         $this->task->execute($payload);
 
         $this->assertTrue($this->task->wasAfterCalled());
-        $this->assertNull($this->task->getAfterError());
+        $this->assertNull($this->task->getAfterErrorMessage());
     }
 
     public function test_after_hook_executed_on_failure(): void
     {
-        $this->task->setFailOn('Hook failure test');
+        $this->task->setFailureTrigger('Hook failure test');
 
         $payload = StrictDataObject::from(['test' => 'after_hook_failure']);
 
         try {
             $this->task->execute($payload);
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             // Expected
         }
 
         $this->assertTrue($this->task->wasAfterCalled());
-        $this->assertNotNull($this->task->getAfterError());
-        $this->assertEquals('Hook failure test', $this->task->getAfterError()->getValue());
+        $this->assertNotNull($this->task->getAfterErrorMessage());
+        $this->assertEquals('Hook failure test', $this->task->getAfterErrorMessage()->getValue());
     }
+
+    // ==================== LOGGING TESTS ====================
 
     public function test_info_logs_are_written(): void
     {

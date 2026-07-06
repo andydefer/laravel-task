@@ -19,76 +19,86 @@ use AndyDefer\Task\Validators\OptionValidator;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
+use RuntimeException;
 
+/**
+ * Console directive for watching and processing tasks continuously.
+ *
+ * Runs tasks in a continuous loop with configurable intervals and duration.
+ * Supports both unique and recurring tasks with various filtering options.
+ */
 final class TasksWatchDirective extends AbstractDirective
 {
+    /**
+     * Returns the command signature with available options.
+     *
+     * @return string The command signature
+     */
     public function getSignature(): string
     {
         return 'tasks-watch {--duration=} {--interval=60} {--unique-only} {--recurring-only} {--limit=} {--verbose} {--testing}';
     }
 
+    /**
+     * Returns the command description.
+     *
+     * @return string The command description
+     */
     public function getDescription(): string
     {
         return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 3) and duration. Use --testing for development without full Laravel environment.';
     }
 
+    /**
+     * Returns the command aliases.
+     *
+     * @return StringTypedCollection Collection of command aliases
+     */
     public function getAliases(): StringTypedCollection
     {
         return StringTypedCollection::from(['task-watch', 'tasks-watch']);
     }
 
+    /**
+     * Executes the task watching directive.
+     *
+     * @return ExitCode The exit code indicating success or failure
+     *
+     * @throws RuntimeException When Laravel container is not available
+     */
     protected function execute(): ExitCode
     {
         $app = $this->getLaravel();
 
         if ($app === null) {
-            throw new \RuntimeException('Laravel container is not available');
+            throw new RuntimeException('Laravel container is not available');
         }
 
         $service = $app->make(WatchInterface::class);
         $renderer = $app->make(WatchRendererInterface::class);
         $console = $app->make(Console::class);
 
-        // ✅ Validation des options
-        $validator = new OptionValidator;
-        $validationResult = $validator->validate(
-            uniqueOnly: $this->hasOption('unique-only'),
-            recurringOnly: $this->hasOption('recurring-only'),
-            duration: $this->option('duration'),
-            interval: $this->option('interval'),
-            limit: $this->option('limit'),
-            console: $console
-        );
-
+        $validationResult = $this->validateOptions($console);
         if ($validationResult !== null) {
             return $validationResult;
         }
 
-        // ✅ Créer la stratégie
         $strategy = WatchLoopStrategyFactory::create($this, $app, $service);
 
         if ($strategy->isTesting()) {
             $renderer->renderTestingModeEnabled();
         }
 
-        // ✅ Signaux
         $signalHandler = new SignalHandler($renderer);
         $signalHandler->install();
 
-        // ✅ Exécution
         $cycleExecutor = new CycleExecutor($service, $renderer);
         $loopRunner = new LoopRunner($cycleExecutor, $signalHandler, $renderer);
 
         $startedAt = new Iso8601DateTimeVO;
-        $duration = $this->option('duration') !== null
-            ? new DurationVO((float) $this->option('duration'))
-            : null;
-
-        $limit = $this->option('limit') !== null
-            ? new LimitVO((int) $this->option('limit'))
-            : null;
-
-        $intervalSeconds = new DurationVO((float) ($this->option('interval') ?? 60));
+        $duration = $this->getDurationOption();
+        $limit = $this->getLimitOption();
+        $intervalSeconds = $this->getIntervalOption();
 
         $this->renderStartMessage($renderer, $console);
 
@@ -104,7 +114,6 @@ final class TasksWatchDirective extends AbstractDirective
             intervalSeconds: $intervalSeconds
         );
 
-        // ✅ Résumé
         $this->renderSummary(
             $renderer,
             $result,
@@ -116,14 +125,87 @@ final class TasksWatchDirective extends AbstractDirective
         return $result->hasErrors ? ExitCode::FAILURE : ExitCode::SUCCESS;
     }
 
+    /**
+     * Validates the command options.
+     *
+     * @param  Console  $console  The console instance for error output
+     * @return ExitCode|null Exit code if validation fails, null otherwise
+     */
+    private function validateOptions(Console $console): ?ExitCode
+    {
+        $validator = new OptionValidator;
+
+        return $validator->validate(
+            uniqueOnly: $this->hasOption('unique-only'),
+            recurringOnly: $this->hasOption('recurring-only'),
+            duration: $this->option('duration'),
+            interval: $this->option('interval'),
+            limit: $this->option('limit'),
+            console: $console
+        );
+    }
+
+    /**
+     * Returns the duration option as a Value Object.
+     *
+     * @return DurationVO|null The duration or null if not set
+     */
+    private function getDurationOption(): ?DurationVO
+    {
+        $duration = $this->option('duration');
+
+        return $duration !== null ? new DurationVO((float) $duration) : null;
+    }
+
+    /**
+     * Returns the limit option as a Value Object.
+     *
+     * @return LimitVO|null The limit or null if not set
+     */
+    private function getLimitOption(): ?LimitVO
+    {
+        $limit = $this->option('limit');
+
+        return $limit !== null ? new LimitVO((int) $limit) : null;
+    }
+
+    /**
+     * Returns the interval option as a Value Object.
+     *
+     * @return DurationVO The interval duration
+     */
+    private function getIntervalOption(): DurationVO
+    {
+        return new DurationVO((float) ($this->option('interval') ?? 60));
+    }
+
+    /**
+     * Renders the start message for the watch command.
+     *
+     * @param  WatchRendererInterface  $renderer  The renderer instance
+     * @param  Console  $console  The console instance
+     */
     private function renderStartMessage(WatchRendererInterface $renderer, Console $console): void
     {
-        $duration = $this->option('duration') !== null
-            ? new DurationVO((float) $this->option('duration'))
-            : null;
+        $duration = $this->getDurationOption();
+        $intervalSeconds = $this->getIntervalOption();
+        $options = $this->buildOptionsCollection();
 
-        $intervalSeconds = new DurationVO((float) ($this->option('interval') ?? 60));
+        $renderer->renderStartMessage(
+            duration: $duration,
+            intervalSeconds: $intervalSeconds,
+            options: $options,
+            testingMode: $this->hasOption('testing')
+        );
+    }
 
+    /**
+     * Builds a collection of active command options.
+     *
+     * @return StringTypedCollection Collection of option strings
+     */
+    private function buildOptionsCollection(): StringTypedCollection
+    {
         $options = new StringTypedCollection;
 
         if ($this->hasOption('unique-only')) {
@@ -134,22 +216,31 @@ final class TasksWatchDirective extends AbstractDirective
             $options->add('--recurring-only');
         }
 
-        if ($this->hasOption('limit')) {
-            $options->add("--limit={$this->option('limit')}");
+        $limit = $this->option('limit');
+        if ($limit !== null) {
+            $options->add("--limit={$limit}");
         }
 
         if ($this->hasOption('verbose')) {
             $options->add('--verbose');
         }
 
-        $renderer->renderStartMessage(
-            duration: $duration,
-            intervalSeconds: $intervalSeconds,
-            options: $options,
-            testingMode: $this->hasOption('testing')
-        );
+        if ($this->hasOption('testing')) {
+            $options->add('--testing');
+        }
+
+        return $options;
     }
 
+    /**
+     * Renders the final summary after the watch loop completes.
+     *
+     * @param  WatchRendererInterface  $renderer  The renderer instance
+     * @param  LoopResultRecord  $result  The loop execution result
+     * @param  Iso8601DateTimeVO  $startedAt  The start timestamp
+     * @param  bool  $shouldStop  Whether a signal stopped the loop
+     * @param  bool  $isTesting  Whether testing mode is enabled
+     */
     private function renderSummary(
         WatchRendererInterface $renderer,
         LoopResultRecord $result,

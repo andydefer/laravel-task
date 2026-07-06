@@ -26,7 +26,15 @@ use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Support\Carbon;
 use Ramsey\Uuid\Uuid;
+use RuntimeException;
+use Throwable;
 
+/**
+ * Integration tests for unique task execution and lifecycle management.
+ *
+ * Tests the complete workflow including execution, logging, error handling,
+ * and lifecycle hooks for unique tasks.
+ */
 final class UniqueTaskTest extends IntegrationTestCase
 {
     private TestTask $task;
@@ -71,7 +79,6 @@ final class UniqueTaskTest extends IntegrationTestCase
             hydrationService: $this->hydration,
         );
 
-        // ✅ Configuration du contexte Unique
         $this->context = new UniqueTaskContext;
         $this->context->setTaskId(new UuidVO((string) Uuid::uuid4()));
         $this->context->setAlias(new TaskAliasVO('unique@'.Uuid::uuid4()->toString()));
@@ -111,13 +118,12 @@ final class UniqueTaskTest extends IntegrationTestCase
 
         $this->task->execute($payload);
 
-        $this->assertTrue($this->task->processCalled);
-        $this->assertTrue($this->task->beforeCalled);
-        $this->assertTrue($this->task->afterCalled);
-        $this->assertTrue($this->task->afterSuccess);
-        $this->assertNull($this->task->afterError);
+        $this->assertTrue($this->task->processWasCalled);
+        $this->assertTrue($this->task->beforeWasCalled);
+        $this->assertTrue($this->task->afterWasCalled);
+        $this->assertTrue($this->task->afterExecutedSuccessfully);
+        $this->assertNull($this->task->afterErrorMessage);
 
-        // ✅ Vérifier les logs
         $this->logger->flush();
         $fs = new FileSystemService;
         $today = Carbon::now()->format('Y-m-d');
@@ -131,10 +137,10 @@ final class UniqueTaskTest extends IntegrationTestCase
 
         $this->task->execute($payload);
 
-        $this->assertTrue($this->task->processCalled);
-        $this->assertTrue($this->task->beforeCalled);
-        $this->assertTrue($this->task->afterCalled);
-        $this->assertTrue($this->task->afterSuccess);
+        $this->assertTrue($this->task->processWasCalled);
+        $this->assertTrue($this->task->beforeWasCalled);
+        $this->assertTrue($this->task->afterWasCalled);
+        $this->assertTrue($this->task->afterExecutedSuccessfully);
     }
 
     public function test_executes_task_with_complex_payload(): void
@@ -154,10 +160,10 @@ final class UniqueTaskTest extends IntegrationTestCase
 
         $this->task->execute($payload);
 
-        $this->assertTrue($this->task->processCalled);
-        $this->assertTrue($this->task->beforeCalled);
-        $this->assertTrue($this->task->afterCalled);
-        $this->assertTrue($this->task->afterSuccess);
+        $this->assertTrue($this->task->processWasCalled);
+        $this->assertTrue($this->task->beforeWasCalled);
+        $this->assertTrue($this->task->afterWasCalled);
+        $this->assertTrue($this->task->afterExecutedSuccessfully);
     }
 
     // ==================== FAILURE TESTS ====================
@@ -168,18 +174,19 @@ final class UniqueTaskTest extends IntegrationTestCase
             'test_data' => 'unique_fail',
         ]);
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Test exception');
 
         try {
             $this->failingTask->execute($payload);
-        } catch (\Throwable $e) {
-            // ✅ Vérifier les hooks
-            $this->assertTrue($this->failingTask->afterCalled);
-            $this->assertFalse($this->failingTask->afterSuccess);
-            $this->assertEquals('Test exception', $this->failingTask->afterError);
+        } catch (Throwable $e) {
+            $this->assertTrue($this->failingTask->afterWasCalled);
+            $this->assertFalse($this->failingTask->afterExecutedSuccessfully);
+            $this->assertEquals(
+                'Test exception',
+                $this->failingTask->afterErrorMessage?->getValue()
+            );
 
-            // ✅ Vérifier les logs
             $this->logger->flush();
             $fs = new FileSystemService;
             $today = Carbon::now()->format('Y-m-d');
@@ -205,7 +212,7 @@ final class UniqueTaskTest extends IntegrationTestCase
 
         $this->task->execute($payload);
 
-        $this->assertTrue($this->task->beforeCalled);
+        $this->assertTrue($this->task->beforeWasCalled);
     }
 
     public function test_after_hook_executed_on_success(): void
@@ -214,9 +221,9 @@ final class UniqueTaskTest extends IntegrationTestCase
 
         $this->task->execute($payload);
 
-        $this->assertTrue($this->task->afterCalled);
-        $this->assertTrue($this->task->afterSuccess);
-        $this->assertNull($this->task->afterError);
+        $this->assertTrue($this->task->afterWasCalled);
+        $this->assertTrue($this->task->afterExecutedSuccessfully);
+        $this->assertNull($this->task->afterErrorMessage);
     }
 
     public function test_after_hook_executed_on_failure(): void
@@ -225,13 +232,16 @@ final class UniqueTaskTest extends IntegrationTestCase
 
         try {
             $this->failingTask->execute($payload);
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             // Expected
         }
 
-        $this->assertTrue($this->failingTask->afterCalled);
-        $this->assertFalse($this->failingTask->afterSuccess);
-        $this->assertEquals('Test exception', $this->failingTask->afterError);
+        $this->assertTrue($this->failingTask->afterWasCalled);
+        $this->assertFalse($this->failingTask->afterExecutedSuccessfully);
+        $this->assertEquals(
+            'Test exception',
+            $this->failingTask->afterErrorMessage?->getValue()
+        );
     }
 
     // ==================== CONTEXT TESTS ====================
@@ -368,14 +378,12 @@ final class UniqueTaskTest extends IntegrationTestCase
             'user_id' => 123,
         ]);
 
-        // ✅ Pour ce test on utilise TestTask qui n'a pas de executionLog
-        // On vérifie que la tâche s'exécute correctement
         $this->task->execute($payload);
 
-        $this->assertTrue($this->task->processCalled);
-        $this->assertTrue($this->task->beforeCalled);
-        $this->assertTrue($this->task->afterCalled);
-        $this->assertTrue($this->task->afterSuccess);
+        $this->assertTrue($this->task->processWasCalled);
+        $this->assertTrue($this->task->beforeWasCalled);
+        $this->assertTrue($this->task->afterWasCalled);
+        $this->assertTrue($this->task->afterExecutedSuccessfully);
     }
 
     // ==================== SCHEDULED AT TESTS ====================
@@ -465,8 +473,8 @@ final class UniqueTaskTest extends IntegrationTestCase
         $this->task->execute($payload1);
         $task2->execute($payload2);
 
-        $this->assertTrue($this->task->processCalled);
-        $this->assertTrue($task2->processCalled);
+        $this->assertTrue($this->task->processWasCalled);
+        $this->assertTrue($task2->processWasCalled);
 
         $this->assertNotSame($this->context->getTaskId()->getValue(), $context2->getTaskId()->getValue());
     }
