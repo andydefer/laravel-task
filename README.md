@@ -1,6 +1,6 @@
 # Laravel Task
 
-**Un système de tâches robuste pour Laravel avec exécution asynchrone, tâches récurrentes, surveillance continue et exécution parallèle.**
+**Un moteur de tâches persistantes pour Laravel. Planification dynamique, exécution récurrente, état, retry, pause, reprise - avec un simple cron.**
 
 [![PHP Version](https://img.shields.io/badge/PHP-8.2%2B-blue)](https://php.net)
 [![Laravel Version](https://img.shields.io/badge/Laravel-12.x%20%7C%2013.x%20%7C%2014.x%20%7C%2015.x-blue)](https://laravel.com)
@@ -11,17 +11,17 @@
 ## Table des matières
 
 1. [Installation](#installation)
-2. [Concepts fondamentaux](#concepts-fondamentaux)
+2. [Pourquoi Laravel Task ?](#pourquoi-laravel-task-)
 3. [Créer une tâche unique](#créer-une-tâche-unique)
 4. [Créer une tâche récurrente](#créer-une-tâche-récurrente)
 5. [Exécuter les tâches](#exécuter-les-tâches)
-6. [Surveillance continue avec TasksWatch](#surveillance-continue-avec-taskswatch)
+6. [Surveillance continue](#surveillance-continue)
 7. [Exécution parallèle](#exécution-parallèle)
 8. [Gestion des tâches](#gestion-des-tâches)
 9. [Mode test](#mode-test)
-10. [Bonnes pratiques](#bonnes-pratiques)
-11. [Référence des commandes](#référence-des-commandes)
-12. [Licence](#licence)
+10. [Cas d'usage concrets](#cas-dusage-concrets)
+11. [Bonnes pratiques](#bonnes-pratiques)
+12. [Référence des commandes](#référence-des-commandes)
 
 ---
 
@@ -29,66 +29,42 @@
 
 ```bash
 composer require andydefer/laravel-task
-```
 
-### Prérequis
-
-| Version PHP | Version Laravel |
-|-------------|-----------------|
-| PHP 8.2+ | Laravel 12.x, 13.x, 14.x ou 15.x |
-
-### Publier les migrations
-
-```bash
 php artisan vendor:publish --tag=task-migrations
 php artisan migrate
 ```
 
-### Service Provider
-
-Le package s'enregistre automatiquement via `TaskServiceProvider`. Aucune configuration supplémentaire n'est nécessaire.
+**Prérequis :** PHP 8.2+ | Laravel 12.x, 13.x, 14.x ou 15.x
 
 ---
 
-## Concepts fondamentaux
+## Pourquoi Laravel Task ?
 
-### Types de tâches
+**Le problème :** Vous devez envoyer un email 30 minutes après chaque inscription. Avec Laravel Queue, il vous faut un worker permanent, Supervisor, et généralement un VPS. Sur un hébergement mutualisé, c'est impossible.
 
-| Type | Description | Cas d'usage |
-|------|-------------|-------------|
-| **Unique** | Tâche exécutée une seule fois à une date planifiée | Envoi d'email, génération de rapport, notification |
-| **Récurrente** | Tâche exécutée en boucle selon un intervalle | Nettoyage de cache, synchronisation de données |
+**La solution :** Laravel Task. Des tâches persistantes avec un cycle de vie complet, qui fonctionnent avec un simple cron.
 
-### Architecture
-
-Le package suit une architecture en couches avec injection de dépendances :
-
-```
-Directives (CLI) → Services (Métier) → Processors → Runners → Repositories → Base de données
+```bash
+# Un seul cron suffit
+* * * * * cd /chemin/projet && ./vendor/bin/directive tasks-watch
 ```
 
-**Principe clé :** Utilisez toujours les **services** injectés plutôt que les facades pour une meilleure testabilité.
+### Comparatif rapide
 
-### Cycle de vie d'une tâche
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     AbstractTask                            │
-├─────────────────────────────────────────────────────────────┤
-│  1. before($payload)    ← Hook de préparation               │
-│  2. process()           ← Logique métier (à implémenter)    │
-│  3. after($success)     ← Hook de post-traitement           │
-├─────────────────────────────────────────────────────────────┤
-│  Logging automatique : start → completed/failed             │
-│  Gestion des exceptions : capture et propagation            │
-└─────────────────────────────────────────────────────────────┘
-```
+| Besoin | Scheduler | Queue | Laravel Task |
+|--------|-----------|-------|--------------|
+| Tâche "dans 5 minutes" | ❌ | ✅ | ✅ |
+| Tâche récurrente avec date de fin | ❌ | ❌ | ✅ |
+| Pause / Reprise | ❌ | ❌ | ✅ |
+| Retry automatique | ❌ | ✅ | ✅ |
+| État et historique | ❌ | ❌ | ✅ |
+| Fonctionne sur hébergement SHARED | ✅ | ❌ | ✅ |
 
 ---
 
 ## Créer une tâche unique
 
-### 1. Créer la classe de la tâche
+### 1. Créer la classe
 
 ```php
 <?php
@@ -101,9 +77,7 @@ use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
 class SendWelcomeEmailTask extends AbstractUniqueTask
 {
-    /**
-     * Validate the payload before execution.
-     */
+    // ✅ Hook exécuté avant process() - idéal pour la validation
     protected function before(StrictDataObject $payload): void
     {
         if (!$payload->has('email')) {
@@ -111,32 +85,27 @@ class SendWelcomeEmailTask extends AbstractUniqueTask
         }
     }
 
-    /**
-     * Execute the main business logic.
-     */
+    // ✅ La logique métier de votre tâche
     protected function process(): void
     {
         $payload = $this->context->getPayload();
-        $email = $payload->email;
-        $name = $payload->name ?? 'User';
-
-        $this->info(new DescriptionVO("Sending welcome email to {$email}..."));
-
-        // Logique métier
-        // Mail::to($email)->send(new WelcomeEmail($name));
-
-        $this->info(new DescriptionVO("Welcome email sent to {$name}"));
+        
+        $this->info(new DescriptionVO("Sending email to {$payload->email}..."));
+        
+        // Votre code métier ici
+        // Mail::to($payload->email)->send(new WelcomeEmail($payload->name));
+        
+        $this->info(new DescriptionVO("Email sent to {$payload->email}"));
     }
 
-    /**
-     * Hook executed after the main processing.
-     */
+    // ✅ Hook exécuté après process() - idéal pour la notification
     protected function after(bool $success, ?DescriptionVO $error = null): void
     {
         if ($success) {
             $this->info(new DescriptionVO('Task completed successfully'));
         } else {
             $this->error(new DescriptionVO("Task failed: {$error->getValue()}"));
+            // Envoyer une alerte, logger, etc.
         }
     }
 }
@@ -151,9 +120,9 @@ namespace App\Http\Controllers;
 
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Records\UniqueTaskConfigRecord;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use Illuminate\Support\Carbon;
 
 class UserController extends Controller
 {
@@ -163,13 +132,13 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        // Créer l'utilisateur...
-
-        // Enregistrer la tâche
+        // Création de l'utilisateur...
+        
+        // ✅ Enregistrement de la tâche
         $config = UniqueTaskConfigRecord::from([
-            'scheduled_at' => new Iso8601DateTimeVO(Carbon::now()->addMinutes(5)->toIso8601String()),
-            'grace_period' => 86400, // 24h en secondes
-            'max_attempts' => 3,
+            'scheduled_at' => new Iso8601DateTimeVO(now()->addMinutes(5)),
+            'max_attempts' => 3,        // 3 tentatives max
+            'grace_period' => 3600,      // 1h pour réessayer
         ]);
 
         $payload = StrictDataObject::from([
@@ -184,7 +153,7 @@ class UserController extends Controller
         );
 
         return response()->json([
-            'message' => 'User created. Welcome email scheduled.',
+            'message' => 'Email planifié dans 5 minutes',
             'task_alias' => $alias->getValue(),
         ]);
     }
@@ -195,7 +164,7 @@ class UserController extends Controller
 
 ## Créer une tâche récurrente
 
-### 1. Créer la classe de la tâche
+### 1. Créer la classe
 
 ```php
 <?php
@@ -204,24 +173,24 @@ namespace App\Tasks;
 
 use AndyDefer\Task\Abstract\AbstractRecurringTask;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
-use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
-class CleanCacheTask extends AbstractRecurringTask
+class CleanExpiredCacheTask extends AbstractRecurringTask
 {
     protected function process(): void
     {
         $this->info(new DescriptionVO('Starting cache cleanup...'));
-
-        // Logique métier
+        
+        // ✅ Ici votre code métier exécuté à chaque intervalle
         // Cache::cleanExpired();
-
-        $this->info(new DescriptionVO('Cache cleanup completed.'));
+        
+        $this->info(new DescriptionVO('Cache cleaned successfully'));
     }
 
     protected function after(bool $success, ?DescriptionVO $error = null): void
     {
         if (!$success) {
-            $this->error(new DescriptionVO("Cache cleanup failed: {$error->getValue()}"));
+            $this->error(new DescriptionVO("Cleanup failed: {$error->getValue()}"));
+            // ✅ Alerter l'équipe, envoyer un email, etc.
         }
     }
 }
@@ -239,7 +208,7 @@ use AndyDefer\Task\Records\RecurringTaskConfigRecord;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
-class RegisterTasksCommand extends Command
+class SetupTasksCommand extends Command
 {
     public function __construct(
         private readonly RecurringTaskServiceInterface $taskService
@@ -249,15 +218,16 @@ class RegisterTasksCommand extends Command
 
     public function handle()
     {
+        // ✅ Nettoyage toutes les heures, pendant 30 jours
         $config = RecurringTaskConfigRecord::from([
-            'interval_seconds' => 3600, // Toutes les heures
-            'start_at' => Carbon::now()->toIso8601String(),
-            'end_at' => Carbon::now()->addDays(30)->toIso8601String(),
+            'interval_seconds' => 3600,               // Toutes les heures
+            'start_at' => now()->toIso8601String(),
+            'end_at' => now()->addDays(30)->toIso8601String(),
             'max_attempts' => 3,
         ]);
 
         $alias = $this->taskService->register(
-            new RecurringTaskFqcnVO(CleanCacheTask::class),
+            new RecurringTaskFqcnVO(CleanExpiredCacheTask::class),
             StrictDataObject::from(['enabled' => true]),
             $config
         );
@@ -267,29 +237,77 @@ class RegisterTasksCommand extends Command
 }
 ```
 
+### 3. Gérer la tâche en cours d'exécution
+
+```php
+<?php
+
+namespace App\Services;
+
+use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
+
+class TaskManager
+{
+    public function __construct(
+        private readonly RecurringTaskServiceInterface $taskService
+    ) {}
+
+    // ✅ Mettre en pause une tâche récurrente
+    public function pause(string $alias): void
+    {
+        $this->taskService->pause(new TaskAliasVO($alias));
+        // La tâche ne sera plus exécutée jusqu'à reprise
+    }
+
+    // ✅ Reprendre une tâche mise en pause
+    public function resume(string $alias): void
+    {
+        $this->taskService->resume(new TaskAliasVO($alias));
+    }
+
+    // ✅ Changer l'intervalle d'exécution
+    public function changeInterval(string $alias, int $seconds): void
+    {
+        $this->taskService->changeInterval(
+            new TaskAliasVO($alias),
+            new DurationVO($seconds)
+        );
+    }
+
+    // ✅ Terminer prématurément une tâche récurrente
+    public function finish(string $alias): void
+    {
+        $this->taskService->finish(new TaskAliasVO($alias));
+        // La tâche passe en état FINISHED et ne sera plus exécutée
+    }
+}
+```
+
 ---
 
 ## Exécuter les tâches
 
-### Via la directive `process-tasks`
+### Une seule fois (process-tasks)
 
 ```bash
 # Traiter toutes les tâches
 ./vendor/bin/directive process-tasks
 
-# Traiter uniquement les tâches uniques
+# Uniquement les tâches uniques
 ./vendor/bin/directive process-tasks --unique-only
 
-# Traiter uniquement les tâches récurrentes
+# Uniquement les tâches récurrentes
 ./vendor/bin/directive process-tasks --recurring-only
 
-# Limiter le nombre de tâches
+# Limiter à 10 tâches
 ./vendor/bin/directive process-tasks --limit=10
 
-# Sortie en JSON
+# Sortie JSON (idéal pour les scripts)
 ./vendor/bin/directive process-tasks --format=json
 
-# Mode verbeux (affiche les erreurs)
+# Mode verbeux (voir les erreurs)
 ./vendor/bin/directive process-tasks --verbose
 ```
 
@@ -305,8 +323,8 @@ Processing tasks...
   Has failures: Yes
 
 === Failed Tasks ===
-  Unique tasks:
-    ❌ unique@abc-123: Connection timeout (attempts: 2/3)
+  Recurring tasks:
+    ❌ recurring@def-456: Connection timeout (attempts: 2/3)
 ```
 
 ### Sortie JSON
@@ -332,8 +350,8 @@ Processing tasks...
       {
         "alias": "recurring@def-456",
         "fqcn": "App\\Tasks\\FailingTask",
-        "description": "Task execution failed",
-        "context": "end_at: null"
+        "description": "Connection timeout",
+        "context": "attempts: 2/3"
       }
     ]
   }
@@ -342,24 +360,22 @@ Processing tasks...
 
 ---
 
-## Surveillance continue avec TasksWatch
+## Surveillance continue
 
-La directive `tasks-watch` exécute `process-tasks` en boucle à intervalle régulier.
+La directive `tasks-watch` exécute `process-tasks` en boucle.
 
 ```bash
-# Exécution toutes les 60 secondes (illimité)
+# Toutes les 60 secondes (illimité)
 ./vendor/bin/directive tasks-watch
 
-# Avec durée limitée
+# Pendant 1 heure, toutes les 30 secondes
 ./vendor/bin/directive tasks-watch --duration=3600 --interval=30
 
-# Traiter uniquement les tâches uniques
+# Uniquement les tâches uniques, limité à 10
 ./vendor/bin/directive tasks-watch --unique-only --limit=10
 
-# Mode verbeux
+# Avec sortie détaillée
 ./vendor/bin/directive tasks-watch --verbose
-
-# Arrêt gracieux : Ctrl+C
 ```
 
 ### Options
@@ -385,7 +401,6 @@ Options: --unique-only --limit=10
 
 ================================================================================
 
-
 🔄 Cycle #1 (started at 14:30:00):
 ✅ 5 tasks succeeded, ❌ 1 tasks failed
 ⏱️  Cycle duration: 0.45 seconds
@@ -396,8 +411,6 @@ Options: --unique-only --limit=10
 ⏱️  Cycle duration: 0.12 seconds
 ⏳ Next cycle in 60 seconds...
 
-...
-
 ================================================================================
 📊 Summary
 Cycles executed    : 10
@@ -407,6 +420,8 @@ Total errors       : 3
 Total duration     : 10m 30s
 ================================================================================
 ```
+
+**Arrêt gracieux :** Appuyez sur `Ctrl+C`. La tâche en cours finit son exécution, puis le système s'arrête proprement.
 
 ---
 
@@ -451,7 +466,7 @@ Options: --parallel=3
 
 ## Gestion des tâches
 
-### États des tâches
+### États
 
 **Tâches uniques :**
 
@@ -482,9 +497,15 @@ WAITING ──(start_at)──▶ PLAYING
 ### API de gestion
 
 ```php
+<?php
+
+namespace App\Services;
+
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
 class TaskManager
@@ -494,8 +515,9 @@ class TaskManager
         private readonly RecurringTaskServiceInterface $recurringService
     ) {}
 
-    // === Tâches uniques ===
+    // === TÂCHES UNIQUES ===
 
+    // ✅ Annuler une tâche unique
     public function cancelUnique(string $alias): void
     {
         $this->uniqueService->cancel(
@@ -504,6 +526,7 @@ class TaskManager
         );
     }
 
+    // ✅ Reprogrammer à une autre date
     public function reschedule(string $alias, Carbon $newDate): void
     {
         $this->uniqueService->reschedule(
@@ -512,6 +535,7 @@ class TaskManager
         );
     }
 
+    // ✅ Prolonger la période de grâce (pour les retry)
     public function extendGracePeriod(string $alias, int $seconds): void
     {
         $this->uniqueService->extendGracePeriod(
@@ -520,18 +544,21 @@ class TaskManager
         );
     }
 
-    // === Tâches récurrentes ===
+    // === TÂCHES RÉCURRENTES ===
 
-    public function pauseRecurring(string $alias): void
+    // ✅ Mettre en pause
+    public function pause(string $alias): void
     {
         $this->recurringService->pause(new TaskAliasVO($alias));
     }
 
-    public function resumeRecurring(string $alias): void
+    // ✅ Reprendre
+    public function resume(string $alias): void
     {
         $this->recurringService->resume(new TaskAliasVO($alias));
     }
 
+    // ✅ Changer l'intervalle
     public function changeInterval(string $alias, int $seconds): void
     {
         $this->recurringService->changeInterval(
@@ -540,9 +567,19 @@ class TaskManager
         );
     }
 
-    public function finishRecurring(string $alias): void
+    // ✅ Terminer définitivement
+    public function finish(string $alias): void
     {
         $this->recurringService->finish(new TaskAliasVO($alias));
+    }
+
+    // === INSPECTION ===
+
+    // ✅ Obtenir le debug d'une tâche
+    public function getDebug(string $alias): array
+    {
+        return $this->uniqueService->getDebug(new TaskAliasVO($alias));
+        // Retourne l'historique complet des exécutions
     }
 }
 ```
@@ -583,12 +620,266 @@ Options: --testing
 
 ---
 
-## Bonnes pratiques
+## Cas d'usage concrets
 
-### 1. Utiliser les services injectés
+### 1. SaaS et abonnements
 
 ```php
-// ✅ BON - Injection de service
+// ✅ Envoyer un rappel J-1 avant expiration
+$taskService->register(RenewalReminderTask::class, $payload, [
+    'scheduled_at' => $user->subscription_end_at->subDay(),
+    'max_attempts' => 2,
+]);
+
+// ✅ Désactiver l'abonnement à la date d'expiration
+$taskService->register(ExpireSubscriptionTask::class, $payload, [
+    'scheduled_at' => $user->subscription_end_at,
+    'max_attempts' => 3,
+]);
+
+// ✅ Relance de paiement échoué (3 tentatives)
+$taskService->register(PaymentRetryTask::class, $payload, [
+    'scheduled_at' => now()->addHours(24),
+    'max_attempts' => 3,
+]);
+```
+
+### 2. E-commerce et paniers abandonnés
+
+```php
+// ✅ Email de relance 30 min après abandon
+$taskService->register(AbandonedCartReminder::class, $payload, [
+    'scheduled_at' => now()->addMinutes(30),
+    'max_attempts' => 2,
+]);
+
+// ✅ Email de suivi J+3
+$taskService->register(FollowUpEmail::class, $payload, [
+    'scheduled_at' => now()->addDays(3),
+    'max_attempts' => 2,
+]);
+
+// ✅ Email de suivi J+7 avec offre spéciale
+$taskService->register(SpecialOfferTask::class, $payload, [
+    'scheduled_at' => now()->addDays(7),
+    'max_attempts' => 2,
+]);
+
+// ✅ Si le panier est récupéré, annuler les rappels
+$taskService->cancel($reminderAlias, new DescriptionVO('Cart recovered'));
+```
+
+### 3. Intégrations API et Webhooks
+
+```php
+// ✅ Appel API avec retry automatique
+$taskService->register(ApiCallTask::class, $payload, [
+    'scheduled_at' => now()->addSeconds(5),
+    'max_attempts' => 3,
+    'grace_period' => 3600, // 1h pour réessayer
+]);
+
+// ✅ Visualisation des tentatives
+$debug = $taskService->getDebug($alias);
+// [
+//   { attempt: 1, status: 'failed', error: 'Timeout' },
+//   { attempt: 2, status: 'failed', error: 'Rate limit' },
+//   { attempt: 3, status: 'succeeded', duration: 1200 },
+// ]
+
+// ✅ Envoi d'un webhook externe
+$taskService->register(SendWebhookTask::class, $payload, [
+    'scheduled_at' => now()->addSeconds(10),
+    'max_attempts' => 5,
+    'grace_period' => 7200, // 2h
+]);
+```
+
+### 4. Campagnes marketing temporaires
+
+```php
+// ✅ Newsletter hebdomadaire sur 4 semaines
+$campaign = $taskService->register(NewsletterTask::class, $payload, [
+    'interval_seconds' => 604800, // 7 jours
+    'end_at' => now()->addWeeks(4),
+    'max_attempts' => 2,
+]);
+
+// ✅ Pause si désabonnement
+$taskService->pause($campaign);
+
+// ✅ Reprise si réabonnement
+$taskService->resume($campaign);
+
+// ✅ Campagne de relance sur 3 jours
+$taskService->register(DailyReminderTask::class, $payload, [
+    'interval_seconds' => 86400, // 1 jour
+    'end_at' => now()->addDays(3),
+    'max_attempts' => 2,
+]);
+```
+
+### 5. Maintenance et nettoyage
+
+```php
+// ✅ Nettoyage nocturne uniquement (23h - 6h)
+$taskService->register(CacheCleanTask::class, $payload, [
+    'interval_seconds' => 3600,
+    'start_at' => Carbon::now()->setTime(23, 0),
+    'end_at' => Carbon::now()->setTime(6, 0),
+]);
+
+// ✅ Archivage des logs toutes les heures
+$taskService->register(ArchiveLogsTask::class, $payload, [
+    'interval_seconds' => 3600,
+    'max_attempts' => 2,
+]);
+
+// ✅ Backup de la base de données à 2h du matin
+$taskService->register(BackupDatabaseTask::class, $payload, [
+    'scheduled_at' => Carbon::now()->setTime(2, 0),
+    'max_attempts' => 1,
+]);
+```
+
+### 6. Workflows métier complexes
+
+```php
+// ✅ Orchestrer un workflow en plusieurs étapes
+$steps = [
+    ValidateOrderTask::class => now()->addSeconds(10),
+    ProcessPaymentTask::class => now()->addSeconds(30),
+    GenerateInvoiceTask::class => now()->addMinutes(1),
+    SendConfirmationTask::class => now()->addMinutes(2),
+];
+
+$taskAliases = [];
+foreach ($steps as $class => $scheduledAt) {
+    $taskAliases[] = $taskService->register($class, $payload, [
+        'scheduled_at' => $scheduledAt,
+        'max_attempts' => 2,
+    ]);
+}
+
+// ✅ Si une étape échoue, annuler les suivantes
+try {
+    // Exécution...
+} catch (\Exception $e) {
+    foreach ($taskAliases as $alias) {
+        $taskService->cancel($alias, new DescriptionVO('Workflow failed'));
+    }
+}
+```
+
+### 7. CRM et gestion des leads
+
+```php
+// ✅ Relance automatisée selon le statut du lead
+$status = $lead->status;
+
+if ($status === 'cold') {
+    // Relance dans 7 jours
+    $scheduledAt = now()->addDays(7);
+} elseif ($status === 'warm') {
+    // Relance dans 2 jours
+    $scheduledAt = now()->addDays(2);
+} else {
+    // Relance dans 24h
+    $scheduledAt = now()->addHours(24);
+}
+
+$taskService->register(FollowUpLeadTask::class, $payload, [
+    'scheduled_at' => $scheduledAt,
+    'max_attempts' => 3,
+]);
+
+// ✅ Envoi d'un sondage après 15 jours
+$taskService->register(SendSurveyTask::class, $payload, [
+    'scheduled_at' => now()->addDays(15),
+    'max_attempts' => 2,
+]);
+```
+
+### 8. Notifications et alertes
+
+```php
+// ✅ Alerte si une tâche critique échoue
+$taskService->register(CriticalTask::class, $payload, [
+    'scheduled_at' => now()->addSeconds(30),
+    'max_attempts' => 3,
+]);
+
+// ✅ Dans after() de la tâche
+protected function after(bool $success, ?DescriptionVO $error = null): void
+{
+    if (!$success) {
+        // ✅ Notifier l'équipe
+        Notification::send($admins, new TaskFailedNotification($this->context));
+    }
+}
+
+// ✅ Envoyer un rapport quotidien
+$taskService->register(SendDailyReportTask::class, $payload, [
+    'scheduled_at' => Carbon::now()->setTime(8, 0),
+    'max_attempts' => 2,
+]);
+```
+
+### 9. Systèmes de files d'attente personnalisées
+
+```php
+// ✅ Traitement par lots avec retry
+$batchId = Uuid::uuid4();
+
+foreach ($items as $item) {
+    $taskService->register(ProcessItemTask::class, [
+        'batch_id' => $batchId,
+        'item_id' => $item->id,
+        'data' => $item->toArray(),
+    ], [
+        'scheduled_at' => now()->addSeconds(5),
+        'max_attempts' => 3,
+        'grace_period' => 3600,
+    ]);
+}
+
+// ✅ Suivi de l'avancement du batch
+$remaining = $taskService->countPending();
+$completed = $taskService->countCompleted();
+```
+
+### 10. Automatisation des processus métier
+
+```php
+// ✅ Génération de factures récurrentes
+$taskService->register(GenerateInvoicesTask::class, $payload, [
+    'scheduled_at' => Carbon::now()->setTime(0, 0), // Minuit
+    'interval_seconds' => 86400, // Tous les jours
+    'end_at' => now()->addMonths(12),
+    'max_attempts' => 2,
+]);
+
+// ✅ Synchronisation avec un ERP externe
+$taskService->register(SyncErpTask::class, $payload, [
+    'interval_seconds' => 3600, // Toutes les heures
+    'max_attempts' => 3,
+]);
+
+// ✅ Calcul des commissions des vendeurs
+$taskService->register(CalculateCommissionsTask::class, $payload, [
+    'scheduled_at' => Carbon::now()->setTime(23, 59), // Fin de journée
+    'max_attempts' => 2,
+]);
+```
+
+---
+
+## Bonnes pratiques
+
+### ✅ Injection de services
+
+```php
+// BON
 class UserController
 {
     public function __construct(
@@ -596,12 +887,12 @@ class UserController
     ) {}
 }
 
-// ❌ MAUVAIS - Facade
+// ÉVITER (facade)
 use AndyDefer\Task\Facades\Task;
-Task::register(...); // Éviter
+Task::register(...);
 ```
 
-### 2. Valider les payloads dans `before()`
+### ✅ Validation dans before()
 
 ```php
 protected function before(StrictDataObject $payload): void
@@ -612,7 +903,7 @@ protected function before(StrictDataObject $payload): void
 }
 ```
 
-### 3. Utiliser les logs dans les tâches
+### ✅ Logging informatif
 
 ```php
 protected function process(): void
@@ -629,7 +920,7 @@ protected function process(): void
 }
 ```
 
-### 4. Structurer les payloads
+### ✅ Structure des payloads
 
 ```php
 $payload = StrictDataObject::from([
@@ -642,7 +933,7 @@ $payload = StrictDataObject::from([
 ]);
 ```
 
-### 5. Utiliser des limites
+### ✅ Utiliser des limites
 
 ```bash
 # Éviter les surcharges
@@ -650,7 +941,7 @@ $payload = StrictDataObject::from([
 ./vendor/bin/directive tasks-watch --limit=50 --interval=30
 ```
 
-### 6. Monitorer les exécutions
+### ✅ Monitorer les exécutions
 
 ```bash
 # Mode verbeux pour le débogage
@@ -660,6 +951,22 @@ $payload = StrictDataObject::from([
 ./vendor/bin/directive process-tasks --format=json
 ```
 
+### ✅ Gérer les erreurs dans after()
+
+```php
+protected function after(bool $success, ?DescriptionVO $error = null): void
+{
+    if (!$success) {
+        // ✅ Envoyer une notification
+        // ✅ Logger l'erreur
+        // ✅ Incrémenter un compteur
+        // ✅ Alerter l'équipe
+        
+        $this->error(new DescriptionVO("Task failed after {$this->context->getAttempts()} attempts"));
+    }
+}
+```
+
 ---
 
 ## Référence des commandes
@@ -667,17 +974,16 @@ $payload = StrictDataObject::from([
 | Commande | Description |
 |----------|-------------|
 | `./vendor/bin/directive process-tasks` | Traite toutes les tâches en un lot |
-| `./vendor/bin/directive process-tasks --unique-only` | Traite uniquement les tâches uniques |
-| `./vendor/bin/directive process-tasks --recurring-only` | Traite uniquement les tâches récurrentes |
+| `./vendor/bin/directive process-tasks --unique-only` | Uniquement les uniques |
+| `./vendor/bin/directive process-tasks --recurring-only` | Uniquement les récurrentes |
 | `./vendor/bin/directive process-tasks --limit=10` | Limite à 10 tâches |
-| `./vendor/bin/directive process-tasks --format=json` | Sortie en JSON |
+| `./vendor/bin/directive process-tasks --format=json` | Sortie JSON |
 | `./vendor/bin/directive process-tasks --verbose` | Affiche les erreurs |
 | `./vendor/bin/directive tasks-watch` | Surveillance continue |
 | `./vendor/bin/directive tasks-watch --duration=3600` | Pendant 1 heure |
-| `./vendor/bin/directive tasks-watch --interval=30` | Toutes les 30 secondes |
-| `./vendor/bin/directive tasks-watch --parallel=3` | Exécution parallèle (3 workers) |
+| `./vendor/bin/directive tasks-watch --interval=30` | Toutes les 30s |
+| `./vendor/bin/directive tasks-watch --parallel=3` | 3 workers parallèles |
 | `./vendor/bin/directive tasks-watch --testing` | Mode test |
-| `./vendor/bin/directive tasks-watch --recurring-only` | Uniquement récurrentes |
 
 ### Codes de sortie
 
