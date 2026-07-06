@@ -16,18 +16,34 @@ use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
+use RuntimeException;
 use Symfony\Component\Process\Process;
+use Throwable;
 
+/**
+ * Service for watching and executing tasks in continuous loops.
+ *
+ * Handles the execution of task processing cycles with support for
+ * testing mode, signal handling, and configurable intervals.
+ */
 final class WatchService implements WatchInterface
 {
     private ?DirectiveTestingService $testingService = null;
 
     private bool $testingMode = false;
 
+    /**
+     * Constructor for the watch service.
+     *
+     * @param  Console  $console  The console instance for output
+     */
     public function __construct(
         private readonly Console $console,
     ) {}
 
+    /**
+     * {@inheritDoc}
+     */
     public function enableTestingMode(DirectiveTestingService $testingService): void
     {
         $this->testingMode = true;
@@ -35,6 +51,9 @@ final class WatchService implements WatchInterface
         $this->console->info('🧪 Testing mode enabled');
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function disableTestingMode(): void
     {
         $this->testingMode = false;
@@ -42,41 +61,23 @@ final class WatchService implements WatchInterface
         $this->console->info('🔬 Testing mode disabled');
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function isTestingMode(): bool
     {
         return $this->testingMode;
     }
 
-    public function buildArguments(
+    /**
+     * {@inheritDoc}
+     */
+    public function executeCycle(
+        CounterVO $cycleNumber,
         bool $uniqueOnly,
         bool $recurringOnly,
         ?LimitVO $limit,
-        bool $verbose
-    ): StringTypedCollection {
-        $arguments = new StringTypedCollection;
-
-        if ($uniqueOnly) {
-            $arguments->add('--unique-only');
-        }
-
-        if ($recurringOnly) {
-            $arguments->add('--recurring-only');
-        }
-
-        if ($limit !== null) {
-            $arguments->add("--limit={$limit->getValue()}");
-        }
-
-        if ($verbose) {
-            $arguments->add('--verbose');
-        }
-
-        return $arguments;
-    }
-
-    public function executeCycle(
-        CounterVO $cycleNumber,
-        StringTypedCollection $arguments,
+        bool $verbose,
         Iso8601DateTimeVO $cycleStartedAt
     ): CycleResultRecord {
         try {
@@ -86,11 +87,11 @@ final class WatchService implements WatchInterface
                 $cycleStartedAt->format('H:i:s')
             ));
 
+            $arguments = $this->buildArguments($uniqueOnly, $recurringOnly, $limit, $verbose);
             $jsonArguments = $arguments->merge(StringTypedCollection::from(['--format=json']));
             $output = $this->callProcessTasks($jsonArguments);
 
             $cleanOutput = $this->stripAnsi($output);
-
             $data = json_decode($cleanOutput, true);
 
             if ($this->isFullBatchResponse($data)) {
@@ -122,7 +123,7 @@ final class WatchService implements WatchInterface
                 'errors' => new CounterVO($errors),
                 'hasErrors' => $hasErrors,
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->console->error('❌ Cycle failed: '.$e->getMessage());
 
             return CycleResultRecord::from([
@@ -135,22 +136,60 @@ final class WatchService implements WatchInterface
         }
     }
 
+    /**
+     * Builds the CLI arguments for the process-tasks directive.
+     *
+     * @param  bool  $uniqueOnly  Whether to process only unique tasks
+     * @param  bool  $recurringOnly  Whether to process only recurring tasks
+     * @param  LimitVO|null  $limit  Maximum number of tasks to process
+     * @param  bool  $verbose  Whether to enable verbose output
+     * @return StringTypedCollection Collection of CLI arguments
+     */
+    private function buildArguments(
+        bool $uniqueOnly,
+        bool $recurringOnly,
+        ?LimitVO $limit,
+        bool $verbose
+    ): StringTypedCollection {
+        $arguments = new StringTypedCollection;
+
+        if ($uniqueOnly) {
+            $arguments->add('--unique-only');
+        }
+
+        if ($recurringOnly) {
+            $arguments->add('--recurring-only');
+        }
+
+        if ($limit !== null) {
+            $arguments->add("--limit={$limit->getValue()}");
+        }
+
+        if ($verbose) {
+            $arguments->add('--verbose');
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * Calls the process-tasks directive.
+     *
+     * @param  StringTypedCollection  $arguments  The CLI arguments
+     * @return string The command output
+     *
+     * @throws RuntimeException When the command fails
+     */
     private function callProcessTasks(StringTypedCollection $arguments): string
     {
-        // ✅ Mode test : utiliser DirectiveTestingService
         if ($this->testingMode && $this->testingService !== null) {
-            $args = [];
-            foreach ($arguments->toArray() as $arg) {
-                $args[] = $arg;
-            }
-
+            $args = $arguments->toArray();
             $this->console->logDebug('🔬 Running in testing mode...');
             $response = $this->testingService->run(ProcessTasksDirective::class, $args);
 
             return $this->stripAnsi($response->output);
         }
 
-        // ✅ Mode réel : exécuter la commande
         $directivePath = $this->getDirectivePath();
 
         $command = new StringTypedCollection;
@@ -167,18 +206,18 @@ final class WatchService implements WatchInterface
 
         if (! $process->isSuccessful()) {
             $errorOutput = $process->getErrorOutput() ?: $process->getOutput();
-            throw new \RuntimeException('process-tasks failed: '.$errorOutput);
+            throw new RuntimeException('process-tasks failed: '.$errorOutput);
         }
 
         return $this->stripAnsi($process->getOutput());
     }
 
     /**
-     * Trouve le chemin absolu du fichier directive.
+     * Gets the absolute path to the directive executable.
      *
-     * @return string Le chemin absolu du fichier directive
+     * @return string The absolute path
      *
-     * @throws \RuntimeException Si le fichier directive n'est pas trouvé
+     * @throws RuntimeException When the directive executable is not found
      */
     private function getDirectivePath(): string
     {
@@ -188,19 +227,34 @@ final class WatchService implements WatchInterface
             return $path;
         }
 
-        throw new \RuntimeException('Could not find directive executable at: '.$path);
+        throw new RuntimeException('Could not find directive executable at: '.$path);
     }
 
+    /**
+     * Strips ANSI color codes from text.
+     *
+     * @param  string  $text  The text to clean
+     * @return string The cleaned text
+     */
     private function stripAnsi(string $text): string
     {
-        return preg_replace('/\033\[[0-9;]*m/', '', $text);
+        return preg_replace('/\033\[[0-9;]*m/', '', $text) ?? $text;
     }
 
+    /**
+     * Determines if the response is a full batch response.
+     *
+     * @param  array<string, mixed>  $data  The decoded JSON data
+     * @return bool True if it's a full batch response
+     */
     private function isFullBatchResponse(array $data): bool
     {
         return isset($data['unique']) && isset($data['recurring']);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function shouldContinue(
         bool $shouldStop,
         ?DurationVO $duration,
@@ -219,6 +273,9 @@ final class WatchService implements WatchInterface
         return $elapsed < $duration->seconds;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function waitForInterval(DurationVO $interval, callable $shouldContinueCallback): void
     {
         $intervalSeconds = (int) $interval->seconds;
@@ -236,6 +293,9 @@ final class WatchService implements WatchInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function calculateElapsedSeconds(?Iso8601DateTimeVO $start): float
     {
         if ($start === null) {
@@ -245,6 +305,9 @@ final class WatchService implements WatchInterface
         return $start->elapsed()->seconds;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function formatDuration(DurationVO $duration): string
     {
         return $duration->format();

@@ -168,7 +168,7 @@ final class UniqueTaskRunnerTest extends IntegrationTestCase
         $this->assertNotNull($result->error);
         $this->assertEquals($record->alias->getValue(), $result->error->alias->getValue());
         $this->assertStringContainsString('Validation failed', $result->error->description->getValue());
-        $this->assertStringContainsString('Task is not in PENDING state', $result->error->description->getValue());
+        $this->assertStringContainsString('Task is in COMPLETED state, not PENDING', $result->error->description->getValue());
     }
 
     public function test_run_returns_failure_when_scheduled_at_in_future(): void

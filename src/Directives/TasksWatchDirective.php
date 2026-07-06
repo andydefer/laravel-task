@@ -10,6 +10,7 @@ use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Task\Contracts\Services\WatchInterface;
 use AndyDefer\Task\Contracts\Services\WatchRendererInterface;
+use AndyDefer\Task\Enums\WatchMode;
 use AndyDefer\Task\Executors\CycleExecutor;
 use AndyDefer\Task\Factories\WatchLoopStrategyFactory;
 use AndyDefer\Task\Handlers\SignalHandler;
@@ -85,7 +86,7 @@ final class TasksWatchDirective extends AbstractDirective
 
         $strategy = WatchLoopStrategyFactory::create($this, $app, $service);
 
-        if ($strategy->isTesting()) {
+        if ($strategy->getMode()->isTesting()) {
             $renderer->renderTestingModeEnabled();
         }
 
@@ -119,7 +120,7 @@ final class TasksWatchDirective extends AbstractDirective
             $result,
             $startedAt,
             $signalHandler->shouldStop(),
-            $strategy->isTesting()
+            $strategy->getMode()
         );
 
         return $result->hasErrors ? ExitCode::FAILURE : ExitCode::SUCCESS;
@@ -239,14 +240,14 @@ final class TasksWatchDirective extends AbstractDirective
      * @param  LoopResultRecord  $result  The loop execution result
      * @param  Iso8601DateTimeVO  $startedAt  The start timestamp
      * @param  bool  $shouldStop  Whether a signal stopped the loop
-     * @param  bool  $isTesting  Whether testing mode is enabled
+     * @param  WatchMode  $mode  The watch mode
      */
     private function renderSummary(
         WatchRendererInterface $renderer,
         LoopResultRecord $result,
         Iso8601DateTimeVO $startedAt,
         bool $shouldStop,
-        bool $isTesting
+        WatchMode $mode
     ): void {
         $duration = $this->option('duration');
         $durationReached = $duration !== null;
@@ -257,7 +258,7 @@ final class TasksWatchDirective extends AbstractDirective
             totalFailed: $result->totalFailed,
             totalErrors: $result->totalErrors,
             startedAt: $startedAt,
-            testingMode: $isTesting,
+            testingMode: $mode->isTesting(),
             stoppedBySignal: $shouldStop,
             durationReached: $durationReached,
             exception: $result->lastException

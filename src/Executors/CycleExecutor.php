@@ -59,16 +59,13 @@ final class CycleExecutor
         $cycleStartedAt = new Iso8601DateTimeVO;
         $this->renderer->renderCycleStart($cycleCount, $cycleStartedAt);
 
-        $arguments = $this->service->buildArguments(
-            uniqueOnly: $hasOptionUniqueOnly,
-            recurringOnly: $hasOptionRecurringOnly,
-            limit: $limit,
-            verbose: $verbose
-        );
-
+        // ✅ Appel simplifié : plus besoin de buildArguments() ici
         $result = $this->service->executeCycle(
             $cycleCount,
-            $arguments,
+            $hasOptionUniqueOnly,
+            $hasOptionRecurringOnly,
+            $limit,
+            $verbose,
             $cycleStartedAt
         );
 

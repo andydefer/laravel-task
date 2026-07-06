@@ -33,6 +33,12 @@ use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Foundation\Application;
 use Ramsey\Uuid\Uuid;
 
+/**
+ * Service for managing and executing recurring tasks.
+ *
+ * Handles registration, execution, and lifecycle management of recurring tasks
+ * including state transitions and processing of ready-to-run tasks.
+ */
 final class RecurringTaskService implements RecurringTaskServiceInterface
 {
     public function __construct(
@@ -49,7 +55,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
     ): TaskAliasVO {
         $className = $fqcn->getValue();
 
-        // ✅ Validation de la classe
         if (! class_exists($className)) {
             throw new \InvalidArgumentException("Task class \"{$className}\" does not exist.");
         }
@@ -67,16 +72,16 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $startAt = $config->start_at ?? $now;
 
         $record = RecurringTaskRecord::from([
-            'id' => new UuidVO($uuid),                              // ✅ AJOUTÉ
+            'id' => new UuidVO($uuid),
             'alias' => $alias,
             'fqcn' => $fqcn,
             'payload' => $payload,
-            'interval_seconds' => $config->interval_seconds->getValue(), // ✅ INT
+            'interval_seconds' => $config->interval_seconds->getValue(),
             'start_at' => $startAt,
             'end_at' => $config->end_at,
             'status' => RecurringTaskStatus::WAITING,
-            'failed_attempts' => 0,                                  // ✅ AJOUTÉ
-            'max_failed_attempts' => $config->max_attempts->getValue(), // ✅ INT
+            'failed_attempts' => 0,
+            'max_failed_attempts' => $config->max_attempts->getValue(),
         ]);
 
         $model = $this->repository->create($record);
@@ -517,6 +522,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         $context->setEndAt($record->end_at);
         $context->setLastRunAt($record->last_run_at);
         $context->setLaravelApp($this->app);
+        $context->setPayload($record->payload);
 
         $className = $fqcn->getValue();
 

@@ -11,8 +11,17 @@ use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use Illuminate\Support\Carbon;
 
+/**
+ * Validator for recurring tasks.
+ *
+ * Provides validation methods to determine if a recurring task can run,
+ * is ready, expired, should move to finished, or should run again.
+ */
 final class RecurringTaskValidator implements RecurringTaskValidatorInterface
 {
+    /**
+     * {@inheritDoc}
+     */
     public function canRun(RecurringTaskRecord $record): bool
     {
         if (! $this->isValidTaskClass($record)) {
@@ -30,6 +39,9 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
         return true;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function isReadyToRun(RecurringTaskRecord $record): bool
     {
         if (! $this->isValidTaskClass($record)) {
@@ -42,7 +54,6 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
 
         $now = Carbon::now();
 
-        // ✅ Si start_at est null, considérer que la tâche commence maintenant
         if ($record->start_at === null) {
             return true;
         }
@@ -52,6 +63,9 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
         return $startAt->lte($now);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function isExpired(RecurringTaskRecord $record): bool
     {
         if (! $this->isValidTaskClass($record)) {
@@ -68,11 +82,17 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
         return $endAt->lt($now);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function shouldMoveToFinished(RecurringTaskRecord $record): bool
     {
         return $this->isExpired($record);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function shouldRunAgain(RecurringTaskRecord $record): bool
     {
         if (! $this->isValidTaskClass($record)) {
@@ -98,26 +118,21 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
         return $lastRunAt->addSeconds($interval)->lte($now);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getValidationErrors(RecurringTaskRecord $record): StringTypedCollection
     {
         $errors = new StringTypedCollection;
 
         if (! $this->isValidTaskClass($record)) {
-            $errors->add('Invalid task class: '.$record->fqcn->getValue());
+            $errors->add(sprintf(
+                'Invalid task class: %s',
+                $record->fqcn->getValue()
+            ));
         }
 
-        // ✅ Messages spécifiques par statut
-        if ($record->status === RecurringTaskStatus::WAITING) {
-            $errors->add('Task is in WAITING state, not PLAYING');
-        } elseif ($record->status === RecurringTaskStatus::PAUSED) {
-            $errors->add('Task is in PAUSED state');
-        } elseif ($record->status === RecurringTaskStatus::FINISHED) {
-            $errors->add('Task is already FINISHED');
-        } elseif ($record->status === RecurringTaskStatus::CANCELED) {
-            $errors->add('Task is CANCELED');
-        } elseif ($record->status !== RecurringTaskStatus::PLAYING) {
-            $errors->add('Task is in '.strtoupper($record->status->value).' state, not PLAYING');
-        }
+        $this->addStatusErrors($record, $errors);
 
         if ($this->isExpired($record)) {
             $errors->add('Task has expired (end_at reached)');
@@ -130,13 +145,44 @@ final class RecurringTaskValidator implements RecurringTaskValidatorInterface
         return $errors;
     }
 
+    /**
+     * Adds status-specific errors to the collection.
+     *
+     * @param  RecurringTaskRecord  $record  The task record
+     * @param  StringTypedCollection  $errors  The error collection
+     */
+    private function addStatusErrors(RecurringTaskRecord $record, StringTypedCollection $errors): void
+    {
+        $message = match ($record->status) {
+            RecurringTaskStatus::WAITING => 'Task is in WAITING state, not PLAYING',
+            RecurringTaskStatus::PAUSED => 'Task is in PAUSED state',
+            RecurringTaskStatus::FINISHED => 'Task is already FINISHED',
+            RecurringTaskStatus::CANCELED => 'Task is CANCELED',
+            default => $record->status !== RecurringTaskStatus::PLAYING
+                ? sprintf('Task is in %s state, not PLAYING', strtoupper($record->status->value))
+                : null,
+        };
+
+        if ($message !== null) {
+            $errors->add($message);
+        }
+    }
+
+    /**
+     * Validates that the task class exists and extends the correct abstract class.
+     *
+     * @param  RecurringTaskRecord  $record  The task record
+     * @return bool True if the task class is valid
+     */
     private function isValidTaskClass(RecurringTaskRecord $record): bool
     {
-        if (! class_exists($record->fqcn->getValue())) {
+        $className = $record->fqcn->getValue();
+
+        if (! class_exists($className)) {
             return false;
         }
 
-        if (! is_subclass_of($record->fqcn->getValue(), AbstractRecurringTask::class)) {
+        if (! is_subclass_of($className, AbstractRecurringTask::class)) {
             return false;
         }
 

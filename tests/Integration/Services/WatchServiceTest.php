@@ -6,7 +6,6 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 
 use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\Services\DirectiveTestingService;
-use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
@@ -30,7 +29,14 @@ use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Ramsey\Uuid\Uuid;
+use ReflectionClass;
 
+/**
+ * Integration tests for the WatchService.
+ *
+ * Tests the complete functionality of the watch service including
+ * testing mode, argument building, cycle execution, and utility methods.
+ */
 final class WatchServiceTest extends IntegrationTestCase
 {
     use DatabaseMigrations;
@@ -77,11 +83,24 @@ final class WatchServiceTest extends IntegrationTestCase
 
     // ==================== HELPERS ====================
 
+    /**
+     * Generates a UUID for an alias.
+     *
+     * @param  string  $aliasName  The alias name
+     * @return string The generated UUID
+     */
     private function getUuidForAlias(string $aliasName): string
     {
         return Uuid::uuid4()->toString();
     }
 
+    /**
+     * Creates a TaskAliasVO from a name and optional UUID.
+     *
+     * @param  string  $name  The alias name
+     * @param  string|null  $uuid  Optional UUID
+     * @return TaskAliasVO The created alias
+     */
     private function generateAliasFromName(string $name, ?string $uuid = null): TaskAliasVO
     {
         $uuid = $uuid ?? $this->getUuidForAlias($name);
@@ -89,6 +108,18 @@ final class WatchServiceTest extends IntegrationTestCase
         return new TaskAliasVO('unique@'.$uuid);
     }
 
+    /**
+     * Creates a unique task for testing.
+     *
+     * @param  string  $alias  The alias name
+     * @param  string|null  $id  Optional task ID
+     * @param  UniqueTaskStatus  $status  The task status
+     * @param  \DateTimeInterface|null  $scheduledAt  The scheduled time
+     * @param  int  $gracePeriodSeconds  The grace period
+     * @param  int  $attempts  Current attempts
+     * @param  int  $maxAttempts  Maximum attempts
+     * @return TaskAliasVO The created alias
+     */
     private function createUniqueTask(
         string $alias,
         ?string $id = null,
@@ -119,6 +150,12 @@ final class WatchServiceTest extends IntegrationTestCase
         return $aliasVO;
     }
 
+    /**
+     * Finds a task by its alias.
+     *
+     * @param  TaskAliasVO  $alias  The task alias
+     * @return UniqueTask|null The found task or null
+     */
     private function findTaskByAlias(TaskAliasVO $alias): ?UniqueTask
     {
         return $this->uniqueRepository->findByAlias($alias);
@@ -144,92 +181,7 @@ final class WatchServiceTest extends IntegrationTestCase
         $this->assertFalse($this->service->isTestingMode());
     }
 
-    // ==================== TESTS: buildArguments ====================
-
-    public function test_build_arguments_with_no_options(): void
-    {
-        $arguments = $this->service->buildArguments(
-            uniqueOnly: false,
-            recurringOnly: false,
-            limit: null,
-            verbose: false
-        );
-
-        $this->assertInstanceOf(StringTypedCollection::class, $arguments);
-        $this->assertCount(0, $arguments);
-    }
-
-    public function test_build_arguments_with_unique_only(): void
-    {
-        $arguments = $this->service->buildArguments(
-            uniqueOnly: true,
-            recurringOnly: false,
-            limit: null,
-            verbose: false
-        );
-
-        $this->assertTrue($arguments->contains('--unique-only'));
-        $this->assertCount(1, $arguments);
-    }
-
-    public function test_build_arguments_with_recurring_only(): void
-    {
-        $arguments = $this->service->buildArguments(
-            uniqueOnly: false,
-            recurringOnly: true,
-            limit: null,
-            verbose: false
-        );
-
-        $this->assertTrue($arguments->contains('--recurring-only'));
-        $this->assertCount(1, $arguments);
-    }
-
-    public function test_build_arguments_with_limit(): void
-    {
-        $limit = new LimitVO(10);
-        $arguments = $this->service->buildArguments(
-            uniqueOnly: false,
-            recurringOnly: false,
-            limit: $limit,
-            verbose: false
-        );
-
-        $this->assertTrue($arguments->contains('--limit=10'));
-        $this->assertCount(1, $arguments);
-    }
-
-    public function test_build_arguments_with_verbose(): void
-    {
-        $arguments = $this->service->buildArguments(
-            uniqueOnly: false,
-            recurringOnly: false,
-            limit: null,
-            verbose: true
-        );
-
-        $this->assertTrue($arguments->contains('--verbose'));
-        $this->assertCount(1, $arguments);
-    }
-
-    public function test_build_arguments_with_all_options(): void
-    {
-        $limit = new LimitVO(5);
-        $arguments = $this->service->buildArguments(
-            uniqueOnly: true,
-            recurringOnly: true,
-            limit: $limit,
-            verbose: true
-        );
-
-        $this->assertTrue($arguments->contains('--unique-only'));
-        $this->assertTrue($arguments->contains('--recurring-only'));
-        $this->assertTrue($arguments->contains('--limit=5'));
-        $this->assertTrue($arguments->contains('--verbose'));
-        $this->assertCount(4, $arguments);
-    }
-
-    // ==================== TESTS: executeCycle AVEC MODE TESTING ====================
+    // ==================== TESTS: executeCycle ====================
 
     public function test_execute_cycle_creates_and_executes_real_task(): void
     {
@@ -245,11 +197,16 @@ final class WatchServiceTest extends IntegrationTestCase
         $this->assertEquals(UniqueTaskStatus::PENDING, $task->getStatus());
 
         $cycleNumber = new CounterVO(1);
-        $arguments = new StringTypedCollection;
-        $arguments->add('--unique-only');
         $cycleStartedAt = new Iso8601DateTimeVO;
 
-        $result = $this->service->executeCycle($cycleNumber, $arguments, $cycleStartedAt);
+        $result = $this->service->executeCycle(
+            $cycleNumber,
+            true,   // uniqueOnly
+            false,  // recurringOnly
+            null,   // limit
+            false,  // verbose
+            $cycleStartedAt
+        );
 
         $this->assertInstanceOf(CycleResultRecord::class, $result);
         $this->assertEquals(1, $result->success->getValue());
@@ -273,11 +230,16 @@ final class WatchServiceTest extends IntegrationTestCase
         }
 
         $cycleNumber = new CounterVO(1);
-        $arguments = new StringTypedCollection;
-        $arguments->add('--unique-only');
         $cycleStartedAt = new Iso8601DateTimeVO;
 
-        $result = $this->service->executeCycle($cycleNumber, $arguments, $cycleStartedAt);
+        $result = $this->service->executeCycle(
+            $cycleNumber,
+            true,   // uniqueOnly
+            false,  // recurringOnly
+            null,   // limit
+            false,  // verbose
+            $cycleStartedAt
+        );
 
         $this->assertEquals(3, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
@@ -301,12 +263,17 @@ final class WatchServiceTest extends IntegrationTestCase
         }
 
         $cycleNumber = new CounterVO(1);
-        $arguments = new StringTypedCollection;
-        $arguments->add('--unique-only');
-        $arguments->add('--limit=3');
         $cycleStartedAt = new Iso8601DateTimeVO;
+        $limit = new LimitVO(3);
 
-        $result = $this->service->executeCycle($cycleNumber, $arguments, $cycleStartedAt);
+        $result = $this->service->executeCycle(
+            $cycleNumber,
+            true,   // uniqueOnly
+            false,  // recurringOnly
+            $limit, // limit
+            false,  // verbose
+            $cycleStartedAt
+        );
 
         $this->assertEquals(3, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
@@ -432,7 +399,7 @@ final class WatchServiceTest extends IntegrationTestCase
 
     public function test_is_full_batch_response_returns_true_when_has_unique_and_recurring(): void
     {
-        $reflection = new \ReflectionClass(WatchService::class);
+        $reflection = new ReflectionClass(WatchService::class);
         $method = $reflection->getMethod('isFullBatchResponse');
 
         $data = [
@@ -446,7 +413,7 @@ final class WatchServiceTest extends IntegrationTestCase
 
     public function test_is_full_batch_response_returns_false_when_missing_unique(): void
     {
-        $reflection = new \ReflectionClass(WatchService::class);
+        $reflection = new ReflectionClass(WatchService::class);
         $method = $reflection->getMethod('isFullBatchResponse');
 
         $data = [
@@ -459,7 +426,7 @@ final class WatchServiceTest extends IntegrationTestCase
 
     public function test_is_full_batch_response_returns_false_when_missing_recurring(): void
     {
-        $reflection = new \ReflectionClass(WatchService::class);
+        $reflection = new ReflectionClass(WatchService::class);
         $method = $reflection->getMethod('isFullBatchResponse');
 
         $data = [
@@ -472,7 +439,7 @@ final class WatchServiceTest extends IntegrationTestCase
 
     public function test_is_full_batch_response_returns_false_when_empty(): void
     {
-        $reflection = new \ReflectionClass(WatchService::class);
+        $reflection = new ReflectionClass(WatchService::class);
         $method = $reflection->getMethod('isFullBatchResponse');
 
         $data = [];
@@ -494,7 +461,7 @@ final class WatchServiceTest extends IntegrationTestCase
 
         $this->assertFalse($this->service->isTestingMode());
 
-        $reflection = new \ReflectionClass(WatchService::class);
+        $reflection = new ReflectionClass(WatchService::class);
         $property = $reflection->getProperty('testingService');
         $value = $property->getValue($this->service);
 
