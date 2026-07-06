@@ -100,6 +100,7 @@ final class ProcessTasksDirective extends AbstractDirective
 
             if ($format === 'json') {
                 $this->outputFullJson($console, $uniqueResult, $recurringResult);
+
             } else {
                 $this->displayProcessingStart($console, $limit);
                 $this->displayFullResults($console, $uniqueResult, $recurringResult);
@@ -387,7 +388,7 @@ final class ProcessTasksDirective extends AbstractDirective
             $console->info('  Unique tasks:');
             foreach ($uniqueResult->errors as $error) {
                 $displayName = $error->alias ?? $error->identifier;
-                $console->error('    ❌ '.$displayName.': '.$error->error);
+                $console->error('    ❌ '.$displayName.': '.$error->description);
             }
         }
 
@@ -395,7 +396,7 @@ final class ProcessTasksDirective extends AbstractDirective
             $console->info('  Recurring tasks:');
             foreach ($recurringResult->errors as $error) {
                 $displayName = $error->alias ?? $error->identifier;
-                $console->error('    ❌ '.$displayName.': '.$error->error);
+                $console->error('    ❌ '.$displayName.': '.$error->description);
             }
         }
     }

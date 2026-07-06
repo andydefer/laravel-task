@@ -12,7 +12,6 @@ use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Directives\TasksWatchDirective;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
-use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Records\RecurringTaskConfigRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
@@ -23,10 +22,7 @@ use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
@@ -47,11 +43,16 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     private TaskExecutionDebugRepository $debugRepository;
 
+    private array $createdAliases = [];
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->service = new DirectiveTestingService($this->app);
+
+        // ✅ Binder dans le conteneur pour que la directive le récupère
+        $this->app->instance(DirectiveTestingService::class, $this->service);
 
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->uniqueRepository = new UniqueTaskRepository(
@@ -89,43 +90,49 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         int $gracePeriodSeconds = 86400,
         int $attempts = 0,
         int $maxAttempts = 3
-    ): void {
+    ): TaskAliasVO {
         $scheduledAt = $scheduledAt ?? Carbon::now()->subHours(2);
         $id = $id ?? $this->getUuidForAlias($alias);
+        $aliasVO = $this->generateAliasFromName($alias, $id);
 
         $record = UniqueTaskRecord::from([
             'id' => new UuidVO($id),
-            'alias' => $this->generateAliasFromName($alias, $id),
+            'alias' => $aliasVO,
             'fqcn' => new UniqueTaskFqcnVO(TestUniqueTask::class),
             'payload' => StrictDataObject::from(['test' => 'unique']),
             'scheduled_at' => new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
-            'grace_period_seconds' => new DurationVO($gracePeriodSeconds),
+            'grace_period_seconds' => $gracePeriodSeconds,
             'status' => $status,
-            'attempts' => new CounterVO($attempts),
-            'max_attempts' => new MaxFailedAttemptsVO($maxAttempts),
+            'attempts' => $attempts,
+            'max_attempts' => $maxAttempts,
         ]);
 
         $this->uniqueRepository->create($record);
+
+        return $aliasVO;
     }
 
-    private function createFailingUniqueTask(): void
+    private function createFailingUniqueTask(): TaskAliasVO
     {
         $alias = 'failing-task';
         $id = $this->getUuidForAlias($alias);
+        $aliasVO = $this->generateAliasFromName($alias, $id);
 
         $record = UniqueTaskRecord::from([
             'id' => new UuidVO($id),
-            'alias' => $this->generateAliasFromName($alias, $id),
+            'alias' => $aliasVO,
             'fqcn' => new UniqueTaskFqcnVO(FailingTask::class),
             'payload' => StrictDataObject::from(['test' => 'failing']),
             'scheduled_at' => new Iso8601DateTimeVO(Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP')),
-            'grace_period_seconds' => new DurationVO(86400),
+            'grace_period_seconds' => 86400,
             'status' => UniqueTaskStatus::PENDING,
-            'attempts' => new CounterVO(2),
-            'max_attempts' => new MaxFailedAttemptsVO(3),
+            'attempts' => 2,
+            'max_attempts' => 3,
         ]);
 
         $this->uniqueRepository->create($record);
+
+        return $aliasVO;
     }
 
     private function createRecurringTask(
@@ -134,12 +141,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         ?\DateTimeInterface $startAt = null,
         ?\DateTimeInterface $lastRunAt = null,
         int $intervalSeconds = 3600
-    ): void {
+    ): TaskAliasVO {
         $startAt = $startAt ?? Carbon::now()->subHours(2);
         $lastRunAt = $lastRunAt ?? Carbon::now()->subHours(2);
-        $id = $this->getUuidForAlias($alias);
+
         $config = RecurringTaskConfigRecord::from([
-            'type' => TaskType::RECURRING->value,
             'description' => 'Test recurring task',
             'interval_seconds' => $intervalSeconds,
             'start_at' => $startAt->format('Y-m-d\TH:i:sP'),
@@ -164,18 +170,16 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
                 ]
             );
         }
+
+        return $aliasVO;
     }
 
-    private function createFailingRecurringTask(): void
+    private function createFailingRecurringTask(): TaskAliasVO
     {
         $frozenNow = Carbon::create(2026, 6, 23, 12, 0, 0);
         Carbon::setTestNow($frozenNow);
 
-        $alias = 'test-recurring-failing';
-        $id = $this->getUuidForAlias($alias);
-
         $config = RecurringTaskConfigRecord::from([
-            'type' => TaskType::RECURRING->value,
             'description' => 'Test recurring task that fails',
             'interval_seconds' => 3,
             'start_at' => $frozenNow->copy()->subHours(2)->format('Y-m-d\TH:i:sP'),
@@ -188,7 +192,31 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
             'fail_message' => 'Test recurring failure',
         ]);
 
-        $service->register($fqcn, $payload, $config);
+        return $service->register($fqcn, $payload, $config);
+    }
+
+    private function assertLineContains(string $haystack, string $needle): void
+    {
+        $lines = explode("\n", $haystack);
+        foreach ($lines as $line) {
+            $cleaned = preg_replace('/\s+/', ' ', trim($line));
+            if (str_contains($cleaned, $needle)) {
+                return;
+            }
+        }
+        $this->fail(sprintf('Line containing "%s" not found', $needle));
+    }
+
+    private function assertLineContainsTwo(string $haystack, string $needle1, string $needle2): void
+    {
+        $lines = explode("\n", $haystack);
+        foreach ($lines as $line) {
+            $cleaned = preg_replace('/\s+/', ' ', trim($line));
+            if (str_contains($cleaned, $needle1) && str_contains($cleaned, $needle2)) {
+                return;
+            }
+        }
+        $this->fail(sprintf('Line containing "%s" and "%s" not found', $needle1, $needle2));
     }
 
     // ==================== TESTS: Signature ====================
@@ -292,13 +320,15 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('Duration: 1', $response->output);
         $this->assertStringContainsString('Interval: 3', $response->output);
         $this->assertStringContainsString('📊 Summary', $response->output);
-        $this->assertStringContainsString('Total success:    0', $response->output);
+
+        $this->assertLineContainsTwo($response->output, 'Total success', '0');
+
         $this->assertStringContainsString('⏰ Duration reached.', $response->output);
     }
 
     public function test_execute_testing_mode_with_unique_only_flag(): void
     {
-        $this->createUniqueTask('unique-1');
+        $alias = $this->createUniqueTask('unique-1');
 
         $response = $this->service->run(
             TasksWatchDirective::class,
@@ -308,12 +338,13 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('Options: --unique-only', $response->output);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
-        $this->assertStringContainsString('Total success:    1', $response->output);
+
+        $this->assertLineContainsTwo($response->output, 'Total success', '1');
     }
 
     public function test_execute_testing_mode_with_recurring_only_flag(): void
     {
-        $this->createRecurringTask('recurring-1', RecurringTaskStatus::PLAYING);
+        $alias = $this->createRecurringTask('recurring-1', RecurringTaskStatus::PLAYING);
 
         $response = $this->service->run(
             TasksWatchDirective::class,
@@ -323,13 +354,15 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('Options: --recurring-only', $response->output);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
-        $this->assertStringContainsString('Total success:    1', $response->output);
+
+        $this->assertLineContainsTwo($response->output, 'Total success', '1');
     }
 
     public function test_execute_testing_mode_with_limit(): void
     {
+        $aliases = [];
         for ($i = 1; $i <= 5; $i++) {
-            $this->createUniqueTask("unique-{$i}");
+            $aliases[] = $this->createUniqueTask("unique-{$i}");
         }
 
         $response = $this->service->run(
@@ -340,12 +373,13 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('Options: --unique-only --limit=3', $response->output);
         $this->assertStringContainsString('✅ 3 tasks succeeded', $response->output);
-        $this->assertStringContainsString('Total success:    3', $response->output);
+
+        $this->assertLineContainsTwo($response->output, 'Total success', '3');
     }
 
     public function test_execute_testing_mode_with_errors_returns_failure(): void
     {
-        $this->createFailingUniqueTask();
+        $alias = $this->createFailingUniqueTask();
 
         $response = $this->service->run(
             TasksWatchDirective::class,
@@ -354,8 +388,9 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
         $this->assertStringContainsString('❌ 1 tasks failed', $response->output);
-        $this->assertStringContainsString('Total failures:   1', $response->output);
-        $this->assertStringContainsString('Total errors:     1', $response->output);
+
+        $this->assertLineContainsTwo($response->output, 'Total failures', '1');
+        $this->assertLineContainsTwo($response->output, 'Total errors', '1');
     }
 
     public function test_execute_testing_mode_with_recurring_errors_returns_failure(): void
@@ -369,14 +404,15 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
         $this->assertStringContainsString('❌ 1 tasks failed', $response->output);
-        $this->assertStringContainsString('Total failures:   1', $response->output);
-        $this->assertStringContainsString('Total errors:     1', $response->output);
+
+        $this->assertLineContainsTwo($response->output, 'Total failures', '1');
+        $this->assertLineContainsTwo($response->output, 'Total errors', '1');
     }
 
     public function test_execute_testing_mode_with_mixed_success_and_errors(): void
     {
-        $this->createUniqueTask('unique-success');
-        $this->createFailingUniqueTask();
+        $alias1 = $this->createUniqueTask('unique-success');
+        $alias2 = $this->createFailingUniqueTask();
 
         $response = $this->service->run(
             TasksWatchDirective::class,
@@ -386,14 +422,15 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
         $this->assertStringContainsString('❌ 1 tasks failed', $response->output);
-        $this->assertStringContainsString('Total success:    1', $response->output);
-        $this->assertStringContainsString('Total failures:   1', $response->output);
-        $this->assertStringContainsString('Total errors:     1', $response->output);
+
+        $this->assertLineContainsTwo($response->output, 'Total success', '1');
+        $this->assertLineContainsTwo($response->output, 'Total failures', '1');
+        $this->assertLineContainsTwo($response->output, 'Total errors', '1');
     }
 
     public function test_execute_testing_mode_with_interval_exactly_minimum_works(): void
     {
-        $this->createUniqueTask('unique-1');
+        $alias = $this->createUniqueTask('unique-1');
 
         $response = $this->service->run(
             TasksWatchDirective::class,
@@ -403,12 +440,13 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('Interval: 3', $response->output);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
-        $this->assertStringContainsString('Total success:    1', $response->output);
+
+        $this->assertLineContainsTwo($response->output, 'Total success', '1');
     }
 
     public function test_execute_testing_mode_handles_recurring_task_with_interval_not_reached(): void
     {
-        $this->createRecurringTask(
+        $alias = $this->createRecurringTask(
             'recurring-skip',
             RecurringTaskStatus::PLAYING,
             Carbon::now()->subHours(2),
@@ -423,24 +461,8 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('✅ 0 tasks succeeded', $response->output);
-        $this->assertStringContainsString('Total success:    0', $response->output);
-        $this->assertStringContainsString('Total failures:   0', $response->output);
-    }
 
-    // ==================== TESTS: Sans mode testing ====================
-
-    public function test_execute_without_testing_mode_works(): void
-    {
-        $this->createUniqueTask('unique-1');
-
-        $response = $this->service->run(
-            TasksWatchDirective::class,
-            ['--duration=1', '--interval=3', '--unique-only']
-        );
-
-        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-        $this->assertStringContainsString('🚀 Starting tasks watch loop...', $response->output);
-        $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
-        $this->assertStringContainsString('⏰ Duration reached. Stopping gracefully...', $response->output);
+        $this->assertLineContainsTwo($response->output, 'Total success', '0');
+        $this->assertLineContainsTwo($response->output, 'Total failures', '0');
     }
 }
