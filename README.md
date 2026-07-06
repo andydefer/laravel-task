@@ -1,8 +1,8 @@
 # Laravel Task
 
-**Un système de tâches léger pour Laravel avec exécution asynchrone, tâches récurrentes et stockage structuré.**
+**Un système de tâches robuste pour Laravel avec exécution asynchrone, tâches récurrentes, surveillance continue et exécution parallèle.**
 
-[![PHP Version](https://img.shields.io/badge/PHP-8.1%2B-blue)](https://php.net)
+[![PHP Version](https://img.shields.io/badge/PHP-8.2%2B-blue)](https://php.net)
 [![Laravel Version](https://img.shields.io/badge/Laravel-12.x%20%7C%2013.x%20%7C%2014.x%20%7C%2015.x-blue)](https://laravel.com)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
@@ -16,11 +16,12 @@
 4. [Créer une tâche récurrente](#créer-une-tâche-récurrente)
 5. [Exécuter les tâches](#exécuter-les-tâches)
 6. [Surveillance continue avec TasksWatch](#surveillance-continue-avec-taskswatch)
-7. [Gestion des tâches](#gestion-des-tâches)
-8. [Mode test](#mode-test)
-9. [Bonnes pratiques](#bonnes-pratiques)
-10. [Référence des commandes](#référence-des-commandes)
-11. [Licence](#licence)
+7. [Exécution parallèle](#exécution-parallèle)
+8. [Gestion des tâches](#gestion-des-tâches)
+9. [Mode test](#mode-test)
+10. [Bonnes pratiques](#bonnes-pratiques)
+11. [Référence des commandes](#référence-des-commandes)
+12. [Licence](#licence)
 
 ---
 
@@ -32,8 +33,9 @@ composer require andydefer/laravel-task
 
 ### Prérequis
 
-- PHP 8.1 ou supérieur
-- Laravel 12.x, 13.x, 14.x ou 15.x
+| Version PHP | Version Laravel |
+|-------------|-----------------|
+| PHP 8.2+ | Laravel 12.x, 13.x, 14.x ou 15.x |
 
 ### Publier les migrations
 
@@ -59,13 +61,28 @@ Le package s'enregistre automatiquement via `TaskServiceProvider`. Aucune config
 
 ### Architecture
 
-Le package suit une architecture en couches :
+Le package suit une architecture en couches avec injection de dépendances :
 
 ```
 Directives (CLI) → Services (Métier) → Processors → Runners → Repositories → Base de données
 ```
 
-**Principe clé :** Utilisez toujours les **services** (via `getLaravel()->make()`) plutôt que les facades pour une meilleure testabilité.
+**Principe clé :** Utilisez toujours les **services** injectés plutôt que les facades pour une meilleure testabilité.
+
+### Cycle de vie d'une tâche
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     AbstractTask                            │
+├─────────────────────────────────────────────────────────────┤
+│  1. before($payload)    ← Hook de préparation               │
+│  2. process()           ← Logique métier (à implémenter)    │
+│  3. after($success)     ← Hook de post-traitement           │
+├─────────────────────────────────────────────────────────────┤
+│  Logging automatique : start → completed/failed             │
+│  Gestion des exceptions : capture et propagation            │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -79,41 +96,53 @@ Directives (CLI) → Services (Métier) → Processors → Runners → Repositor
 namespace App\Tasks;
 
 use AndyDefer\Task\Abstract\AbstractUniqueTask;
-use AndyDefer\Task\Configs\UniqueTaskConfig;
-use AndyDefer\Task\Contracts\Configs\UniqueTaskConfigInterface;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
 class SendWelcomeEmailTask extends AbstractUniqueTask
 {
-    public function getConfig(): UniqueTaskConfigInterface
+    /**
+     * Validate the payload before execution.
+     */
+    protected function before(StrictDataObject $payload): void
     {
-        return new UniqueTaskConfig(
-            alias: new TaskSignatureVO('welcome-email'),
-            description: 'Send welcome email to new user',
-            scheduled_at: new Iso8601DateTimeVO(now()->addMinutes(5)->toIso8601String()),
-            max_attempts: new CounterVO(3),
-        );
+        if (!$payload->has('email')) {
+            throw new \InvalidArgumentException('Email is required');
+        }
     }
 
+    /**
+     * Execute the main business logic.
+     */
     protected function process(): void
     {
-        $payload = $this->context->getPayload()->toArray();
-        $userEmail = $payload['email'];
-        $userName = $payload['name'];
+        $payload = $this->context->getPayload();
+        $email = $payload->email;
+        $name = $payload->name ?? 'User';
 
-        // Logique d'envoi d'email
-        $this->info("Sending welcome email to {$userEmail}...");
-        
-        // ... envoyer l'email ...
-        
-        $this->info("Welcome email sent to {$userName}");
+        $this->info(new DescriptionVO("Sending welcome email to {$email}..."));
+
+        // Logique métier
+        // Mail::to($email)->send(new WelcomeEmail($name));
+
+        $this->info(new DescriptionVO("Welcome email sent to {$name}"));
+    }
+
+    /**
+     * Hook executed after the main processing.
+     */
+    protected function after(bool $success, ?DescriptionVO $error = null): void
+    {
+        if ($success) {
+            $this->info(new DescriptionVO('Task completed successfully'));
+        } else {
+            $this->error(new DescriptionVO("Task failed: {$error->getValue()}"));
+        }
     }
 }
 ```
 
-### 2. Enregistrer et exécuter la tâche
+### 2. Enregistrer la tâche
 
 ```php
 <?php
@@ -121,49 +150,43 @@ class SendWelcomeEmailTask extends AbstractUniqueTask
 namespace App\Http\Controllers;
 
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
+use AndyDefer\Task\Records\UniqueTaskConfigRecord;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use Illuminate\Support\Carbon;
 
-class UserController
+class UserController extends Controller
 {
-    public function store(Request $request, UniqueTaskServiceInterface $taskService)
+    public function __construct(
+        private readonly UniqueTaskServiceInterface $taskService
+    ) {}
+
+    public function store(Request $request)
     {
         // Créer l'utilisateur...
-        
+
         // Enregistrer la tâche
+        $config = UniqueTaskConfigRecord::from([
+            'scheduled_at' => new Iso8601DateTimeVO(Carbon::now()->addMinutes(5)->toIso8601String()),
+            'grace_period' => 86400, // 24h en secondes
+            'max_attempts' => 3,
+        ]);
+
         $payload = StrictDataObject::from([
             'email' => $request->email,
             'name' => $request->name,
         ]);
 
-        $taskId = $taskService->register(
-            SendWelcomeEmailTask::class,
-            $payload
+        $alias = $this->taskService->register(
+            new UniqueTaskFqcnVO(SendWelcomeEmailTask::class),
+            $payload,
+            $config
         );
 
         return response()->json([
-            'message' => 'User created. Welcome email will be sent.',
-            'task_id' => $taskId->value,
+            'message' => 'User created. Welcome email scheduled.',
+            'task_alias' => $alias->getValue(),
         ]);
-    }
-}
-```
-
-### 3. Surcharger les méthodes de cycle de vie
-
-```php
-protected function before(): void
-{
-    // Exécuté avant le traitement
-    $this->info("Preparing to send email...");
-}
-
-protected function after(bool $success, ?string $error = null): void
-{
-    // Exécuté après le traitement
-    if ($success) {
-        $this->info("Email sent successfully!");
-    } else {
-        $this->error("Email failed: {$error}");
     }
 }
 ```
@@ -180,33 +203,26 @@ protected function after(bool $success, ?string $error = null): void
 namespace App\Tasks;
 
 use AndyDefer\Task\Abstract\AbstractRecurringTask;
-use AndyDefer\Task\Configs\RecurringTaskConfig;
-use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
 class CleanCacheTask extends AbstractRecurringTask
 {
-    public function getConfig(): RecurringTaskConfigInterface
-    {
-        return new RecurringTaskConfig(
-            alias: new TaskSignatureVO('cache-cleaner'),
-            description: 'Clean expired cache entries',
-            interval_seconds: new CounterVO(3600), // Toutes les heures
-            start_at: new Iso8601DateTimeVO(now()->toIso8601String()),
-            max_attempts: new CounterVO(3),
-        );
-    }
-
     protected function process(): void
     {
-        $this->info("Starting cache cleanup...");
-        
-        // Logique de nettoyage
-        // cache()->cleanExpired();
-        
-        $this->info("Cache cleanup completed.");
+        $this->info(new DescriptionVO('Starting cache cleanup...'));
+
+        // Logique métier
+        // Cache::cleanExpired();
+
+        $this->info(new DescriptionVO('Cache cleanup completed.'));
+    }
+
+    protected function after(bool $success, ?DescriptionVO $error = null): void
+    {
+        if (!$success) {
+            $this->error(new DescriptionVO("Cache cleanup failed: {$error->getValue()}"));
+        }
     }
 }
 ```
@@ -219,52 +235,36 @@ class CleanCacheTask extends AbstractRecurringTask
 namespace App\Console\Commands;
 
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
+use AndyDefer\Task\Records\RecurringTaskConfigRecord;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Task\Configs\RecurringTaskConfig;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
 
-class SetupTasksCommand
+class RegisterTasksCommand extends Command
 {
     public function __construct(
-        private RecurringTaskServiceInterface $taskService
-    ) {}
+        private readonly RecurringTaskServiceInterface $taskService
+    ) {
+        parent::__construct();
+    }
 
     public function handle()
     {
-        $config = new RecurringTaskConfig(
-            alias: new TaskSignatureVO('cache-cleaner'),
-            description: 'Clean expired cache entries',
-            interval_seconds: new CounterVO(3600),
-            start_at: new Iso8601DateTimeVO(now()->toIso8601String()),
-        );
+        $config = RecurringTaskConfigRecord::from([
+            'interval_seconds' => 3600, // Toutes les heures
+            'start_at' => Carbon::now()->toIso8601String(),
+            'end_at' => Carbon::now()->addDays(30)->toIso8601String(),
+            'max_attempts' => 3,
+        ]);
 
         $alias = $this->taskService->register(
-            CleanCacheTask::class,
+            new RecurringTaskFqcnVO(CleanCacheTask::class),
             StrictDataObject::from(['enabled' => true]),
             $config
         );
 
-        $this->info("Task registered with alias: {$alias->value}");
+        $this->info("Task registered: {$alias->getValue()}");
     }
 }
-```
-
-### 3. Gérer les états
-
-```php
-// Mettre en pause
-$taskService->pause(new TaskSignatureVO('cache-cleaner'));
-
-// Reprendre
-$taskService->resume(new TaskSignatureVO('cache-cleaner'));
-
-// Terminer (définitif)
-$taskService->finish(new TaskSignatureVO('cache-cleaner'));
-
-// Annuler
-$taskService->cancel(new TaskSignatureVO('cache-cleaner'), 'Maintenance');
 ```
 
 ---
@@ -293,35 +293,50 @@ $taskService->cancel(new TaskSignatureVO('cache-cleaner'), 'Maintenance');
 ./vendor/bin/directive process-tasks --verbose
 ```
 
-#### Sortie textuelle
+### Sortie textuelle
 
 ```
+Processing tasks...
+
 === Batch Results ===
   Unique:    ✅ 3, ❌ 0
   Recurring: ✅ 2, ❌ 1
   Total:     ✅ 5, ❌ 1, 📦 6
   Has failures: Yes
+
+=== Failed Tasks ===
+  Unique tasks:
+    ❌ unique@abc-123: Connection timeout (attempts: 2/3)
 ```
 
-#### Sortie JSON
+### Sortie JSON
 
 ```json
 {
-  "started_at": "2026-06-22T14:30:00+00:00",
-  "ended_at": "2026-06-22T14:30:05+00:00",
+  "started_at": "2026-01-01T12:00:00+00:00",
+  "ended_at": "2026-01-01T12:00:05+00:00",
   "duration_ms": 5000,
-  "success": 5,
-  "failed": 1,
+  "total_success": 5,
+  "total_failed": 1,
   "total": 6,
-  "errors": [
-    {
-      "alias": "failing-task",
-      "fqcn": "App\\Tasks\\FailingTask",
-      "error": "Task execution failed",
-      "context": "Attempt 3/3"
-    }
-  ],
-  "has_failures": true
+  "has_failures": true,
+  "unique": {
+    "success": 3,
+    "failed": 0,
+    "errors": []
+  },
+  "recurring": {
+    "success": 2,
+    "failed": 1,
+    "errors": [
+      {
+        "alias": "recurring@def-456",
+        "fqcn": "App\\Tasks\\FailingTask",
+        "description": "Task execution failed",
+        "context": "end_at: null"
+      }
+    ]
+  }
 }
 ```
 
@@ -332,10 +347,10 @@ $taskService->cancel(new TaskSignatureVO('cache-cleaner'), 'Maintenance');
 La directive `tasks-watch` exécute `process-tasks` en boucle à intervalle régulier.
 
 ```bash
-# Exécution toutes les 60 secondes
+# Exécution toutes les 60 secondes (illimité)
 ./vendor/bin/directive tasks-watch
 
-# Avec durée limitée (en secondes)
+# Avec durée limitée
 ./vendor/bin/directive tasks-watch --duration=3600 --interval=30
 
 # Traiter uniquement les tâches uniques
@@ -343,6 +358,8 @@ La directive `tasks-watch` exécute `process-tasks` en boucle à intervalle rég
 
 # Mode verbeux
 ./vendor/bin/directive tasks-watch --verbose
+
+# Arrêt gracieux : Ctrl+C
 ```
 
 ### Options
@@ -350,110 +367,185 @@ La directive `tasks-watch` exécute `process-tasks` en boucle à intervalle rég
 | Option | Description | Défaut |
 |--------|-------------|--------|
 | `--duration` | Durée d'exécution en secondes | Illimité |
-| `--interval` | Intervalle entre les cycles en secondes (min 3) | 60 |
+| `--interval` | Intervalle entre les cycles (min 3s) | 60 |
 | `--unique-only` | Traiter uniquement les tâches uniques | false |
 | `--recurring-only` | Traiter uniquement les tâches récurrentes | false |
 | `--limit` | Nombre max de tâches par cycle | Illimité |
-| `--verbose` | Afficher les détails | false |
-| `--testing` | Mode test (exécution en interne) | false |
+| `--verbose` | Afficher les détails des erreurs | false |
+| `--testing` | Mode test (exécution in-process) | false |
+| `--parallel` | Nombre de workers parallèles | 1 (séquentiel) |
 
 ### Exemple de sortie
 
 ```
 🚀 Starting tasks watch loop...
-   Duration: 3600 seconds (1h)
-   Interval: 30 seconds (30s)
+Duration: unlimited (Ctrl+C to stop)
+Interval: 60 (1m)
+Options: --unique-only --limit=10
+
+================================================================================
+
 
 🔄 Cycle #1 (started at 14:30:00):
-  ➜ Running: ./vendor/bin/directive process-tasks
-  ✅ 5 tasks succeeded, ❌ 1 tasks failed
-  ⏱️  Cycle duration: 0.45 seconds
-  ⏳ Next cycle in 30 seconds...
+✅ 5 tasks succeeded, ❌ 1 tasks failed
+⏱️  Cycle duration: 0.45 seconds
+⏳ Next cycle in 59 seconds...
 
-🔄 Cycle #2 (started at 14:30:30):
-  ✅ 3 tasks succeeded, ❌ 0 tasks failed
-  ⏱️  Cycle duration: 0.23 seconds
+🔄 Cycle #2 (started at 14:31:00):
+✅ 3 tasks succeeded, ❌ 0 tasks failed
+⏱️  Cycle duration: 0.12 seconds
+⏳ Next cycle in 60 seconds...
 
-📊 === Summary ===
-  Cycles executed:  2
-  Total success:    8
-  Total failures:   1
-  Total errors:     1
-  Total duration:   1m 30s
+...
+
+================================================================================
+📊 Summary
+Cycles executed    : 10
+Total success      : 42
+Total failures     : 8
+Total errors       : 3
+Total duration     : 10m 30s
+================================================================================
+```
+
+---
+
+## Exécution parallèle
+
+Le package supporte l'exécution parallèle des tâches via l'option `--parallel`.
+
+```bash
+# Exécution séquentielle (par défaut)
+./vendor/bin/directive tasks-watch
+
+# Exécution avec 3 workers parallèles
+./vendor/bin/directive tasks-watch --parallel=3
+
+# Parallélisme avec limite
+./vendor/bin/directive tasks-watch --parallel=4 --limit=100
+```
+
+### Comment ça fonctionne
+
+1. **Verrouillage de ligne** : `lockForUpdate()` garantit qu'une tâche n'est traitée qu'une seule fois
+2. **Workers indépendants** : Chaque worker traite un lot de tâches séparé
+3. **Agrégation des résultats** : Les résultats de tous les workers sont combinés
+
+### Sortie avec parallélisme
+
+```
+🚀 Starting tasks watch loop...
+⚡ Parallel execution: 3 workers
+Duration: unlimited (Ctrl+C to stop)
+Interval: 60 (1m)
+Options: --parallel=3
+
+🔄 Cycle #1 (started at 14:30:00):
+⚡ Parallel execution: 3 workers
+✅ 45 tasks succeeded, ❌ 5 tasks failed
+⏱️  Cycle duration: 2.34 seconds
+⏳ Next cycle in 57 seconds...
 ```
 
 ---
 
 ## Gestion des tâches
 
-### Via les services
+### États des tâches
+
+**Tâches uniques :**
+
+```
+PENDING ──(succès)──▶ COMPLETED
+    │
+    ├──(échec max)──▶ FAILED
+    │
+    └──(annulation)──▶ CANCELED
+```
+
+**Tâches récurrentes :**
+
+```
+WAITING ──(start_at)──▶ PLAYING
+                           │
+               ┌───────────┼───────────┐
+               │           │           │
+               ▼           ▼           ▼
+            PAUSED     FINISHED    CANCELED
+               │           │           │
+               └───────────┘           │
+                           │           │
+                           ▼           ▼
+                       (terminal)  (terminal)
+```
+
+### API de gestion
 
 ```php
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
 class TaskManager
 {
     public function __construct(
-        private UniqueTaskServiceInterface $uniqueService,
-        private RecurringTaskServiceInterface $recurringService
+        private readonly UniqueTaskServiceInterface $uniqueService,
+        private readonly RecurringTaskServiceInterface $recurringService
     ) {}
 
-    // Tâches uniques
-    public function cancelUnique(string $taskId): void
-    {
-        $this->uniqueService->cancel(new TaskIdVO($taskId), 'Canceled by admin');
-    }
+    // === Tâches uniques ===
 
-    public function reschedule(string $taskId, \DateTimeInterface $newDate): void
+    public function cancelUnique(string $alias): void
     {
-        $this->uniqueService->reschedule(
-            new TaskIdVO($taskId),
-            new Iso8601DateTimeVO($newDate->format('Y-m-d\TH:i:sP'))
+        $this->uniqueService->cancel(
+            new TaskAliasVO($alias),
+            new DescriptionVO('Canceled by admin')
         );
     }
 
-    // Tâches récurrentes
+    public function reschedule(string $alias, Carbon $newDate): void
+    {
+        $this->uniqueService->reschedule(
+            new TaskAliasVO($alias),
+            new Iso8601DateTimeVO($newDate->toIso8601String())
+        );
+    }
+
+    public function extendGracePeriod(string $alias, int $seconds): void
+    {
+        $this->uniqueService->extendGracePeriod(
+            new TaskAliasVO($alias),
+            new DurationVO($seconds)
+        );
+    }
+
+    // === Tâches récurrentes ===
+
     public function pauseRecurring(string $alias): void
     {
-        $this->recurringService->pause(new TaskSignatureVO($alias));
+        $this->recurringService->pause(new TaskAliasVO($alias));
     }
 
     public function resumeRecurring(string $alias): void
     {
-        $this->recurringService->resume(new TaskSignatureVO($alias));
+        $this->recurringService->resume(new TaskAliasVO($alias));
     }
 
     public function changeInterval(string $alias, int $seconds): void
     {
-        $this->recurringService->changeInterval(new TaskSignatureVO($alias), $seconds);
+        $this->recurringService->changeInterval(
+            new TaskAliasVO($alias),
+            new DurationVO($seconds)
+        );
+    }
+
+    public function finishRecurring(string $alias): void
+    {
+        $this->recurringService->finish(new TaskAliasVO($alias));
     }
 }
 ```
-
-### États des tâches
-
-**Tâches uniques :**
-
-| État | Description |
-|------|-------------|
-| `PENDING` | En attente d'exécution |
-| `COMPLETED` | Exécutée avec succès |
-| `FAILED` | Échec (max attempts atteint) |
-| `CANCELED` | Annulée par l'utilisateur |
-
-**Tâches récurrentes :**
-
-| État | Description |
-|------|-------------|
-| `WAITING` | En attente (start_at futur) |
-| `PLAYING` | Active et prête à s'exécuter |
-| `PAUSED` | En pause |
-| `FINISHED` | Terminée (end_at atteint) |
-| `CANCELED` | Annulée par l'utilisateur |
 
 ---
 
@@ -465,57 +557,79 @@ Le mode `--testing` permet d'exécuter les directives sans environnement Laravel
 # Exécution en mode test
 ./vendor/bin/directive tasks-watch --testing --duration=5 --interval=3
 
-# Sortie avec mention du mode test
+# Process-tasks en mode test
+./vendor/bin/directive process-tasks --testing --unique-only
+```
+
+### Sortie avec mode test
+
+```
 🧪 Testing mode enabled
 🚀 Starting tasks watch loop...
-   🔬 Mode: TESTING (in-process execution)
+🔬 Mode: TESTING (in-process execution)
+Duration: 5 (5s)
+Interval: 3 (3s)
+Options: --testing
+
+================================================================================
 ```
+
+### Avantages du mode test
+
+- ✅ Exécution in-process (pas de processus enfants)
+- ✅ Exécution plus rapide
+- ✅ Débogage facilité
+- ✅ Pas de dépendance système
 
 ---
 
 ## Bonnes pratiques
 
-### 1. Utiliser les services, pas les facades
+### 1. Utiliser les services injectés
 
 ```php
 // ✅ BON - Injection de service
 class UserController
 {
     public function __construct(
-        private UniqueTaskServiceInterface $taskService
+        private readonly UniqueTaskServiceInterface $taskService
     ) {}
 }
 
 // ❌ MAUVAIS - Facade
 use AndyDefer\Task\Facades\Task;
-
-class UserController
-{
-    public function store()
-    {
-        Task::register(...); // Éviter
-    }
-}
+Task::register(...); // Éviter
 ```
 
-### 2. Accéder à Laravel via getLaravel()
+### 2. Valider les payloads dans `before()`
 
 ```php
-class MyDirective extends AbstractDirective
+protected function before(StrictDataObject $payload): void
 {
-    protected function execute(): ExitCode
-    {
-        $app = $this->getLaravel();
-        $service = $app->make(UniqueTaskServiceInterface::class);
-        // Utiliser le service...
-        return ExitCode::SUCCESS;
+    if (!$payload->has('user_id')) {
+        throw new InvalidArgumentException('user_id is required');
     }
 }
 ```
 
-### 3. Structure des payloads
+### 3. Utiliser les logs dans les tâches
 
-Utilisez `StrictDataObject` pour les payloads :
+```php
+protected function process(): void
+{
+    $this->info(new DescriptionVO('Processing started...'));
+    
+    try {
+        // Logique métier
+        $this->info(new DescriptionVO('Processing completed'));
+    } catch (\Throwable $e) {
+        $this->error(new DescriptionVO("Error: {$e->getMessage()}"));
+        throw $e;
+    }
+}
+```
+
+### 4. Structurer les payloads
 
 ```php
 $payload = StrictDataObject::from([
@@ -528,36 +642,22 @@ $payload = StrictDataObject::from([
 ]);
 ```
 
-### 4. Logging
-
-Utilisez `$this->info()` et `$this->error()` dans vos tâches :
-
-```php
-protected function process(): void
-{
-    $this->info('Starting task...');
-    
-    try {
-        // Logique...
-        $this->info('Task completed successfully');
-    } catch (\Exception $e) {
-        $this->error('Task failed: ' . $e->getMessage());
-        throw $e;
-    }
-}
-```
-
-### 5. Tests
+### 5. Utiliser des limites
 
 ```bash
-# Exécuter tous les tests
-./vendor/bin/phpunit
+# Éviter les surcharges
+./vendor/bin/directive process-tasks --limit=100
+./vendor/bin/directive tasks-watch --limit=50 --interval=30
+```
 
-# Tester une directive spécifique
-./vendor/bin/phpunit --filter ProcessTasksDirectiveTest
+### 6. Monitorer les exécutions
 
-# Tester avec le mode testing
-./vendor/bin/directive tasks-watch --testing --duration=2 --interval=3
+```bash
+# Mode verbeux pour le débogage
+./vendor/bin/directive tasks-watch --verbose
+
+# Sortie JSON pour l'intégration
+./vendor/bin/directive process-tasks --format=json
 ```
 
 ---
@@ -575,109 +675,17 @@ protected function process(): void
 | `./vendor/bin/directive tasks-watch` | Surveillance continue |
 | `./vendor/bin/directive tasks-watch --duration=3600` | Pendant 1 heure |
 | `./vendor/bin/directive tasks-watch --interval=30` | Toutes les 30 secondes |
+| `./vendor/bin/directive tasks-watch --parallel=3` | Exécution parallèle (3 workers) |
 | `./vendor/bin/directive tasks-watch --testing` | Mode test |
 | `./vendor/bin/directive tasks-watch --recurring-only` | Uniquement récurrentes |
 
----
+### Codes de sortie
 
-## Exemple complet
-
-### 1. Créer une tâche de nettoyage
-
-```php
-<?php
-
-namespace App\Tasks;
-
-use AndyDefer\Task\Abstract\AbstractRecurringTask;
-use AndyDefer\Task\Configs\RecurringTaskConfig;
-use AndyDefer\Task\Contracts\Configs\RecurringTaskConfigInterface;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
-
-class DatabaseCleanupTask extends AbstractRecurringTask
-{
-    public function getConfig(): RecurringTaskConfigInterface
-    {
-        return new RecurringTaskConfig(
-            alias: new TaskSignatureVO('db-cleanup'),
-            description: 'Clean old database records',
-            interval_seconds: new CounterVO(86400), // Une fois par jour
-            start_at: new Iso8601DateTimeVO(now()->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(365)->toIso8601String()),
-            max_attempts: new CounterVO(3),
-        );
-    }
-
-    protected function process(): void
-    {
-        $payload = $this->context->getPayload()->toArray();
-        $daysToKeep = $payload['days_to_keep'] ?? 30;
-
-        $this->info("Starting cleanup of records older than {$daysToKeep} days...");
-
-        // Logique de nettoyage
-        // DB::table('logs')->where('created_at', '<', now()->subDays($daysToKeep))->delete();
-
-        $this->info('Cleanup completed successfully.');
-    }
-}
-```
-
-### 2. Enregistrer la tâche
-
-```php
-<?php
-
-namespace App\Console\Commands;
-
-use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
-use AndyDefer\DomainStructures\Utils\StrictDataObject;
-use AndyDefer\Task\Configs\RecurringTaskConfig;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
-
-class RegisterCleanupTaskCommand extends Command
-{
-    protected $signature = 'task:register-cleanup';
-
-    public function handle(RecurringTaskServiceInterface $taskService)
-    {
-        $config = new RecurringTaskConfig(
-            alias: new TaskSignatureVO('db-cleanup'),
-            description: 'Clean old database records',
-            interval_seconds: new CounterVO(86400),
-            start_at: new Iso8601DateTimeVO(now()->toIso8601String()),
-            end_at: new Iso8601DateTimeVO(now()->addDays(365)->toIso8601String()),
-            max_attempts: new CounterVO(3),
-        );
-
-        $payload = StrictDataObject::from([
-            'days_to_keep' => 30,
-            'tables' => ['logs', 'audits', 'sessions'],
-        ]);
-
-        $alias = $taskService->register(
-            DatabaseCleanupTask::class,
-            $payload,
-            $config
-        );
-
-        $this->info("Cleanup task registered: {$alias->value}");
-    }
-}
-```
-
-### 3. Surveiller l'exécution
-
-```bash
-# Lancer la surveillance en arrière-plan
-./vendor/bin/directive tasks-watch --interval=60 --verbose
-
-# Ou avec systemd/supervisor pour une exécution continue
-```
+| Code | Signification |
+|------|---------------|
+| `0` | SUCCESS - Toutes les tâches ont réussi |
+| `1` | FAILURE - Au moins une tâche a échoué |
+| `2` | INVALID_ARGUMENT - Options invalides |
 
 ---
 

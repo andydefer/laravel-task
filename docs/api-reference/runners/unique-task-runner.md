@@ -178,6 +178,17 @@ Chaque exécution ajoute automatiquement une entrée de débogage via `addDebugI
 | SUCCEEDED | `Task executed successfully` | Ajout via `repository->addDebug()` |
 | FAILED | `{message d'erreur}` | Ajout via `repository->addDebug()` |
 
+### Structure du débogage
+
+```php
+$debug = [
+    'alias' => $record->alias,
+    'fqcn' => $record->fqcn,
+    'status' => ExecutionStatus::FAILED,
+    'info' => new DescriptionVO('Connection timeout'),
+];
+```
+
 ## Intégration
 
 ### Dépendances injectées
@@ -261,6 +272,12 @@ if ($result->success) {
 $debugService = app(TaskExecutionDebugService::class);
 $debugRecords = $debugService->findByAlias($alias);
 echo "Nombre d'entrées de débogage : {$debugRecords->count()}\n";
+
+// 5. Vérification des erreurs de validation
+if (!$result->success && $result->error !== null) {
+    echo "Erreur : {$result->error->description}\n";
+    echo "Alias : {$result->error->alias->getValue()}\n";
+}
 ```
 
 ## Voir aussi

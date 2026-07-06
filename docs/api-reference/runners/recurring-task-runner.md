@@ -152,6 +152,40 @@ $result = $runner->run($record);
 | Tâche expirée | `Validation failed: Task has expired (end_at reached)` |
 | Start_at non atteint | `Validation failed: Task is not ready to run (start_at not reached)` |
 
+## Journalisation
+
+### Événements loggés
+
+| Événement | Méthode | Condition |
+|-----------|---------|-----------|
+| Début | `logStart()` | Toujours |
+| Succès | `logSuccess()` | Exécution réussie |
+| Échec | `logFailure()` | Exception levée |
+
+### Structure des logs
+
+```json
+{
+    "type": "recurring_task",
+    "payload": {
+        "event": "recurring_task_started",
+        "alias": "recurring@...",
+        "interval": 3600,
+        "last_run_at": "..."
+    }
+}
+```
+
+## Mise à jour après exécution
+
+### `updateAfterRun()`
+
+| Cas | failed_attempts | Statut |
+|-----|-----------------|--------|
+| Succès | 0 | PLAYING |
+| Échec (attempts < max) | +1 | PLAYING |
+| Échec (attempts ≥ max) | +1 | CANCELED (par freshState) |
+
 ## Intégration
 
 ### Dépendances injectées
@@ -194,6 +228,9 @@ declare(strict_types=1);
 use AndyDefer\Task\Runners\RecurringTaskRunner;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
 /** @var RecurringTaskRunner $runner */
@@ -205,10 +242,11 @@ $record = RecurringTaskRecord::from([
     'alias' => $alias,
     'fqcn' => MyRecurringTask::class,
     'payload' => StrictDataObject::from(['key' => 'value']),
-    'interval_seconds' => 3600,
-    'start_at' => Carbon::now()->subHour(),
+    'interval_seconds' => new DurationVO(3600),
+    'start_at' => new Iso8601DateTimeVO(Carbon::now()->subHour()->toIso8601String()),
+    'end_at' => new Iso8601DateTimeVO(Carbon::now()->addDay()->toIso8601String()),
     'status' => RecurringTaskStatus::PLAYING,
-    'last_run_at' => Carbon::now()->subMinutes(30),
+    'last_run_at' => new Iso8601DateTimeVO(Carbon::now()->subMinutes(30)->toIso8601String()),
 ]);
 
 // 2. Exécution
@@ -221,6 +259,12 @@ if ($result->success) {
 } else {
     echo "❌ Échec : {$result->error->description}\n";
 }
+
+// 4. Vérification des erreurs de validation
+if (!$result->success && $result->error !== null) {
+    echo "Erreur : {$result->error->description}\n";
+    echo "Alias : {$result->error->alias->getValue()}\n";
+}
 ```
 
 ## Voir aussi
@@ -230,3 +274,4 @@ if ($result->success) {
 - `RecurringTaskLoggerInterface` - Journalisation
 - `ExecutionResultRecord` - Structure de résultat
 - `RecurringTaskRecord` - Données de la tâche
+---
