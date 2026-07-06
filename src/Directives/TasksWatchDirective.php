@@ -125,7 +125,7 @@ final class TasksWatchDirective extends AbstractDirective
             $strategy->getMode()
         );
 
-        return $result->hasErrors ? ExitCode::FAILURE : ExitCode::SUCCESS;
+        return $result->has_errors ? ExitCode::FAILURE : ExitCode::SUCCESS;
     }
 
     /**
@@ -287,15 +287,15 @@ final class TasksWatchDirective extends AbstractDirective
         $durationReached = $duration !== null;
 
         $renderer->renderSummary(
-            cycleCount: $result->cycleCount,
-            totalSuccess: $result->totalSuccess,
-            totalFailed: $result->totalFailed,
-            totalErrors: $result->totalErrors,
+            cycleCount: $result->cycle_count,
+            totalSuccess: $result->total_success,
+            totalFailed: $result->total_failed,
+            totalErrors: $result->total_errors,
             startedAt: $startedAt,
             testingMode: $mode->isTesting(),
             stoppedBySignal: $shouldStop,
             durationReached: $durationReached,
-            exception: $result->lastException
+            exception: $result->last_exception
         );
     }
 }

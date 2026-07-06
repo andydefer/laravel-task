@@ -2,7 +2,7 @@
 
 ## Description
 
-Moteur d'exécution des tâches uniques. Prend une tâche en `PENDING`, valide son état, l'exécute une seule fois, puis la marque comme `COMPLETED` ou `FAILED`.
+Exécuteur de tâches uniques. Il orchestre la validation, l'instanciation, l'exécution et la journalisation d'une tâche unique spécifique, avec gestion des tentatives et du débogage.
 
 ## Hiérarchie / Implémentations
 
@@ -13,296 +13,203 @@ UniqueTaskRunnerInterface
 
 ## Rôle principal
 
-Ce runner est le moteur d'exécution d'une **seule** tâche unique. Il :
+Assurer l'exécution d'une tâche unique en :
+- Validant que la tâche peut être exécutée (`canRun`)
+- Instanciant la classe de tâche
+- Exécutant la tâche avec son payload
+- Journalisant le résultat (succès/échec)
+- Mettant à jour l'état (COMPLETED/FAILED)
+- Ajoutant des informations de débogage
 
-1. **Valide** que la tâche peut être exécutée (`canRun`)
-2. **Instancie** la classe de tâche concrète
-3. **Exécute** la tâche avec son payload
-4. **Ajoute** une entrée de debug
-5. **Met à jour** le statut (COMPLETED ou FAILED)
-6. **Retourne** le résultat de l'exécution
-
-## API
+## API / Méthodes publiques
 
 ### `run(UniqueTaskRecord $record): ExecutionResultRecord`
 
-Point d'entrée principal du runner.
+Exécute une tâche unique.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `UniqueTaskRecord` | Tâche à exécuter |
+| `$record` | `UniqueTaskRecord` | Record de la tâche à exécuter |
 
-**Retourne :** `ExecutionResultRecord` - Résultat de l'exécution
-
-**Cas de retour :**
-- `success: true, error: null` → Exécution réussie, tâche marquée COMPLETED
-- `success: false, error: TaskErrorRecord` → Échec de validation ou d'exécution, tâche marquée FAILED
-
-**Exceptions :** `RuntimeException` - Si la tâche n'existe pas
+**Retourne :** `ExecutionResultRecord` - Résultat de l'exécution (succès, erreur, temps)
 
 **Exemple :**
 ```php
-$runner = new UniqueTaskRunner($validator, $logger, $hydration, $app, $repository);
+$record = $repository->findByAlias($alias);
 $result = $runner->run($record);
 
 if ($result->success) {
-    echo "✅ Tâche exécutée en {$result->execution_time}s";
+    echo "Tâche exécutée en {$result->execution_time->format()}";
 } else {
-    echo "❌ Erreur: {$result->error->error}";
+    echo "Échec : {$result->error->description}";
 }
-```
-
----
-
-### `instantiateTask(UniqueTaskRecord $record): AbstractUniqueTask`
-
-Instancie la classe de tâche concrète.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$record` | `UniqueTaskRecord` | Tâche à instancier |
-
-**Retourne :** `AbstractUniqueTask` - Instance de la tâche
-
-**Processus :**
-1. Crée un `UniqueTaskContext`
-2. Injecte l'ID, l'alias, la date planifiée
-3. Retourne une nouvelle instance de `$record->fqcn`
-
-**Exceptions :** `Error` - Si la classe n'existe pas ou n'étend pas `AbstractUniqueTask`
-
----
-
-### `calculateDuration(Iso8601DateTimeVO $start): float`
-
-Calcule la durée d'exécution en secondes.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$start` | `Iso8601DateTimeVO` | Date de début de l'exécution |
-
-**Retourne :** `float` - Durée en secondes (différence entre `$start` et maintenant)
-
-## Cas d'utilisation
-
-### Cas 1 : Exécution réussie d'une tâche
-
-```php
-$runner = app(UniqueTaskRunner::class);
-
-// Tâche en PENDING, scheduled_at dans le passé
-$result = $runner->run($record);
-
-// $result->success = true
-// $result->execution_time = 0.45 (secondes)
-// Statut → COMPLETED
-// Debug ajouté avec status = 'succeeded'
-```
-
-### Cas 2 : Échec de validation
-
-```php
-// Tâche avec scheduled_at dans le futur
-$result = $runner->run($record);
-
-// $result->success = false
-// $result->error->error = 'Validation failed: Task is not ready to run (scheduled_at in the future)'
-// Statut → FAILED
-// Debug ajouté avec status = 'failed'
-```
-
-### Cas 3 : Échec d'exécution avec exception
-
-```php
-// Tâche qui lance une exception
-$result = $runner->run($record);
-
-// $result->success = false
-// $result->error->error = 'Test exception'
-// Statut → FAILED
-// Debug ajouté avec status = 'failed'
-```
-
-### Cas 4 : Tâche avec max_attempts atteint
-
-```php
-// Tâche avec attempts = 3, max_attempts = 3
-$result = $runner->run($record);
-
-// $result->success = false
-// $result->error->error = 'Validation failed: Maximum attempts reached'
-// Statut → FAILED
 ```
 
 ## Flux d'exécution
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    UniqueTaskRunner                                │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ENTRÉE : UniqueTaskRecord                                         │
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ÉTAPE 1 : VALIDATION                                       │   │
-│  │  ┌─────────────────────────────────────────────────────┐   │   │
-│  │  │  $validator->canRun($record)                        │   │   │
-│  │  │  ├─ Classe existe et étend AbstractUniqueTask ?   │   │   │
-│  │  │  ├─ Statut = PENDING ?                              │   │   │
-│  │  │  ├─ scheduled_at <= now ?                           │   │   │
-│  │  │  ├─ attempts < max_attempts ?                       │   │   │
-│  │  │  └─ non expiré (grace_period) ?                    │   │   │
-│  │  │  ❌ Échec → retourne ExecutionResultRecord(fail)   │   │   │
-│  │  └─────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ÉTAPE 2 : LOG DÉBUT                                       │   │
-│  │  ┌─────────────────────────────────────────────────────┐   │   │
-│  │  │  $logger->logStart($record)                         │   │   │
-│  │  │  → "unique_task_started"                            │   │   │
-│  │  │  → task_id, alias, scheduled_at, attempts          │   │   │
-│  │  └─────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ÉTAPE 3 : INSTANCIATION                                   │   │
-│  │  ┌─────────────────────────────────────────────────────┐   │   │
-│  │  │  $task = new $record->fqcn($context, ...)          │   │   │
-│  │  └─────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ÉTAPE 4 : EXÉCUTION                                       │   │
-│  │  ┌─────────────────────────────────────────────────────┐   │   │
-│  │  │  try {                                              │   │   │
-│  │  │    $task->execute($payload)                         │   │   │
-│  │  │    $success = true                                  │   │   │
-│  │  │    $logger->logSuccess()                            │   │   │
-│  │  │  } catch (\Throwable $e) {                          │   │   │
-│  │  │    $success = false                                 │   │   │
-│  │  │    $error = $e->getMessage()                       │   │   │
-│  │  │    $logger->logFailure()                            │   │   │
-│  │  │  }                                                  │   │   │
-│  │  └─────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ÉTAPE 5 : AJOUTER LE DEBUG                                │   │
-│  │  ┌─────────────────────────────────────────────────────┐   │   │
-│  │  │  $repository->addDebug($record, status, info)      │   │   │
-│  │  │  → task_type = 'unique'                            │   │   │
-│  │  │  → status = 'succeeded' ou 'failed'                │   │   │
-│  │  │  → info = message                                  │   │   │
-│  │  └─────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ÉTAPE 6 : METTRE À JOUR LE STATUT                         │   │
-│  │  ┌─────────────────────────────────────────────────────┐   │   │
-│  │  │  if ($success) {                                    │   │   │
-│  │  │    $repository->moveToCompleted($record)            │   │   │
-│  │  │    ✅ status = COMPLETED                            │   │   │
-│  │  │    ✅ finished_at = now                             │   │   │
-│  │  │  } else {                                           │   │   │
-│  │  │    $repository->moveToFailed($record)               │   │   │
-│  │  │    ❌ status = FAILED                               │   │   │
-│  │  │    ❌ finished_at = now                             │   │   │
-│  │  │  }                                                  │   │   │
-│  │  └─────────────────────────────────────────────────────┘   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  SORTIE : ExecutionResultRecord                                   │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  success: true/false,                                      │   │
-│  │  error: TaskErrorRecord|null,                              │   │
-│  │  execution_time: float                                     │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+run(record)
+    │
+    ├── 1. Validation (validateTask)
+    │   └── canRun(record) ?
+    │       ├── Oui → Continuer
+    │       └── Non → ValidationErrorResult
+    │
+    ├── 2. Exécution (executeTask)
+    │   ├── logStart()
+    │   ├── instantiateTask()
+    │   ├── task->execute(payload)
+    │   │   ├── Succès → logSuccess()
+    │   │   └── Échec → logFailure()
+    │   ├── updateTaskState()
+    │   │   ├── Succès → moveToCompleted()
+    │   │   └── Échec → moveToFailed()
+    │   ├── addDebugInfo()
+    │   └── Retour ExecutionResultRecord
+    │
+    └── 3. Retour du résultat
 ```
 
-## Gestion des erreurs
+## Cas d'utilisation
 
-| Situation | Exception | Message | Action |
-|-----------|-----------|---------|--------|
-| Classe inexistante | ❌ Non bloquant | `Validation failed: Invalid task class...` | Retourne `success: false` |
-| Statut ≠ PENDING | ❌ Non bloquant | `Validation failed: Task is not in PENDING state` | Retourne `success: false` |
-| scheduled_at > now | ❌ Non bloquant | `Validation failed: Task is not ready to run` | Retourne `success: false` |
-| attempts >= max_attempts | ❌ Non bloquant | `Validation failed: Maximum attempts reached` | Retourne `success: false` |
-| Tâche expirée | ❌ Non bloquant | `Validation failed: Task has expired` | Retourne `success: false` |
-| Exception dans l'exécution | `Throwable` | Message de l'exception | Retourne `success: false` |
+### Cas 1 : Exécution d'une tâche valide
 
-## Dépendances
+**Problème :** Une tâche unique est prête à être exécutée.
+
+```php
+$record = $repository->findByAlias($alias);
+$result = $runner->run($record);
+
+// La tâche est exécutée, loggée et marquée COMPLETED
+```
+
+---
+
+### Cas 2 : Tâche non valide
+
+**Problème :** Une tâche ne peut pas être exécutée (statut invalide, expirée, etc.).
+
+```php
+$record = $repository->findByAlias($alias);
+$result = $runner->run($record);
+
+// $result->success = false
+// $result->error->description = "Validation failed: Task is in COMPLETED state, not PENDING"
+```
+
+---
+
+### Cas 3 : Tâche avec échec et débogage
+
+**Problème :** Une tâche échoue et doit être déboguée.
+
+```php
+$record = $repository->findByAlias($alias);
+$result = $runner->run($record);
+
+// La tâche est marquée FAILED
+// Une entrée de débogage est ajoutée avec le statut FAILED
+// Le logger enregistre l'erreur
+
+// Consultation des logs de débogage
+$debugRecords = $debugService->findByAlias($alias);
+foreach ($debugRecords as $debug) {
+    echo "{$debug->status->value}: {$debug->info->getValue()}\n";
+}
+```
+
+---
+
+### Cas 4 : Tâche avec payload volumineux
+
+**Problème :** Exécuter une tâche avec des données complexes.
+
+```php
+$record = UniqueTaskRecord::from([
+    'alias' => $alias,
+    'payload' => StrictDataObject::from([
+        'users' => array_fill(0, 1000, ['id' => 1, 'name' => 'User']),
+        'config' => ['batch_size' => 100],
+    ]),
+    // ... autres propriétés
+]);
+
+$result = $runner->run($record);
+```
+
+## Validation
+
+### Méthodes de validation utilisées
+
+| Méthode | Rôle | Échec → |
+|---------|------|---------|
+| `canRun()` | Vérifie si la tâche peut être exécutée | ValidationErrorResult |
+
+### Erreurs de validation possibles
+
+| Situation | Message |
+|-----------|---------|
+| Classe invalide | `Validation failed: Invalid task class: X does not exist or does not extend AbstractUniqueTask` |
+| Tâche en COMPLETED | `Validation failed: Task is in COMPLETED state, not PENDING` |
+| Tâche en FAILED | `Validation failed: Task is in FAILED state, not PENDING` |
+| Tâche en CANCELED | `Validation failed: Task is in CANCELED state, not PENDING` |
+| Tentatives max atteintes | `Validation failed: Maximum attempts reached` |
+| Tâche expirée | `Validation failed: Task has expired` |
+| Planifiée dans le futur | `Validation failed: Task is not ready to run (scheduled_at in the future)` |
+
+## États après exécution
+
+```
+PENDING ──────▶ COMPLETED (succès)
+     │
+     └─────────▶ FAILED (échec)
+```
+
+### Comportement des tentatives
+
+Les tentatives sont gérées par le service (`UniqueTaskService`), pas par le runner. Le runner exécute simplement la tâche et met à jour son état.
+
+## Débogage
+
+Chaque exécution ajoute automatiquement une entrée de débogage via `addDebugInfo()` :
+
+| Statut | Message | Action |
+|--------|---------|--------|
+| SUCCEEDED | `Task executed successfully` | Ajout via `repository->addDebug()` |
+| FAILED | `{message d'erreur}` | Ajout via `repository->addDebug()` |
+
+## Intégration
+
+### Dépendances injectées
 
 | Dépendance | Rôle |
 |------------|------|
-| `UniqueTaskValidatorInterface` | Valide la tâche avant exécution |
-| `UniqueTaskLoggerInterface` | Logge le début, succès, échec |
-| `HydrationService` | Utilisé pour l'instanciation |
-| `Application` (Laravel) | Pour instancier les classes |
-| `UniqueTaskRepositoryInterface` | Pour ajouter le debug et mettre à jour le statut |
+| `UniqueTaskValidatorInterface` | Validation de la tâche |
+| `UniqueTaskLoggerInterface` | Journalisation des événements |
+| `HydrationService` | Hydratation des objets |
+| `Application` | Conteneur Laravel |
+| `UniqueTaskRepositoryInterface` | Mise à jour de l'état et débogage |
 
-## Cycle de vie d'une tâche unique
+### Points d'extension
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Cycle de vie d'une tâche unique                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  1. Création                                                       │
-│     status = PENDING                                               │
-│     attempts = 0                                                   │
-│     scheduled_at = date prévue                                     │
-│                                                                     │
-│  2. Runner appelé                                                  │
-│     ┌─────────────────────────────────────────────────────────┐   │
-│     │  Validation :                                           │   │
-│     │  ✅ Classe valide                                       │   │
-│     │  ✅ status = PENDING                                    │   │
-│     │  ✅ scheduled_at <= now                                 │   │
-│     │  ✅ attempts < max_attempts                             │   │
-│     │  ✅ non expiré                                          │   │
-│     └─────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  3. Exécution                                                      │
-│     ┌─────────────────────────────────────────────────────────┐   │
-│     │  SUCCÈS :                                               │   │
-│     │  ✅ status = COMPLETED                                  │   │
-│     │  ✅ finished_at = now                                   │   │
-│     │  ✅ debug status = 'succeeded'                          │   │
-│     │                                                          │   │
-│     │  ÉCHEC :                                                 │   │
-│     │  ❌ status = FAILED                                     │   │
-│     │  ❌ finished_at = now                                   │   │
-│     │  ❌ debug status = 'failed'                             │   │
-│     └─────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  4. Fin de vie                                                    │
-│     Status terminal : COMPLETED ou FAILED                         │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+- Le validator peut être personnalisé pour des règles métier spécifiques
+- Le logger peut être remplacé pour un format de log différent
+- L'instanciation des tâches peut être modifiée via le conteneur
+- Le débogage peut être enrichi avec des données supplémentaires
 
 ## Performance
 
-- **Complexité** : O(1) - une seule tâche exécutée
-- **Mémoire** : Une seule instance de tâche créée
-- **Base de données** : 2 requêtes (addDebug + moveToCompleted/Failed)
-- **Temps** : Variable selon la tâche exécutée
+- **Temps d'exécution** : Dépend de la tâche elle-même
+- **Mémoire** : Une seule tâche instanciée à la fois
+- **Débogage** : Écriture synchrone (configurable)
+- **Recommandation** : Utiliser pour des tâches de courte durée (< 5 min)
 
 ## Compatibilité
 
-| Version | Support |
-|---------|---------|
-| PHP 8.1+ | ✅ Complet |
-| Laravel 10+ | ✅ Complet |
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.2+ | ✅ Complet |
+| PHP 8.1 | ✅ Complet |
 
 ## Exemple complet
 
@@ -313,43 +220,55 @@ declare(strict_types=1);
 
 use AndyDefer\Task\Runners\UniqueTaskRunner;
 use AndyDefer\Task\Records\UniqueTaskRecord;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
+use AndyDefer\Task\Enums\UniqueTaskStatus;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
-use Ramsey\Uuid\Uuid;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
+use Illuminate\Support\Carbon;
 
-// Créer une tâche en PENDING
-$record = new UniqueTaskRecord(
-    id: new TaskIdVO((string) Uuid::uuid4()),
-    alias: new TaskSignatureVO('send-welcome-email'),
-    fqcn: SendWelcomeEmailTask::class,
-    payload: StrictDataObject::from(['email' => 'john@example.com']),
-    scheduled_at: new Iso8601DateTimeVO(now()->subMinutes(5)->toIso8601String()),
-    grace_period_seconds: 86400,
-    status: UniqueTaskStatus::PENDING,
-    attempts: new CounterVO(0),
-    max_attempts: new CounterVO(3),
-);
-
-// Exécuter
+/** @var UniqueTaskRunner $runner */
 $runner = app(UniqueTaskRunner::class);
+
+// 1. Création du record
+$alias = new TaskAliasVO('unique@abc-123');
+$record = UniqueTaskRecord::from([
+    'id' => new UuidVO('550e8400-e29b-41d4-a716-446655440000'),
+    'alias' => $alias,
+    'fqcn' => new UniqueTaskFqcnVO(MyUniqueTask::class),
+    'payload' => StrictDataObject::from(['email' => 'user@example.com']),
+    'scheduled_at' => new Iso8601DateTimeVO(Carbon::now()->subHour()->toIso8601String()),
+    'grace_period_seconds' => 86400,
+    'status' => UniqueTaskStatus::PENDING,
+    'attempts' => new CounterVO(0),
+    'max_attempts' => new CounterVO(3),
+]);
+
+// 2. Exécution
 $result = $runner->run($record);
 
+// 3. Traitement du résultat
 if ($result->success) {
-    echo "✅ Tâche exécutée avec succès\n";
-    echo "⏱️ Temps: {$result->execution_time}s\n";
-    // Statut → COMPLETED
+    echo "✅ Tâche exécutée\n";
+    echo "Durée : {$result->execution_time->format()}\n";
 } else {
-    echo "❌ Échec: {$result->error->error}\n";
-    // Statut → FAILED
+    echo "❌ Échec : {$result->error->description}\n";
 }
+
+// 4. Consultation du débogage
+$debugService = app(TaskExecutionDebugService::class);
+$debugRecords = $debugService->findByAlias($alias);
+echo "Nombre d'entrées de débogage : {$debugRecords->count()}\n";
 ```
 
 ## Voir aussi
 
-- `UniqueTaskProcessor` - Processeur de lots
-- `UniqueTaskValidator` - Validation des tâches
+- `RecurringTaskRunner` - Exécuteur de tâches récurrentes
+- `UniqueTaskValidatorInterface` - Validation des tâches
+- `UniqueTaskLoggerInterface` - Journalisation
+- `TaskExecutionDebugService` - Service de débogage
 - `ExecutionResultRecord` - Structure de résultat
-- `RecurringTaskRunner` - Runner pour les tâches récurrentes
-- `UniqueTaskLogger` - Logger des tâches uniques
+- `UniqueTaskRecord` - Données de la tâche
+---

@@ -10,11 +10,11 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 final class LoopResultRecord
 {
     public function __construct(
-        public readonly CounterVO $cycleCount,
-        public readonly CounterVO $totalSuccess,
-        public readonly CounterVO $totalFailed,
-        public readonly CounterVO $totalErrors,
-        public readonly bool $hasErrors,
-        public readonly ?DescriptionVO $lastException
+        public readonly CounterVO $cycle_count,
+        public readonly CounterVO $total_success,
+        public readonly CounterVO $total_failed,
+        public readonly CounterVO $total_errors,
+        public readonly bool $has_errors,
+        public readonly ?DescriptionVO $last_exception
     ) {}
 }

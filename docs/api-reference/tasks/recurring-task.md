@@ -1,344 +1,398 @@
-# Tâches Récurrentes - Référence Technique
+# AbstractRecurringTask - Référence Technique
 
 ## Description
 
-Les tâches récurrentes sont des tâches qui s'exécutent périodiquement selon un intervalle défini. Elles restent actives (`PLAYING`) entre les exécutions et se terminent automatiquement à une date de fin (`end_at`).
+Classe abstraite de base pour les tâches qui s'exécutent de manière répétée selon un intervalle planifié. Elle fournit un workflow d'exécution standardisé avec logging, gestion des erreurs et hooks de cycle de vie.
 
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Architecture d'une tâche récurrente             │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                  AbstractRecurringTask                      │   │
-│  │  - Classe abstraite de base                                 │   │
-│  │  - Définit le cycle de vie (before, process, after)        │   │
-│  │  - Gère la journalisation automatique                       │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              ▲                                      │
-│                              │                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                  TestRecurringTask (Fixture)                │   │
-│  │  - Implémentation concrète pour les tests                   │   │
-│  │  - Définit la configuration via getConfig()                │   │
-│  │  - Contient la logique métier dans process()               │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │                  RecurringTaskContext                       │   │
-│  │  - Contexte d'exécution de la tâche                         │   │
-│  │  - Contient : alias, interval, start_at, end_at, etc.      │   │
-│  │  - Injecté dans la tâche via le constructeur                │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-## Cycle de vie
+## Hiérarchie / Implémentations
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Cycle de vie d'une tâche récurrente              │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Création                                                          │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  status = WAITING                                           │   │
-│  │  start_at = date de début                                   │   │
-│  │  interval_seconds = période d'exécution                     │   │
-│  │  end_at = date de fin (optionnelle)                        │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  Démarrage (start_at atteint)                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  status = PLAYING                                           │   │
-│  │  La tâche devient active                                    │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  Exécution périodique                                             │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Chaque cycle :                                             │   │
-│  │  1. Vérifier si intervalle atteint                          │   │
-│  │  2. Exécuter la tâche                                       │   │
-│  │  3. Mettre à jour last_run_at                               │   │
-│  │  4. Vérifier si end_at atteint                              │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  Fin (end_at atteint)                                             │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  status = FINISHED                                          │   │
-│  │  finished_at = date de fin                                  │   │
-│  │  La tâche est terminée                                      │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+TaskInterface
+    └── AbstractRecurringTask
+            └── [Vos tâches récurrentes]
 ```
 
-## Modèle Eloquent
+## Rôle principal
 
-### `RecurringTask`
+Fournir une structure standardisée pour l'exécution des tâches récurrentes en :
+- Gérant le cycle de vie complet (before → process → after)
+- Assurant un logging cohérent (début, succès, échec)
+- Gérant les exceptions et la propagation
+- Fournissant des hooks pour la logique métier personnalisée
+- Intégrant le contexte récurrent (intervalle, prochaine exécution)
 
+## API / Méthodes publiques
+
+### `execute(StrictDataObject $payload): void`
+
+Point d'entrée principal de la tâche. Orchestre l'exécution complète.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$payload` | `StrictDataObject` | Données d'entrée de la tâche |
+
+**Exceptions :** `Throwable` - Toute exception levée par `process()` est propagée
+
+**Exemple :**
 ```php
-final class RecurringTask extends Model
+class MyRecurringTask extends AbstractRecurringTask
 {
-    use SoftDeletes;
+    protected function process(): void
+    {
+        // Logique métier
+    }
+}
 
-    protected $table = 'recurring_tasks';
+$task = new MyRecurringTask($context, $logger, $hydration);
+$task->execute(StrictDataObject::from(['batch_size' => 100]));
+```
 
-    protected $fillable = [
-        'alias',          // Identifiant unique
-        'fqcn',           // Nom complet de la classe
-        'payload',        // Données de la tâche
-        'interval_seconds', // Intervalle en secondes
-        'start_at',       // Date de début
-        'end_at',         // Date de fin
-        'status',         // WAITING, PLAYING, PAUSED, FINISHED
-        'last_run_at',    // Dernière exécution
-        'finished_at',    // Date de fin effective
-    ];
+---
+
+### `info(DescriptionVO $message): void`
+
+Journalise un message d'information de la tâche.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$message` | `DescriptionVO` | Message à journaliser |
+
+**Exemple :**
+```php
+$task->info(new DescriptionVO('Processing batch #42'));
+```
+
+---
+
+### `error(DescriptionVO $message): void`
+
+Journalise un message d'erreur de la tâche.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$message` | `DescriptionVO` | Message d'erreur à journaliser |
+
+**Exemple :**
+```php
+$task->error(new DescriptionVO('Database connection lost'));
+```
+
+## Méthodes protégées à implémenter
+
+### `process(): void`
+
+Contient la logique métier principale de la tâche.
+
+**Exceptions :** `Throwable` - Doit être levée en cas d'échec
+
+**Exemple :**
+```php
+protected function process(): void
+{
+    $data = $this->context->getPayload();
+    $batchSize = $data->batch_size ?? 50;
+    
+    $this->processBatch($batchSize);
 }
 ```
 
-### Accesseurs
+## Méthodes protégées optionnelles
 
-| Méthode | Retour | Description |
-|---------|--------|-------------|
-| `getId(): int` | `int` | ID auto-incrémenté |
-| `getAlias(): TaskSignatureVO` | `TaskSignatureVO` | Alias de la tâche |
-| `getIntervalSeconds(): CounterVO` | `CounterVO` | Intervalle en secondes |
-| `getStartAt(): ?Iso8601DateTimeVO` | `?Iso8601DateTimeVO` | Date de début |
-| `getLastRunAt(): ?Iso8601DateTimeVO` | `?Iso8601DateTimeVO` | Dernière exécution |
-| `getFinishedAt(): ?Iso8601DateTimeVO` | `?Iso8601DateTimeVO` | Date de fin |
-| `getStatus(): RecurringTaskStatus` | `RecurringTaskStatus` | Statut actuel |
-| `getPayload(): StrictDataObject` | `StrictDataObject` | Données de la tâche |
-| `getFqcn(): string` | `string` | Nom de la classe |
+### `before(StrictDataObject $payload): void`
 
-## Classe Abstraite
+Hook exécuté avant `process()`. Utile pour la validation ou la préparation.
 
-### `AbstractRecurringTask`
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$payload` | `StrictDataObject` | Données d'entrée de la tâche |
 
+**Exemple :**
 ```php
-abstract class AbstractRecurringTask implements RecurringTaskInterface
+protected function before(StrictDataObject $payload): void
 {
-    protected RecurringTaskContext $context;
-    protected LoggerInterface $logger;
-    protected HydrationService $hydration;
-
-    // Méthodes abstraites à implémenter
-    abstract public function getConfig(): RecurringTaskConfigInterface;
-    abstract protected function process(): void;
-
-    // Méthodes optionnelles à surcharger
-    protected function before(): void {}
-    protected function after(bool $success, ?string $error = null): void {}
-
-    // Méthode finale d'exécution
-    final public function execute(StrictDataObject $payload): void;
-
-    // Méthodes de journalisation
-    public function info(string $message): void;
-    public function error(string $message): void;
+    if (!$this->isMaintenanceMode()) {
+        throw new RuntimeException('Maintenance mode required');
+    }
 }
 ```
 
-### Cycle d'exécution
+---
 
-```
-execute()
-    ├── setPayload($payload)
-    ├── log('task_started')
-    ├── before()
-    ├── try
-    │   ├── process()          ← Implémentée par la tâche concrète
-    │   ├── after(true)
-    │   └── log('task_completed')
-    ├── catch
-    │   ├── after(false, $error)
-    │   ├── log('task_failed')
-    │   └── throw $e
-    └── end
-```
+### `after(bool $success, ?DescriptionVO $error = null): void`
 
-## Contexte
+Hook exécuté après `process()`. Utile pour le nettoyage ou les notifications.
 
-### `RecurringTaskContext`
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$success` | `bool` | Indique si l'exécution a réussi |
+| `$error` | `DescriptionVO|null` | Message d'erreur en cas d'échec |
 
+**Exemple :**
 ```php
-class RecurringTaskContext implements RecurringTaskContextInterface
+protected function after(bool $success, ?DescriptionVO $error = null): void
 {
-    // Propriétés
-    private StrictDataObject $payload;
-    private TaskSignatureVO $alias;
-    private CounterVO $intervalSeconds;
-    private ?Iso8601DateTimeVO $startAt;
-    private ?Iso8601DateTimeVO $endAt;
-    private ?Iso8601DateTimeVO $lastRunAt;
-    private ?Iso8601DateTimeVO $nextRunAt;
-    private ?Application $app;
-
-    // Getters / Setters
-    public function setPayload(StrictDataObject $payload): void;
-    public function getPayload(): StrictDataObject;
-
-    public function setAlias(TaskSignatureVO $alias): void;
-    public function getAlias(): TaskSignatureVO;
-
-    public function setIntervalSeconds(CounterVO $intervalSeconds): void;
-    public function getIntervalSeconds(): CounterVO;
-
-    public function setStartAt(?Iso8601DateTimeVO $startAt): void;
-    public function getStartAt(): ?Iso8601DateTimeVO;
-
-    public function setEndAt(?Iso8601DateTimeVO $endAt): void;
-    public function getEndAt(): ?Iso8601DateTimeVO;
-
-    public function setLastRunAt(?Iso8601DateTimeVO $lastRunAt): void;
-    public function getLastRunAt(): ?Iso8601DateTimeVO;
-
-    public function setNextRunAt(?Iso8601DateTimeVO $nextRunAt): void;
-    public function getNextRunAt(): ?Iso8601DateTimeVO;
-
-    public function setLaravelApp(Application $app): void;
-    public function getLaravelApp(): ?Application;
+    $this->cleanupTemporaryFiles();
+    
+    if (!$success) {
+        $this->alertAdmin('Recurring task failed', $error);
+    }
 }
 ```
 
-## Configuration
+## Flux d'exécution
 
-### `RecurringTaskConfig`
-
-```php
-class RecurringTaskConfig implements RecurringTaskConfigInterface
-{
-    public function __construct(
-        public readonly TaskSignatureVO $alias,
-        public readonly string $description,
-        public readonly CounterVO $interval_seconds,
-        public readonly ?Iso8601DateTimeVO $start_at = null,
-        public readonly ?Iso8601DateTimeVO $end_at = null,
-        public readonly CounterVO $max_attempts = new CounterVO(3),
-    ) {}
-}
+```
+execute(payload)
+    │
+    ├── 1. setPayload(payload)
+    │
+    ├── 2. logTaskStarted()
+    │   └── Log: recurring_task → task_started
+    │
+    ├── 3. before(payload) ← Surchargeable
+    │
+    ├── 4. process() ← À implémenter
+    │   ├── Succès → continue
+    │   └── Échec → Throwable capturé
+    │
+    ├── 5. after(success) ← Surchargeable
+    │
+    ├── 6. Log
+    │   ├── Succès → logTaskCompleted()
+    │   └── Échec → logTaskFailed() + throw
+    │
+    └── 7. Fin
 ```
 
-## Statuts
+## Journalisation
 
-### `RecurringTaskStatus`
+### Types de logs
 
-| Statut | Valeur | Description |
-|--------|--------|-------------|
-| `WAITING` | `'waiting'` | En attente de démarrage |
-| `PLAYING` | `'playing'` | Active, peut être exécutée |
-| `PAUSED` | `'paused'` | Mise en pause |
-| `FINISHED` | `'finished'` | Terminée |
+| Type | Événements |
+|------|------------|
+| `recurring_task` | `task_started`, `task_completed`, `task_failed` |
+| `recurring_task_output` | `info`, `error` |
 
-```php
-enum RecurringTaskStatus: string
+### Structure des logs
+
+```json
 {
-    case WAITING = 'waiting';
-    case PLAYING = 'playing';
-    case PAUSED = 'paused';
-    case FINISHED = 'finished';
-
-    public function isWaiting(): bool { /* ... */ }
-    public function isPlaying(): bool { /* ... */ }
-    public function isPaused(): bool { /* ... */ }
-    public function isFinished(): bool { /* ... */ }
+    "type": "recurring_task",
+    "payload": {
+        "event": "task_started",
+        "alias": "recurring@...",
+        "interval_seconds": 3600,
+        "next_run_at": "2026-01-01T12:00:00+00:00"
+    }
 }
 ```
 
 ## Cas d'utilisation
 
-### Cas 1 : Créer une tâche récurrente
+### Cas 1 : Nettoyage périodique
+
+**Problème :** Nettoyer les logs obsolètes toutes les heures.
 
 ```php
-$task = new TestRecurringTask(
-    $context,
-    $logger,
-    $hydration
-);
+class CleanupLogsTask extends AbstractRecurringTask
+{
+    protected function process(): void
+    {
+        $payload = $this->context->getPayload();
+        $days = $payload->days ?? 30;
+        
+        $this->info(new DescriptionVO("Cleaning logs older than {$days} days"));
+        
+        $deleted = DB::table('logs')
+            ->where('created_at', '<', Carbon::now()->subDays($days))
+            ->delete();
+        
+        $this->info(new DescriptionVO("Deleted {$deleted} log entries"));
+    }
+}
 
-$config = $task->getConfig();
-echo $config->getAlias()->value; // 'test-recurring'
-echo $config->getIntervalSeconds()->value; // 3600
+// Enregistrement avec intervalle de 1 heure
+$config = RecurringTaskConfigRecord::from([
+    'interval_seconds' => 3600,
+    'start_at' => Carbon::now()->toIso8601String(),
+]);
 ```
 
-### Cas 2 : Exécuter une tâche récurrente
+---
+
+### Cas 2 : Synchronisation de données
+
+**Problème :** Synchroniser les données avec une API externe toutes les 5 minutes.
 
 ```php
-$task = new TestRecurringTask(
-    $context,
-    $logger,
-    $hydration
-);
-
-$payload = StrictDataObject::from(['data' => 'value']);
-$task->execute($payload);
-
-$log = $task->getExecutionLog();
-// [['time' => '...', 'payload' => ['data' => 'value']]]
-```
-
-### Cas 3 : Journalisation
-
-```php
-$task = new TestRecurringTask(
-    $context,
-    $logger,
-    $hydration
-);
-
-$task->info('Processing started');
-$task->error('An error occurred');
-
-// Les messages sont automatiquement journalisés
-```
-
-### Cas 4 : Tâche avec échec
-
-```php
-$task = new TestRecurringTask(
-    $context,
-    $logger,
-    $hydration
-);
-
-$task->setFailOn('Planned failure');
-$payload = StrictDataObject::from([]);
-
-try {
-    $task->execute($payload);
-} catch (RuntimeException $e) {
-    echo $e->getMessage(); // 'Planned failure'
-    // Une entrée de log 'task_failed' a été créée
+class SyncDataTask extends AbstractRecurringTask
+{
+    protected function before(StrictDataObject $payload): void
+    {
+        if (empty($payload->api_url)) {
+            throw new InvalidArgumentException('API URL is required');
+        }
+    }
+    
+    protected function process(): void
+    {
+        $payload = $this->context->getPayload();
+        $url = $payload->api_url;
+        
+        $this->info(new DescriptionVO("Syncing from {$url}"));
+        
+        $data = $this->fetchFromApi($url);
+        $this->saveData($data);
+        
+        $this->info(new DescriptionVO("Synced " . count($data) . " records"));
+    }
 }
 ```
 
-## Journalisation
+---
 
-Les tâches récurrentes produisent automatiquement les logs suivants :
+### Cas 3 : Tâche avec état
 
-| Événement | Type | Description |
-|-----------|------|-------------|
-| `task_started` | `recurring_task` | Début de l'exécution |
-| `task_completed` | `recurring_task` | Exécution réussie |
-| `task_failed` | `recurring_task` | Échec de l'exécution |
-| `info` | `recurring_task_output` | Message d'information |
-| `error` | `recurring_task_output` | Message d'erreur |
+**Problème :** Traiter des fichiers en attente avec suivi de progression.
 
-## Bonnes pratiques
+```php
+class ProcessFilesTask extends AbstractRecurringTask
+{
+    private int $processed = 0;
+    
+    protected function before(StrictDataObject $payload): void
+    {
+        $this->processed = 0;
+    }
+    
+    protected function process(): void
+    {
+        $payload = $this->context->getPayload();
+        $limit = $payload->limit ?? 100;
+        
+        $files = File::where('status', 'pending')->limit($limit)->get();
+        
+        foreach ($files as $file) {
+            $this->processFile($file);
+            $this->processed++;
+        }
+        
+        $this->info(new DescriptionVO("Processed {$this->processed} files"));
+    }
+    
+    protected function after(bool $success, ?DescriptionVO $error = null): void
+    {
+        if ($success && $this->processed > 0) {
+            $this->logger->info("Files processed", ['count' => $this->processed]);
+        }
+    }
+}
+```
 
-1. **Configurer l'intervalle** : Utiliser `CounterVO` pour garantir l'immutabilité
-2. **Gérer les dates** : Utiliser `Iso8601DateTimeVO` pour les dates
-3. **Journaliser** : Utiliser `$this->info()` et `$this->error()`
-4. **Surcharger `before()` et `after()`** : Pour les actions pré/post-exécution
-5. **Utiliser `StrictDataObject`** : Pour le payload, garantit l'intégrité des données
+---
+
+### Cas 4 : Tâche avec gestion d'erreur et retry
+
+**Problème :** Envoyer des notifications avec retry en cas d'échec.
+
+```php
+class SendNotificationsTask extends AbstractRecurringTask
+{
+    protected function process(): void
+    {
+        $payload = $this->context->getPayload();
+        $limit = $payload->limit ?? 50;
+        
+        $notifications = Notification::where('status', 'pending')
+            ->limit($limit)
+            ->get();
+        
+        $failed = 0;
+        
+        foreach ($notifications as $notification) {
+            try {
+                $this->sendNotification($notification);
+                $notification->markAsSent();
+            } catch (Throwable $e) {
+                $failed++;
+                $this->error(new DescriptionVO("Failed: {$e->getMessage()}"));
+            }
+        }
+        
+        if ($failed > 0) {
+            throw new RuntimeException("Failed to send {$failed} notifications");
+        }
+        
+        $this->info(new DescriptionVO("Sent " . $notifications->count() . " notifications"));
+    }
+}
+```
+
+## Gestion des erreurs
+
+| Situation | Action |
+|-----------|--------|
+| Exception dans `process()` | `after(false, error)` + `logTaskFailed()` + propagation |
+| Exception dans `before()` | Propagation immédiate (sans logging de fin) |
+| Exception dans `after()` | Non gérée (s'ajoute à l'exception originale) |
+
+### Messages de log d'erreur
+
+```json
+{
+    "type": "recurring_task",
+    "payload": {
+        "event": "task_failed",
+        "alias": "recurring@...",
+        "status": "failed",
+        "error": "Connection timeout"
+    }
+}
+```
+
+## Intégration
+
+### Dépendances injectées
+
+| Dépendance | Rôle |
+|------------|------|
+| `RecurringTaskContext` | Contexte d'exécution (alias, intervalle, dates) |
+| `LoggerInterface` | Journalisation des événements |
+| `HydrationService` | Hydratation des objets pour les logs |
+
+### Accès au contexte
+
+```php
+$this->context->getAlias();           // TaskAliasVO
+$this->context->getIntervalSeconds(); // DurationVO
+$this->context->getStartAt();         // Iso8601DateTimeVO
+$this->context->getEndAt();           // Iso8601DateTimeVO
+$this->context->getLastRunAt();       // Iso8601DateTimeVO
+$this->context->getNextRunAt();       // Iso8601DateTimeVO
+$this->context->getPayload();         // StrictDataObject
+```
+
+## Différences avec AbstractUniqueTask
+
+| Aspect | AbstractRecurringTask | AbstractUniqueTask |
+|--------|----------------------|-------------------|
+| Context | `RecurringTaskContext` | `UniqueTaskContext` |
+| Planification | Intervalle répété | Date unique |
+| Logs | `recurring_task` | `unique_task` |
+| État | PLAYING/PAUSED/FINISHED | PENDING/COMPLETED/FAILED |
+
+## Performance
+
+- **Logging** : Écriture synchrone (configurable via logger)
+- **Mémoire** : Context et payload sont conservés pendant l'exécution
+- **Recommandation** : Éviter les opérations longues (> 5 min) dans `process()`
+
+## Compatibilité
+
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.2+ | ✅ Complet |
+| PHP 8.1 | ✅ Complet |
 
 ## Exemple complet
 
@@ -348,52 +402,77 @@ Les tâches récurrentes produisent automatiquement les logs suivants :
 declare(strict_types=1);
 
 use AndyDefer\Task\Abstract\AbstractRecurringTask;
-use AndyDefer\Task\Contexts\RecurringTaskContext;
-use AndyDefer\Task\Configs\RecurringTaskConfig;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use RuntimeException;
 
-class BackupTask extends AbstractRecurringTask
+final class BackupTask extends AbstractRecurringTask
 {
-    public function getConfig(): RecurringTaskConfig
+    private string $backupPath;
+    
+    protected function before(StrictDataObject $payload): void
     {
-        return new RecurringTaskConfig(
-            alias: new TaskSignatureVO('database-backup'),
-            description: 'Backup the database',
-            interval_seconds: new CounterVO(86400),
-            start_at: new Iso8601DateTimeVO('2026-01-01T00:00:00+00:00'),
-            max_attempts: new CounterVO(3),
-        );
+        $this->backupPath = $payload->path ?? '/var/backups';
+        
+        if (!is_writable($this->backupPath)) {
+            throw new RuntimeException("Backup path is not writable: {$this->backupPath}");
+        }
     }
-
+    
     protected function process(): void
     {
-        $config = $this->context->getPayload()->toArray();
-        $database = $config['database'] ?? 'default';
-
-        $this->info("Starting backup for database: {$database}");
-
-        // Logique de backup
-        $success = $this->performBackup($database);
-
-        if (!$success) {
-            throw new \RuntimeException('Backup failed');
+        $this->info(new DescriptionVO("Starting backup to {$this->backupPath}"));
+        
+        $database = config('database.connections.mysql.database');
+        $filename = "{$this->backupPath}/{$database}_" . date('Y-m-d_H-i-s') . '.sql';
+        
+        $command = "mysqldump -u root -p" . env('DB_PASSWORD') . " {$database} > {$filename}";
+        exec($command, $output, $returnCode);
+        
+        if ($returnCode !== 0) {
+            throw new RuntimeException("Backup failed with code {$returnCode}");
         }
-
-        $this->info("Backup completed successfully");
+        
+        $this->info(new DescriptionVO("Backup completed: {$filename}"));
+        
+        // Nettoyer les anciens backups
+        $this->cleanupOldBackups();
     }
-
-    private function performBackup(string $database): bool
+    
+    private function cleanupOldBackups(): void
     {
-        // Implémentation du backup
-        return true;
+        $files = glob("{$this->backupPath}/*.sql");
+        $keep = $this->context->getPayload()->keep ?? 7;
+        
+        usort($files, function($a, $b) {
+            return filemtime($a) - filemtime($b);
+        });
+        
+        $toDelete = array_slice($files, 0, -$keep);
+        
+        foreach ($toDelete as $file) {
+            unlink($file);
+            $this->info(new DescriptionVO("Deleted old backup: " . basename($file)));
+        }
     }
 }
+
+// Utilisation
+$context = new RecurringTaskContext();
+$context->setAlias(new TaskAliasVO('recurring@...'));
+$context->setIntervalSeconds(new DurationVO(86400)); // Une fois par jour
+
+$task = new BackupTask($context, $logger, $hydration);
+$task->execute(StrictDataObject::from([
+    'path' => '/var/backups',
+    'keep' => 30,
+]));
 ```
 
 ## Voir aussi
 
-- `AbstractRecurringTask` - Classe abstraite de base
-- `RecurringTaskContext` - Contexte d'exécution
-- `RecurringTaskConfig` - Configuration des tâches
-- `RecurringTaskStatus` - Énumération des statuts
-- `RecurringTaskRepository` - Repository des tâches récurrentes
+- `AbstractUniqueTask` - Classe de base pour les tâches uniques
+- `TaskInterface` - Interface commune à toutes les tâches
+- `RecurringTaskContext` - Contexte des tâches récurrentes
 - `RecurringTaskService` - Service de gestion des tâches récurrentes
+---

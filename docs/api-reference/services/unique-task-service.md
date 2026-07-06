@@ -2,7 +2,7 @@
 
 ## Description
 
-Service métier pour la gestion des tâches uniques. Fournit une API complète pour l'enregistrement, l'exécution, la gestion d'état, la modification et la recherche des tâches uniques.
+Service central de gestion des tâches uniques. Il orchestre l'enregistrement, l'exécution, le cycle de vie et le traitement par lots des tâches qui ne doivent s'exécuter qu'une seule fois.
 
 ## Hiérarchie / Implémentations
 
@@ -13,538 +13,350 @@ UniqueTaskServiceInterface
 
 ## Rôle principal
 
-Ce service est le point d'entrée principal pour la gestion des tâches uniques. Il orchestre toutes les opérations métier :
+Fournir une API complète pour la gestion du cycle de vie des tâches uniques :
+- Enregistrement de nouvelles tâches avec planification
+- Exécution individuelle ou par lots
+- Gestion des états (PENDING → COMPLETED/FAILED/CANCELED)
+- Gestion des tentatives et de l'expiration
+- Reprise d'exécution (reschedule) et prolongation de la période de grâce
 
-1. **Enregistrement** des nouvelles tâches uniques avec génération d'UUID
-2. **Exécution** des tâches en `PENDING` avec gestion des tentatives
-3. **Gestion d'état** (annulation, reprogrammation)
-4. **Modification** des paramètres (date d'exécution, période de grâce)
-5. **Recherche** et consultation des tâches
-6. **Suppression** des tâches
-7. **Comptage** des tâches par statut
+## API / Méthodes publiques
 
-## API
-
-### `register(string $taskClass, StrictDataObject $payload, ?UniqueTaskConfigInterface $config = null): TaskIdVO`
+### `register(UniqueTaskFqcnVO $fqcn, StrictDataObject $payload, UniqueTaskConfigRecord $config): TaskAliasVO`
 
 Enregistre une nouvelle tâche unique.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$taskClass` | `string` | Classe de la tâche (doit étendre `AbstractUniqueTask`) |
-| `$payload` | `StrictDataObject` | Données de la tâche |
-| `$config` | `?UniqueTaskConfigInterface` | Configuration personnalisée (optionnelle) |
+| `$fqcn` | `UniqueTaskFqcnVO` | Nom complet de la classe de la tâche |
+| `$payload` | `StrictDataObject` | Données d'entrée de la tâche |
+| `$config` | `UniqueTaskConfigRecord` | Configuration (planification, grâce, tentatives) |
 
-**Retourne :** `TaskIdVO` - UUID de la tâche créée
+**Retourne :** `TaskAliasVO` - Alias unique de la tâche créée
 
-**Exceptions :** 
-- `InvalidArgumentException` - Si la classe est invalide
+**Exceptions :** `InvalidArgumentException` - Si la classe n'existe pas ou n'hérite pas de `AbstractUniqueTask`
 
 **Exemple :**
 ```php
-$service = app(UniqueTaskService::class);
+$config = UniqueTaskConfigRecord::from([
+    'scheduled_at' => Carbon::now()->addHours(2)->toIso8601String(),
+    'grace_period' => 86400,
+    'max_attempts' => 3,
+]);
 
-$taskId = $service->register(
-    SendWelcomeEmailTask::class,
-    StrictDataObject::from(['email' => 'john@example.com']),
-    new UniqueTaskConfig(
-        alias: new TaskSignatureVO('welcome-email'),
-        description: 'Send welcome email',
-        scheduled_at: new Iso8601DateTimeVO(now()->addMinutes(5)->toIso8601String()),
-        max_attempts: new CounterVO(3),
-    )
+$alias = $service->register(
+    new UniqueTaskFqcnVO(SendEmailTask::class),
+    StrictDataObject::from(['email' => 'user@example.com']),
+    $config
 );
 ```
 
 ---
 
-### `run(TaskIdVO $taskId): bool`
+### `run(TaskAliasVO $alias): TaskRunResultRecord`
 
-Exécute une tâche unique.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskId` | `TaskIdVO` | UUID de la tâche |
-
-**Retourne :** `bool` - `true` si l'exécution est réussie
-
-**Conditions d'exécution :**
-- Statut = `PENDING`
-- `attempts < max_attempts`
-
-**Gestion des tentatives :**
-- Succès → Statut `COMPLETED`
-- Échec avec `attempts < max_attempts` → `attempts` incrémenté, statut `PENDING`
-- Échec avec `attempts >= max_attempts` → Statut `FAILED`
-
-**Exemple :**
-```php
-$taskId = new TaskIdVO('550e8400-e29b-41d4-a716-446655440000');
-$success = $service->run($taskId);
-```
-
----
-
-### `process(?int $limit = null): array`
-
-Exécute toutes les tâches uniques prêtes.
+Exécute une tâche unique spécifique par son alias.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$limit` | `?int` | Nombre maximum de tâches à exécuter (`null` = illimité) |
+| `$alias` | `TaskAliasVO` | Alias de la tâche à exécuter |
 
-**Retourne :** `array{success: int, failed: int}` - Résultats de l'exécution
-
-**Exemple :**
-```php
-$results = $service->process(10);
-// ['success' => 7, 'failed' => 3]
-```
-
----
-
-### `cancel(TaskIdVO $taskId, ?string $reason = null): void`
-
-Annule une tâche en attente.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskId` | `TaskIdVO` | UUID de la tâche |
-| `$reason` | `?string` | Raison de l'annulation (optionnelle) |
-
-**Comportement :**
-- Marque la tâche comme `CANCELED`
-- Log un événement `unique_task_cancelled`
-
-**Conditions :** La tâche doit être en `PENDING`
-
-**Exceptions :** 
-- `RuntimeException` - Si la tâche n'existe pas ou n'est pas en `PENDING`
+**Retourne :** `TaskRunResultRecord` - Résultat de l'exécution (succès/échec, temps, erreur)
 
 **Exemple :**
 ```php
-$service->cancel(
-    new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
-    'User requested cancellation'
-);
-// Statut → CANCELED
-```
+$result = $service->run($alias);
 
----
-
-### `reschedule(TaskIdVO $taskId, Iso8601DateTimeVO $newScheduledAt): void`
-
-Repousse la date d'exécution d'une tâche en attente.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskId` | `TaskIdVO` | UUID de la tâche |
-| `$newScheduledAt` | `Iso8601DateTimeVO` | Nouvelle date planifiée |
-
-**Comportement :**
-- Met à jour `scheduled_at`
-- Log un événement `unique_task_rescheduled`
-
-**Conditions :** La tâche doit être en `PENDING`
-
-**Exceptions :** 
-- `RuntimeException` - Si la tâche n'existe pas ou n'est pas en `PENDING`
-
-**Exemple :**
-```php
-$service->reschedule(
-    new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
-    new Iso8601DateTimeVO(now()->addDays(2)->toIso8601String())
-);
-```
-
----
-
-### `extendGracePeriod(TaskIdVO $taskId, int $extraSeconds): void`
-
-Prolonge la période de grâce d'une tâche en attente.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskId` | `TaskIdVO` | UUID de la tâche |
-| `$extraSeconds` | `int` | Secondes supplémentaires à ajouter |
-
-**Comportement :**
-- Ajoute `$extraSeconds` à `grace_period_seconds`
-- Log un événement `unique_task_grace_period_extended`
-
-**Conditions :** 
-- La tâche doit être en `PENDING`
-- `$extraSeconds` doit être positif
-
-**Exceptions :** 
-- `InvalidArgumentException` - Si `$extraSeconds <= 0`
-- `RuntimeException` - Si la tâche n'existe pas ou n'est pas en `PENDING`
-
-**Exemple :**
-```php
-$service->extendGracePeriod(
-    new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
-    3600 // 1 heure supplémentaire
-);
-```
-
----
-
-### `find(TaskIdVO $taskId): ?UniqueTaskRecord`
-
-Trouve une tâche par son UUID.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskId` | `TaskIdVO` | UUID de la tâche |
-
-**Retourne :** `?UniqueTaskRecord` - DTO de la tâche ou `null`
-
-**Exemple :**
-```php
-$taskId = new TaskIdVO('550e8400-e29b-41d4-a716-446655440000');
-$task = $service->find($taskId);
-if ($task) {
-    echo $task->status->value; // 'pending'
+if ($result->success) {
+    echo "Tâche exécutée avec succès en {$result->execution_time_ms}ms";
+} else {
+    echo "Échec : {$result->error}";
 }
 ```
 
 ---
 
-### `findPending(?int $limit = null): array`
+### `process(LimitVO $limit = new LimitVO): ProcessResultRecord`
 
-Récupère toutes les tâches en attente.
+Traite un lot de tâches uniques prêtes à être exécutées.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$limit` | `?int` | Nombre maximum de résultats |
+| `$limit` | `LimitVO` | Nombre maximum de tâches à traiter |
 
-**Retourne :** `array<UniqueTaskRecord>`
+**Retourne :** `ProcessResultRecord` - Résumé du traitement (succès, échecs)
 
----
+**Exemple :**
+```php
+$result = $service->process(new LimitVO(50));
 
-### `findCompleted(?int $limit = null): array`
-
-Récupère toutes les tâches terminées avec succès.
-
----
-
-### `findFailed(?int $limit = null): array`
-
-Récupère toutes les tâches en échec.
+echo "Succès : {$result->success->getValue()}\n";
+echo "Échecs : {$result->failed->getValue()}\n";
+```
 
 ---
 
-### `findCanceled(?int $limit = null): array`
+### `cancel(TaskAliasVO $alias, ?DescriptionVO $reason = null): bool`
 
-Récupère toutes les tâches annulées.
+Annule une tâche unique en attente.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$alias` | `TaskAliasVO` | Alias de la tâche à annuler |
+| `$reason` | `DescriptionVO|null` | Raison de l'annulation (optionnelle) |
+
+**Retourne :** `bool` - `true` si l'annulation a réussi, `false` sinon
+
+**Exemple :**
+```php
+$reason = new DescriptionVO('Commande annulée par le client');
+if ($service->cancel($alias, $reason)) {
+    echo "Tâche annulée";
+}
+```
 
 ---
 
-### `exists(TaskIdVO $taskId): bool`
+### `reschedule(TaskAliasVO $alias, Iso8601DateTimeVO $newScheduledAt): bool`
+
+Reporte l'exécution d'une tâche à une nouvelle date.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$alias` | `TaskAliasVO` | Alias de la tâche |
+| `$newScheduledAt` | `Iso8601DateTimeVO` | Nouvelle date de planification |
+
+**Retourne :** `bool` - `true` si le report a réussi, `false` sinon
+
+**Exemple :**
+```php
+$newDate = new Iso8601DateTimeVO(Carbon::now()->addDays(3)->toIso8601String());
+$service->reschedule($alias, $newDate);
+```
+
+---
+
+### `extendGracePeriod(TaskAliasVO $alias, DurationVO $extraSeconds): bool`
+
+Prolonge la période de grâce d'une tâche.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$alias` | `TaskAliasVO` | Alias de la tâche |
+| `$extraSeconds` | `DurationVO` | Nombre de secondes supplémentaires |
+
+**Retourne :** `bool` - `true` si la prolongation a réussi, `false` sinon
+
+**Exemple :**
+```php
+$service->extendGracePeriod($alias, new DurationVO(3600));
+```
+
+---
+
+### `find(TaskAliasVO $alias): ?UniqueTaskRecord`
+
+Recherche une tâche par son alias.
+
+---
+
+### `findPending(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection`
+
+Retourne les tâches en attente (statut PENDING).
+
+---
+
+### `findCompleted(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection`
+
+Retourne les tâches terminées avec succès (statut COMPLETED).
+
+---
+
+### `findFailed(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection`
+
+Retourne les tâches en échec (statut FAILED).
+
+---
+
+### `findCanceled(LimitVO $limit = new LimitVO): UniqueTaskRecordCollection`
+
+Retourne les tâches annulées (statut CANCELED).
+
+---
+
+### `exists(TaskAliasVO $alias): bool`
 
 Vérifie si une tâche existe.
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskId` | `TaskIdVO` | UUID de la tâche |
+---
 
-**Retourne :** `bool`
+### `delete(TaskAliasVO $alias): bool`
+
+Supprime une tâche.
 
 ---
 
-### `delete(TaskIdVO $taskId): void`
+### `count(): CounterVO`, `countPending(): CounterVO`, etc.
 
-Supprime une tâche (soft delete).
+Compteurs par statut.
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskId` | `TaskIdVO` | UUID de la tâche |
+## Cycle de vie des états
 
-**Exceptions :** `RuntimeException` - Si la tâche n'existe pas
+```
+                    ┌──────────────────┐
+                    │                  ▼
+PENDING ──────────────────────────▶ COMPLETED
+    │                                ▲
+    │                                │
+    ├─────────────▶ FAILED ──────────┘
+    │
+    └─────────────▶ CANCELED
+```
 
----
+### Conditions de transition
 
-### `count(): int`
-
-Compte le nombre total de tâches uniques.
-
-### `countPending(): int`
-
-Compte le nombre de tâches en attente.
-
-### `countCompleted(): int`
-
-Compte le nombre de tâches terminées avec succès.
-
-### `countFailed(): int`
-
-Compte le nombre de tâches en échec.
-
-### `countCanceled(): int`
-
-Compte le nombre de tâches annulées.
+| Transition | Condition |
+|------------|-----------|
+| PENDING → COMPLETED | Exécution réussie |
+| PENDING → FAILED | Échec après max_attempts OU expiration |
+| PENDING → CANCELED | Annulation manuelle |
 
 ## Cas d'utilisation
 
-### Cas 1 : Enregistrement et exécution d'une tâche unique
+### Cas 1 : Enregistrement d'une tâche planifiée
+
+**Problème :** Créer une tâche qui s'exécute demain à 8h.
 
 ```php
-$service = app(UniqueTaskService::class);
+$config = UniqueTaskConfigRecord::from([
+    'scheduled_at' => Carbon::tomorrow()->setTime(8, 0)->toIso8601String(),
+    'grace_period' => 3600,
+    'max_attempts' => 3,
+]);
 
-// 1. Enregistrer
-$taskId = $service->register(
-    SendWelcomeEmailTask::class,
-    StrictDataObject::from(['email' => 'john@example.com']),
-    new UniqueTaskConfig(
-        alias: new TaskSignatureVO('welcome-email'),
-        scheduled_at: new Iso8601DateTimeVO(now()->addMinutes(5)->toIso8601String()),
-        max_attempts: new CounterVO(3),
-    )
+$alias = $service->register(
+    new UniqueTaskFqcnVO(DailyReportTask::class),
+    StrictDataObject::from(['date' => '2026-01-01']),
+    $config
 );
-
-// 2. Exécuter
-$success = $service->run($taskId);
 ```
 
-### Cas 2 : Gestion des tentatives
+---
+
+### Cas 2 : Traitement par lots avec gestion des expirations
+
+**Problème :** Traiter toutes les tâches prêtes et nettoyer celles qui ont expiré.
 
 ```php
-$service = app(UniqueTaskService::class);
-$taskId = new TaskIdVO('550e8400-e29b-41d4-a716-446655440000');
+$result = $service->process(new LimitVO(100));
 
-// Première tentative
-$success = $service->run($taskId);
-if (!$success) {
-    $task = $service->find($taskId);
-    echo "Tentative {$task->attempts->value}/{$task->max_attempts->value}\n";
-    
-    // Deuxième tentative
-    $success = $service->run($taskId);
-    if (!$success) {
-        // Si attempts >= max_attempts, statut → FAILED
-        echo "La tâche a échoué après toutes les tentatives\n";
+// Les tâches expirées sont automatiquement marquées comme FAILED
+foreach ($result->errors as $error) {
+    if (str_contains($error->description, 'expired')) {
+        echo "Tâche expirée : {$error->alias->getValue()}\n";
     }
 }
 ```
 
-### Cas 3 : Annulation d'une tâche
+---
+
+### Cas 3 : Reprise après échec
+
+**Problème :** Une tâche a échoué et doit être réessayée plus tard.
 
 ```php
-$service = app(UniqueTaskService::class);
-$taskId = new TaskIdVO('550e8400-e29b-41d4-a716-446655440000');
-
-// Annuler avec une raison
-$service->cancel(
-    $taskId,
-    'User requested cancellation'
-);
-
-// La tâche est marquée CANCELED
-// Un log 'unique_task_cancelled' est créé
+// Vérifier si la tâche a échoué
+$task = $service->find($alias);
+if ($task->status === UniqueTaskStatus::FAILED) {
+    // Recréer une nouvelle tâche
+    $newAlias = $service->register(
+        $task->fqcn,
+        $task->payload,
+        UniqueTaskConfigRecord::from([
+            'scheduled_at' => Carbon::now()->addHour()->toIso8601String(),
+            'grace_period' => 3600,
+            'max_attempts' => 3,
+        ])
+    );
+}
 ```
 
-### Cas 4 : Reprogrammation d'une tâche
+---
+
+### Cas 4 : Prolongation de la période de grâce
+
+**Problème :** Une tâche critique est sur le point d'expirer et a besoin de plus de temps.
 
 ```php
-$service = app(UniqueTaskService::class);
-$taskId = new TaskIdVO('550e8400-e29b-41d4-a716-446655440000');
+$task = $service->find($alias);
+$remaining = $task->grace_period_seconds->getValue() - Carbon::now()->diffInSeconds($task->scheduled_at);
 
-// Repousser l'exécution de 2 jours
-$service->reschedule(
-    $taskId,
-    new Iso8601DateTimeVO(now()->addDays(2)->toIso8601String())
-);
+if ($remaining < 3600) {
+    $service->extendGracePeriod($alias, new DurationVO(86400));
+    echo "Période de grâce prolongée de 24h";
+}
 ```
 
-### Cas 5 : Prolongation de la période de grâce
+---
+
+### Cas 5 : Report d'une tâche
+
+**Problème :** Une tâche doit être reportée en raison d'une indisponibilité.
 
 ```php
-$service = app(UniqueTaskService::class);
-$taskId = new TaskIdVO('550e8400-e29b-41d4-a716-446655440000');
-
-// Ajouter 1 heure de période de grâce
-$service->extendGracePeriod($taskId, 3600);
-```
-
-### Cas 6 : Consultation des tâches
-
-```php
-$service = app(UniqueTaskService::class);
-
-// Récupérer une tâche spécifique
-$task = $service->find(new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'));
-
-// Lister les tâches en attente
-$pending = $service->findPending(10);
-
-// Lister les tâches annulées
-$cancelled = $service->findCanceled(5);
-
-// Compter les tâches par statut
-echo "PENDING: " . $service->countPending() . "\n";
-echo "COMPLETED: " . $service->countCompleted() . "\n";
-echo "FAILED: " . $service->countFailed() . "\n";
-echo "CANCELED: " . $service->countCanceled() . "\n";
-```
-
-## Flux d'exécution
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    UniqueTaskService                               │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ENREGISTREMENT                                                    │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  register()                                                │   │
-│  │  ├─ validateTaskClass()                                    │   │
-│  │  ├─ Récupérer la config (base ou personnalisée)           │   │
-│  │  ├─ Générer un UUID                                        │   │
-│  │  ├─ Créer le Record                                        │   │
-│  │  └─ repository->create()                                   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  EXÉCUTION                                                         │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  run()                                                     │   │
-│  │  ├─ findById() → modèle                                    │   │
-│  │  ├─ modelToRecord() → Record                               │   │
-│  │  ├─ Vérifier statut = PENDING                              │   │
-│  │  ├─ Vérifier attempts < max_attempts                       │   │
-│  │  ├─ instantiateTask()                                      │   │
-│  │  ├─ $task->execute()                                       │   │
-│  │  ├─ Succès → moveToCompleted()                             │   │
-│  │  └─ Échec →                                                │   │
-│  │     ├─ attempts + 1                                        │   │
-│  │     ├─ attempts >= max_attempts → moveToFailed()          │   │
-│  │     └─ attempts < max_attempts → update()                 │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  GESTION D'ÉTAT                                                    │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  cancel()        → PENDING → CANCELED + cancelled_at + log│   │
-│  │  reschedule()    → Update scheduled_at + log              │   │
-│  │  extendGracePeriod() → Update grace_period + log          │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  RECHERCHE                                                         │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  find()          → ?UniqueTaskRecord                       │   │
-│  │  findPending()   → array<UniqueTaskRecord>                 │   │
-│  │  findCompleted() → array<UniqueTaskRecord>                 │   │
-│  │  findFailed()    → array<UniqueTaskRecord>                 │   │
-│  │  findCanceled()  → array<UniqueTaskRecord>                 │   │
-│  │  exists()        → bool                                    │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  SUPPRESSION                                                       │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  delete() → $model->delete() (soft delete)                 │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  COMPTAGE                                                          │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  count()           → int                                    │   │
-│  │  countPending()    → int                                    │   │
-│  │  countCompleted()  → int                                    │   │
-│  │  countFailed()     → int                                    │   │
-│  │  countCanceled()   → int                                    │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-## Gestion des tentatives
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Gestion des tentatives                          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  Démarrage : attempts = 0, max_attempts = 3                       │
-│                                                                     │
-│  Exécution 1 → Échec → attempts = 1                               │
-│  Exécution 2 → Échec → attempts = 2                               │
-│  Exécution 3 → Échec → attempts = 3 → FAILED                     │
-│                                                                     │
-│  Exécution 1 → Succès → COMPLETED                                 │
-│                                                                     │
-│  Exécution 1 → Échec → attempts = 1                               │
-│  Exécution 2 → Succès → COMPLETED                                 │
-│                                                                     │
-│  cancel() → PENDING → CANCELED (quel que soit attempts)          │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
-## Cycle de vie d'une tâche unique
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    Cycle de vie d'une tâche unique                 │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  PENDING ──────────────────────────────────────────────────────────┐│
-│     │                                                             ││
-│     │ run() → succès                                             ││
-│     ▼                                                             ││
-│  COMPLETED                                                        ││
-│                                                                     ││
-│  PENDING ──────────────────────────────────────────────────────────┐│
-│     │                                                             ││
-│     │ run() → échec (attempts < max_attempts)                    ││
-│     ▼                                                             ││
-│  PENDING (attempts + 1)                                           ││
-│     │                                                             ││
-│     │ run() → échec (attempts >= max_attempts)                   ││
-│     ▼                                                             ││
-│  FAILED                                                           ││
-│                                                                     ││
-│  PENDING ──────────────────────────────────────────────────────────┐│
-│     │                                                             ││
-│     │ cancel()                                                    ││
-│     ▼                                                             ││
-│  CANCELED                                                         ││
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+$newDate = new Iso8601DateTimeVO(Carbon::now()->addWeek()->toIso8601String());
+if ($service->reschedule($alias, $newDate)) {
+    echo "Tâche reportée d'une semaine";
+}
 ```
 
 ## Gestion des erreurs
 
-| Situation | Exception | Message |
-|-----------|-----------|---------|
-| Classe invalide | `InvalidArgumentException` | `Task must extend AbstractUniqueTask` |
-| Tâche non trouvée | `RuntimeException` | `Task not found: {id}` |
-| Annulation sur tâche non PENDING | `RuntimeException` | `Task '{id}' is not in PENDING state` |
-| Reprogrammation sur tâche non PENDING | `RuntimeException` | `Task '{id}' is not in PENDING state` |
-| Prolongation avec secondes négatives | `InvalidArgumentException` | `Extra seconds must be positive` |
-| Prolongation sur tâche non PENDING | `RuntimeException` | `Task '{id}' is not in PENDING state` |
+| Situation | Exception/Retour | Message |
+|-----------|------------------|---------|
+| Classe de tâche inexistante | `InvalidArgumentException` | `Task class "X" does not exist.` |
+| Classe non valide | `InvalidArgumentException` | `Class "X" must extend AbstractUniqueTask` |
+| Tâche non trouvée | `false` / `null` | - |
+| Tâche non en PENDING pour annulation | `false` | - |
+| Tâche non en PENDING pour reschedule | `false` | - |
+| Grace period ≤ 0 | `false` | - |
+| Échec d'exécution | `TaskRunResultRecord` avec `success = false` | Message d'erreur de l'exception |
 
-## Dépendances
+## Comportement des tentatives
 
-| Dépendance | Rôle |
-|------------|------|
-| `UniqueTaskRepositoryInterface` | Accès aux données via Repository |
-| `LoggerInterface` | Journalisation des événements |
-| `HydrationService` | Hydratation des objets |
-| `UuidFactoryInterface` | Génération des UUID |
-| `Application` (Laravel) | Instanciation des classes |
+```
+Tentative 1 → Échec → attempts = 1
+Tentative 2 → Échec → attempts = 2
+Tentative 3 → Échec → attempts = 3 = max_attempts → FAILED
+```
+
+## Intégration
+
+### Dépendances
+
+- `UniqueTaskRepositoryInterface` : Accès aux données
+- `LoggerInterface` : Logging
+- `HydrationService` : Hydratation des objets
+- `Application` : Conteneur Laravel
+
+### Points d'extension
+
+- Le repository peut être remplacé pour utiliser un stockage différent
+- Les loggers peuvent être personnalisés
 
 ## Performance
 
-- **Complexité** : O(1) pour les opérations unitaires, O(n) pour `process()`
-- **Mémoire** : Les collections sont chargées en mémoire pour les finders
-- **Base de données** : Chaque opération génère des requêtes Eloquent
-- **Cache** : Aucun cache implémenté
+- **Recherches** : Indexées sur `alias` et `status`
+- **Expiration** : Calculée en mémoire, pas de requête supplémentaire
+- **Traitement par lots** : Atomicité garantie par les transactions
+- **Recommandation** : Utiliser `LimitVO` pour les gros volumes
 
 ## Compatibilité
 
-| Version | Support |
-|---------|---------|
-| PHP 8.1+ | ✅ Complet |
-| Laravel 12.x, 13.x, 14.x, 15.x | ✅ Complet |
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.2+ | ✅ Complet |
+| PHP 8.1 | ✅ Complet |
 
 ## Exemple complet
 
@@ -554,68 +366,52 @@ echo "CANCELED: " . $service->countCanceled() . "\n";
 declare(strict_types=1);
 
 use AndyDefer\Task\Services\UniqueTaskService;
-use AndyDefer\Task\Configs\UniqueTaskConfig;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
+use Illuminate\Support\Carbon;
 
+/** @var UniqueTaskService $service */
 $service = app(UniqueTaskService::class);
 
-// 1. Enregistrer une tâche
-$taskId = $service->register(
-    SendWelcomeEmailTask::class,
-    StrictDataObject::from(['email' => 'john@example.com']),
-    new UniqueTaskConfig(
-        alias: new TaskSignatureVO('welcome-email'),
-        description: 'Send welcome email',
-        scheduled_at: new Iso8601DateTimeVO(now()->addMinutes(5)->toIso8601String()),
-        max_attempts: new CounterVO(3),
-    )
+// 1. Enregistrement d'une tâche
+$config = UniqueTaskConfigRecord::from([
+    'scheduled_at' => Carbon::now()->addHour()->toIso8601String(),
+    'grace_period' => 86400,
+    'max_attempts' => 3,
+]);
+
+$alias = $service->register(
+    new UniqueTaskFqcnVO(ExportTask::class),
+    StrictDataObject::from(['format' => 'csv']),
+    $config
 );
 
-echo "Tâche enregistrée: {$taskId->value}\n";
+echo "Tâche créée : {$alias->getValue()}\n";
 
-// 2. Vérifier l'existence
-if ($service->exists($taskId)) {
-    echo "La tâche existe\n";
+// 2. Vérification
+if ($service->exists($alias)) {
+    $task = $service->find($alias);
+    echo "Statut : {$task->status->value}\n";
 }
 
-// 3. Reprogrammer (si nécessaire)
-$service->reschedule(
-    $taskId,
-    new Iso8601DateTimeVO(now()->addHours(2)->toIso8601String())
-);
-echo "Tâche reprogrammée\n";
+// 3. Traitement par lots
+$result = $service->process(new LimitVO(10));
+echo "Traitement : {$result->success->getValue()} succès, {$result->failed->getValue()} échecs\n";
 
-// 4. Prolonger la période de grâce
-$service->extendGracePeriod($taskId, 1800);
-echo "Période de grâce prolongée de 30 minutes\n";
+// 4. Report si nécessaire
+if (!$result->success->isPositive()) {
+    $service->reschedule($alias, new Iso8601DateTimeVO(Carbon::now()->addDay()->toIso8601String()));
+}
 
-// 5. Exécuter
-$success = $service->run($taskId);
-echo $success ? "Exécution réussie\n" : "Exécution échouée\n";
-
-// 6. Annuler (si besoin)
-$service->cancel($taskId, 'Campagne annulée');
-echo "Tâche annulée\n";
-
-// 7. Compter les tâches
-echo "Total: " . $service->count() . "\n";
-echo "En attente: " . $service->countPending() . "\n";
-echo "Terminées: " . $service->countCompleted() . "\n";
-echo "En échec: " . $service->countFailed() . "\n";
-echo "Annulées: " . $service->countCanceled() . "\n";
-
-// 8. Supprimer
-$service->delete($taskId);
-echo "Tâche supprimée\n";
+// 5. Annulation
+$service->cancel($alias, new DescriptionVO('Demande annulée'));
 ```
 
 ## Voir aussi
 
-- `UniqueTaskServiceInterface` - Interface du service
-- `UniqueTaskRepository` - Repository des tâches uniques
-- `UniqueTaskConfig` - Configuration des tâches
-- `UniqueTaskRecord` - DTO des tâches uniques
-- `RecurringTaskService` - Service des tâches récurrentes
+- `RecurringTaskService` - Service de tâches récurrentes
+- `UniqueTaskRepositoryInterface` - Repository des tâches uniques
+- `UniqueTaskRecord` - Structure de données
+- `UniqueTaskStatus` - États des tâches
+---

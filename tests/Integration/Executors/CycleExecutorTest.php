@@ -164,7 +164,7 @@ final class CycleExecutorTest extends IntegrationTestCase
         $this->assertNotNull($result);
         $this->assertEquals(1, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
-        $this->assertFalse($result->hasErrors);
+        $this->assertFalse($result->has_errors);
 
         $task = $this->uniqueRepository->findByAlias($alias);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task->getStatus());
@@ -196,7 +196,7 @@ final class CycleExecutorTest extends IntegrationTestCase
         $this->assertNotNull($result);
         $this->assertEquals(5, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
-        $this->assertFalse($result->hasErrors);
+        $this->assertFalse($result->has_errors);
     }
 
     public function test_execute_with_parallel_workers_and_limit(): void
@@ -226,7 +226,7 @@ final class CycleExecutorTest extends IntegrationTestCase
         $this->assertNotNull($result);
         $this->assertEquals(5, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
-        $this->assertFalse($result->hasErrors);
+        $this->assertFalse($result->has_errors);
     }
 
     public function test_execute_with_parallel_one_equals_sequential(): void
@@ -253,7 +253,7 @@ final class CycleExecutorTest extends IntegrationTestCase
         $this->assertNotNull($resultParallel1);
         $this->assertEquals(1, $resultParallel1->success->getValue());
         $this->assertEquals(0, $resultParallel1->failed->getValue());
-        $this->assertFalse($resultParallel1->hasErrors);
+        $this->assertFalse($resultParallel1->has_errors);
     }
 
     public function test_execute_with_parallel_and_errors_handles_failures(): void
@@ -413,6 +413,6 @@ final class CycleExecutorTest extends IntegrationTestCase
         $this->assertTrue(isset($result->success));
         $this->assertTrue(isset($result->failed));
         $this->assertTrue(isset($result->errors));
-        $this->assertTrue(isset($result->hasErrors));
+        $this->assertTrue(isset($result->has_errors));
     }
 }

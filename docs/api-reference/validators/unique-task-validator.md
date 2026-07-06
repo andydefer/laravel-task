@@ -2,7 +2,7 @@
 
 ## Description
 
-Validateur des tâches uniques. Fournit des méthodes pour vérifier si une tâche peut être exécutée, si elle est prête, expirée, ou si elle a atteint le nombre maximum de tentatives.
+Validateur pour les tâches uniques. Fournit des méthodes de validation pour déterminer si une tâche unique peut être exécutée, si elle est prête, expirée, ou si elle a atteint le nombre maximum de tentatives.
 
 ## Hiérarchie / Implémentations
 
@@ -13,16 +13,13 @@ UniqueTaskValidatorInterface
 
 ## Rôle principal
 
-Ce validateur est le gardien de l'intégrité des tâches uniques. Il :
+Assurer l'intégrité et la cohérence des tâches uniques en validant :
+- L'éligibilité à l'exécution (`canRun`)
+- La préparation à l'exécution (`isReadyToRun`)
+- L'expiration (`isExpired`)
+- Le dépassement des tentatives maximales (`hasReachedMaxAttempts`)
 
-1. **Valide** l'intégrité de la classe de tâche
-2. **Vérifie** les conditions d'exécution (`canRun`)
-3. **Détermine** si une tâche est prête à être exécutée (`isReadyToRun`)
-4. **Détecte** les tâches expirées (`isExpired`)
-5. **Vérifie** les tentatives (`hasReachedMaxAttempts`)
-6. **Rapporte** les erreurs de validation (`getValidationErrors`)
-
-## API
+## API / Méthodes publiques
 
 ### `canRun(UniqueTaskRecord $record): bool`
 
@@ -30,22 +27,20 @@ Vérifie si une tâche peut être exécutée.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `UniqueTaskRecord` | Tâche à valider |
+| `$record` | `UniqueTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si la tâche peut être exécutée
+**Retourne :** `bool` - `true` si la tâche peut être exécutée, `false` sinon
 
 **Conditions :**
-- Classe valide (existe et étend `AbstractUniqueTask`)
-- Statut = `PENDING`
-- `scheduled_at <= now`
-- `attempts < max_attempts`
-- Non expirée (`now <= scheduled_at + grace_period`)
+- Classe de tâche valide
+- Prête à être exécutée (`isReadyToRun`)
+- Max attempts non atteint
+- Non expirée
 
 **Exemple :**
 ```php
-$validator = new UniqueTaskValidator();
 if ($validator->canRun($record)) {
-    // Exécuter la tâche
+    $runner->run($record);
 }
 ```
 
@@ -57,19 +52,19 @@ Vérifie si une tâche est prête à être exécutée.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `UniqueTaskRecord` | Tâche à vérifier |
+| `$record` | `UniqueTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si la tâche est prête
+**Retourne :** `bool` - `true` si la tâche est prête, `false` sinon
 
 **Conditions :**
-- Classe valide
-- Statut = `PENDING`
-- `scheduled_at <= now`
+- Classe de tâche valide
+- Statut = PENDING
+- `scheduled_at` atteint
 
 **Exemple :**
 ```php
 if ($validator->isReadyToRun($record)) {
-    $runner->run($record);
+    echo "La tâche est prête à être exécutée\n";
 }
 ```
 
@@ -77,15 +72,19 @@ if ($validator->isReadyToRun($record)) {
 
 ### `isExpired(UniqueTaskRecord $record): bool`
 
-Vérifie si une tâche est expirée (période de grâce dépassée).
+Vérifie si une tâche est expirée (scheduled_at + grace_period dépassé).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `UniqueTaskRecord` | Tâche à vérifier |
+| `$record` | `UniqueTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si la tâche est expirée
+**Retourne :** `bool` - `true` si la tâche est expirée, `false` sinon
 
-**Calcul :** `now > scheduled_at + grace_period_seconds`
+**Calcul :**
+```
+expiration = scheduled_at + grace_period_seconds
+expirée si now > expiration
+```
 
 **Exemple :**
 ```php
@@ -98,13 +97,18 @@ if ($validator->isExpired($record)) {
 
 ### `hasReachedMaxAttempts(UniqueTaskRecord $record): bool`
 
-Vérifie si la tâche a atteint le nombre maximum de tentatives.
+Vérifie si le nombre maximum de tentatives est atteint.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `UniqueTaskRecord` | Tâche à vérifier |
+| `$record` | `UniqueTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si `attempts >= max_attempts`
+**Retourne :** `bool` - `true` si max attempts atteint, `false` sinon
+
+**Condition :**
+```
+attempts >= max_attempts
+```
 
 **Exemple :**
 ```php
@@ -117,161 +121,199 @@ if ($validator->hasReachedMaxAttempts($record)) {
 
 ### `getValidationErrors(UniqueTaskRecord $record): StringTypedCollection`
 
-Retourne toutes les erreurs de validation.
+Retourne la liste des erreurs de validation pour une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `UniqueTaskRecord` | Tâche à valider |
+| `$record` | `UniqueTaskRecord` | Record de la tâche à valider |
 
 **Retourne :** `StringTypedCollection` - Collection des messages d'erreur
-
-**Erreurs possibles :**
-- Classe invalide
-- Statut ≠ PENDING
-- `attempts >= max_attempts`
-- Tâche expirée
-- `scheduled_at > now`
 
 **Exemple :**
 ```php
 $errors = $validator->getValidationErrors($record);
 if ($errors->count() > 0) {
-    echo "Erreurs: " . $errors->join(', ');
+    echo "Erreurs : " . $errors->join(', ');
 }
 ```
 
----
+## Règles de validation
 
-### `isValidTaskClass(UniqueTaskRecord $record): bool` (privée)
+### canRun()
 
-Vérifie que la classe de la tâche existe et étend `AbstractUniqueTask`.
+| Vérification | Méthode | Condition d'échec |
+|--------------|---------|-------------------|
+| Classe valide | `isValidTaskClass()` | `false` |
+| Prête à exécuter | `isReadyToRun()` | `false` |
+| Max attempts atteint | `hasReachedMaxAttempts()` | `true` |
+| Expirée | `isExpired()` | `true` |
+| **Résultat** | - | `true` si toutes les conditions sont remplies |
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$record` | `UniqueTaskRecord` | Tâche à valider |
+### isReadyToRun()
 
-**Retourne :** `bool` - `true` si la classe est valide
+| Vérification | Condition d'échec |
+|--------------|-------------------|
+| Classe valide | `false` |
+| Statut PENDING | `false` |
+| scheduled_at ≤ now | `false` si scheduled_at > now |
+| **Résultat** | `true` si toutes les conditions sont remplies |
 
-**Conditions :**
-- `class_exists($record->fqcn)`
-- `is_subclass_of($record->fqcn, AbstractUniqueTask::class)`
+### isExpired()
 
-## Cas d'utilisation
+| Vérification | Calcul |
+|--------------|--------|
+| Classe valide | `false` si invalide |
+| Expiration | `scheduled_at + grace_period_seconds` |
+| **Résultat** | `true` si now > expiration, `false` sinon |
 
-### Cas 1 : Validation avant exécution
+### hasReachedMaxAttempts()
 
-```php
-$validator = new UniqueTaskValidator();
-
-if (!$validator->canRun($record)) {
-    $errors = $validator->getValidationErrors($record);
-    throw new RuntimeException('Task cannot run: ' . $errors->join(', '));
-}
-
-// Exécuter la tâche
-$runner->run($record);
-```
-
-### Cas 2 : Vérification de l'expiration
-
-```php
-$validator = new UniqueTaskValidator();
-
-if ($validator->isExpired($record)) {
-    $repository->moveToFailed($record);
-    echo "Tâche expirée (scheduled_at + grace_period dépassé)";
-}
-```
-
-### Cas 3 : Gestion des tentatives
-
-```php
-$validator = new UniqueTaskValidator();
-
-if ($validator->hasReachedMaxAttempts($record)) {
-    // Plus de tentatives disponibles
-    $repository->moveToFailed($record);
-} elseif ($validator->isReadyToRun($record)) {
-    // Exécuter la tâche
-    $runner->run($record);
-}
-```
-
-### Cas 4 : Détection des erreurs de validation
-
-```php
-$validator = new UniqueTaskValidator();
-
-$errors = $validator->getValidationErrors($record);
-if ($errors->count() > 0) {
-    foreach ($errors as $error) {
-        echo "❌ $error\n";
-    }
-} else {
-    echo "✅ Tâche valide\n";
-}
-```
-
-## Flux de validation
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    UniqueTaskValidator                             │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  canRun()                                                          │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ✅ isValidTaskClass($record)                              │   │
-│  │  ✅ $record->status === PENDING                            │   │
-│  │  ✅ $record->scheduled_at <= now                           │   │
-│  │  ✅ $record->attempts < $record->max_attempts              │   │
-│  │  ✅ !$this->isExpired($record)                             │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  isReadyToRun()                                                    │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ✅ isValidTaskClass($record)                              │   │
-│  │  ✅ $record->status === PENDING                            │   │
-│  │  ✅ $record->scheduled_at <= now                           │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  isExpired()                                                       │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ✅ isValidTaskClass($record)                              │   │
-│  │  ✅ now > scheduled_at + grace_period_seconds              │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  hasReachedMaxAttempts()                                           │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ✅ $record->attempts >= $record->max_attempts             │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| Vérification | Calcul |
+|--------------|--------|
+| Attempts | `record->attempts->getValue()` |
+| Max attempts | `record->max_attempts->getValue()` |
+| **Résultat** | `true` si attempts >= max_attempts, `false` sinon |
 
 ## Messages d'erreur
 
 | Situation | Message |
 |-----------|---------|
 | Classe invalide | `Invalid task class: {fqcn} does not exist or does not extend AbstractUniqueTask` |
-| Statut ≠ PENDING | `Task is not in PENDING state` |
+| Statut non PENDING | `Task is in {status} state, not PENDING` |
 | Max attempts atteint | `Maximum attempts reached` |
 | Tâche expirée | `Task has expired` |
-| scheduled_at > now | `Task is not ready to run (scheduled_at in the future)` |
+| Pas prête | `Task is not ready to run (scheduled_at in the future)` |
+
+## Cas d'utilisation
+
+### Cas 1 : Validation avant exécution
+
+**Problème :** Vérifier qu'une tâche peut être exécutée.
+
+```php
+if (!$validator->canRun($record)) {
+    $errors = $validator->getValidationErrors($record);
+    throw new RuntimeException($errors->join(', '));
+}
+
+$runner->run($record);
+```
+
+---
+
+### Cas 2 : Vérification d'expiration
+
+**Problème :** Nettoyer les tâches expirées.
+
+```php
+if ($validator->isExpired($record)) {
+    $repository->moveToFailed($record);
+    echo "Tâche expirée : {$record->alias->getValue()}\n";
+}
+```
+
+---
+
+### Cas 3 : Vérification des tentatives
+
+**Problème :** Vérifier si une tâche peut être réessayée.
+
+```php
+if ($validator->hasReachedMaxAttempts($record)) {
+    $repository->moveToFailed($record);
+    echo "Max attempts atteint pour {$record->alias->getValue()}\n";
+} else {
+    // Incrémenter les tentatives et réessayer
+    $newAttempts = $record->attempts->increment();
+    $repository->updateAttempts($record, $newAttempts);
+}
+```
+
+---
+
+### Cas 4 : Validation détaillée pour débogage
+
+**Problème :** Comprendre pourquoi une tâche ne s'exécute pas.
+
+```php
+$errors = $validator->getValidationErrors($record);
+if ($errors->count() > 0) {
+    echo "=== Erreurs de validation ===\n";
+    foreach ($errors as $error) {
+        echo "- {$error}\n";
+    }
+}
+```
+
+## Validation de la classe
+
+La méthode `isValidTaskClass()` vérifie :
+
+```php
+private function isValidTaskClass(UniqueTaskRecord $record): bool
+{
+    $className = $record->fqcn->getValue();
+    
+    // 1. La classe existe-t-elle ?
+    if (!class_exists($className)) {
+        return false;
+    }
+    
+    // 2. Est-ce une sous-classe de AbstractUniqueTask ?
+    if (!is_subclass_of($className, AbstractUniqueTask::class)) {
+        return false;
+    }
+    
+    return true;
+}
+```
+
+## Schéma de validation
+
+```
+canRun()
+    │
+    ├── isValidTaskClass()
+    │   ├── class_exists() ?
+    │   └── is_subclass_of() ?
+    │
+    ├── isReadyToRun()
+    │   ├── status = PENDING ?
+    │   └── scheduled_at ≤ now ?
+    │
+    ├── hasReachedMaxAttempts()
+    │   └── attempts ≥ max_attempts ?
+    │
+    └── isExpired()
+        └── now > scheduled_at + grace_period ?
+```
+
+## Intégration
+
+### Dépendances
+
+- Aucune dépendance externe (utilise uniquement Carbon pour les dates)
+
+### Points d'utilisation
+
+| Composant | Utilisation |
+|-----------|-------------|
+| `UniqueTaskRunner` | Validation avant exécution |
+| `UniqueTaskProcessor` | Filtrage des tâches |
+| `UniqueTaskRepository` | Validation des transitions |
 
 ## Performance
 
-- **Complexité** : O(1) - toutes les opérations sont constantes
+- **Complexité** : O(1) - calculs simples
 - **Mémoire** : Aucune allocation mémoire significative
-- **Validation** : Utilise `class_exists` et `is_subclass_of` (rapides)
-- **Dates** : Utilise `strtotime` pour les comparaisons
+- **Recommandation** : Peut être appelé fréquemment sans impact
 
 ## Compatibilité
 
-| Version | Support |
-|---------|---------|
-| PHP 8.1+ | ✅ Complet |
-| Laravel 10+ | ✅ Complet |
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.2+ | ✅ Complet |
+| PHP 8.1 | ✅ Complet |
 
 ## Exemple complet
 
@@ -285,66 +327,54 @@ use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskIdVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\UuidVO;
+use Illuminate\Support\Carbon;
 
 $validator = new UniqueTaskValidator();
 
-// 1. Tâche valide en PENDING
-$validRecord = new UniqueTaskRecord(
-    id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440000'),
-    alias: new TaskSignatureVO('test'),
-    fqcn: TestUniqueTask::class,
-    payload: StrictDataObject::from([]),
-    scheduled_at: new Iso8601DateTimeVO(now()->subMinutes(10)->toIso8601String()),
-    grace_period_seconds: 86400,
-    status: UniqueTaskStatus::PENDING,
-    attempts: new CounterVO(0),
-    max_attempts: new CounterVO(3),
-);
+// Création d'un record de test
+$record = UniqueTaskRecord::from([
+    'id' => new UuidVO('550e8400-e29b-41d4-a716-446655440000'),
+    'alias' => new TaskAliasVO('unique@test'),
+    'fqcn' => new UniqueTaskFqcnVO(MyUniqueTask::class),
+    'scheduled_at' => new Iso8601DateTimeVO(Carbon::now()->subHour()->toIso8601String()),
+    'grace_period_seconds' => 86400,
+    'status' => UniqueTaskStatus::PENDING,
+    'attempts' => new CounterVO(1),
+    'max_attempts' => new CounterVO(3),
+]);
 
-echo "canRun: " . ($validator->canRun($validRecord) ? '✅' : '❌') . "\n";
-echo "isReadyToRun: " . ($validator->isReadyToRun($validRecord) ? '✅' : '❌') . "\n";
-echo "isExpired: " . ($validator->isExpired($validRecord) ? '✅' : '❌') . "\n";
+// Validation complète
+if ($validator->canRun($record)) {
+    echo "✅ La tâche peut être exécutée\n";
+}
 
-// 2. Tâche invalide (classe inexistante)
-$invalidRecord = new UniqueTaskRecord(
-    id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440001'),
-    alias: new TaskSignatureVO('test'),
-    fqcn: 'NonExistentClass',
-    payload: StrictDataObject::from([]),
-    scheduled_at: new Iso8601DateTimeVO(now()->subMinutes(10)->toIso8601String()),
-    grace_period_seconds: 86400,
-    status: UniqueTaskStatus::PENDING,
-    attempts: new CounterVO(0),
-    max_attempts: new CounterVO(3),
-);
+// Vérification d'expiration
+if ($validator->isExpired($record)) {
+    echo "❌ La tâche est expirée\n";
+}
 
-// Récupérer les erreurs
-$errors = $validator->getValidationErrors($invalidRecord);
-echo "Erreurs: " . $errors->join(', ') . "\n";
-// Output: Invalid task class: NonExistentClass does not exist or does not extend AbstractUniqueTask
+// Vérification des tentatives
+if ($validator->hasReachedMaxAttempts($record)) {
+    echo "⚠️ Max attempts atteint\n";
+}
 
-// 3. Tâche avec max attempts atteint
-$maxAttemptsRecord = new UniqueTaskRecord(
-    id: new TaskIdVO('550e8400-e29b-41d4-a716-446655440002'),
-    alias: new TaskSignatureVO('test'),
-    fqcn: TestUniqueTask::class,
-    payload: StrictDataObject::from([]),
-    scheduled_at: new Iso8601DateTimeVO(now()->subMinutes(10)->toIso8601String()),
-    grace_period_seconds: 86400,
-    status: UniqueTaskStatus::PENDING,
-    attempts: new CounterVO(3),
-    max_attempts: new CounterVO(3),
-);
-
-echo "hasReachedMaxAttempts: " . ($validator->hasReachedMaxAttempts($maxAttemptsRecord) ? '✅' : '❌') . "\n";
-echo "canRun: " . ($validator->canRun($maxAttemptsRecord) ? '✅' : '❌') . "\n";
+// Récupération des erreurs
+$errors = $validator->getValidationErrors($record);
+if ($errors->count() > 0) {
+    echo "⚠️ Erreurs de validation :\n";
+    foreach ($errors as $error) {
+        echo "  - {$error}\n";
+    }
+}
 ```
 
 ## Voir aussi
 
-- `UniqueTaskValidatorInterface` - Interface du validateur
-- `RecurringTaskValidator` - Validateur des tâches récurrentes
-- `UniqueTaskRecord` - DTO des tâches uniques
-- `UniqueTaskStatus` - Énumération des statuts
+- `RecurringTaskValidator` - Validateur de tâches récurrentes
+- `UniqueTaskRunner` - Exécuteur de tâches uniques
+- `UniqueTaskProcessor` - Processeur de lots
+- `UniqueTaskStatus` - États des tâches
+---

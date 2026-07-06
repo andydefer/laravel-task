@@ -2,7 +2,7 @@
 
 ## Description
 
-Service de gestion des logs de débogage pour les tâches. Fournit une API pour enregistrer, consulter et gérer les traces d'exécution des tâches uniques et récurrentes.
+Service de gestion des informations de débogage pour l'exécution des tâches. Permet de stocker, consulter et nettoyer les traces d'exécution des tâches (uniques et récurrentes) pour faciliter le diagnostic et le monitoring.
 
 ## Hiérarchie / Implémentations
 
@@ -13,356 +13,314 @@ TaskExecutionDebugServiceInterface
 
 ## Rôle principal
 
-Ce service est le point d'entrée pour la gestion des logs de débogage des tâches. Il orchestre toutes les opérations liées au débogage :
+Fournir une API de gestion des données de débogage :
+- Recherche par alias ou FQCN
+- Ajout de traces d'exécution avec statut
+- Nettoyage des anciennes traces
+- Comptage et vérification de présence
 
-1. **Enregistrement** des entrées de débogage pour les tâches
-2. **Consultation** des logs par type de tâche et identifiant
-3. **Suppression** des logs de débogage
-4. **Comptage** des entrées de débogage
+## API / Méthodes publiques
 
-## API
+### `findByAlias(TaskAliasVO $alias): TaskExecutionDebugRecordCollection`
 
-### `findByTask(string $taskType, string $taskIdentifier): Collection`
-
-Récupère tous les logs de débogage pour une tâche spécifique.
+Recherche toutes les entrées de débogage pour une tâche donnée par son alias.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$taskType` | `string` | Type de tâche (`'recurring'` ou `'unique'`) |
-| `$taskIdentifier` | `string` | Identifiant de la tâche (alias pour récurrente, UUID pour unique) |
+| `$alias` | `TaskAliasVO` | Alias de la tâche |
 
-**Retourne :** `Collection<int, object>` - Collection des entrées de débogage triées par date décroissante
+**Retourne :** `TaskExecutionDebugRecordCollection` - Collection des enregistrements de débogage
 
 **Exemple :**
 ```php
-$service = app(TaskExecutionDebugService::class);
+$records = $service->findByAlias($alias);
 
-$debugs = $service->findByTask('recurring', 'email-newsletter');
-
-foreach ($debugs as $debug) {
-    echo $debug->getData()->status . ': ' . $debug->getData()->info . "\n";
+foreach ($records as $record) {
+    echo "Statut : {$record->status->value}\n";
+    echo "Info : {$record->info->getValue()}\n";
+    echo "Date : {$record->created_at->getValue()}\n";
 }
 ```
 
 ---
 
-### `addDebug(string $taskType, string $taskIdentifier, string $status, string $info): void`
+### `findByFqcn(TaskFqcnVO $fqcn): TaskExecutionDebugRecordCollection`
+
+Recherche toutes les entrées de débogage pour une classe de tâche donnée.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$fqcn` | `TaskFqcnVO` | Nom complet de la classe de tâche |
+
+**Retourne :** `TaskExecutionDebugRecordCollection` - Collection des enregistrements de débogage
+
+**Exemple :**
+```php
+$fqcn = new TaskFqcnVO(MyTask::class);
+$records = $service->findByFqcn($fqcn);
+
+echo "Nombre d'exécutions : {$records->count()}\n";
+```
+
+---
+
+### `findByRecurringTask(TaskAliasVO $alias): TaskExecutionDebugRecordCollection`
+
+Alias de `findByAlias()` pour les tâches récurrentes.
+
+---
+
+### `findByUniqueTask(TaskAliasVO $alias): TaskExecutionDebugRecordCollection`
+
+Alias de `findByAlias()` pour les tâches uniques.
+
+---
+
+### `addDebug(TaskAliasVO $alias, TaskFqcnVO $fqcn, ExecutionStatus $status, DescriptionVO $info, ?StrictDataObject $data = null): bool`
 
 Ajoute une entrée de débogage pour une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$taskType` | `string` | Type de tâche (`'recurring'` ou `'unique'`) |
-| `$taskIdentifier` | `string` | Identifiant de la tâche (alias pour récurrente, UUID pour unique) |
-| `$status` | `string` | Statut de l'opération (ex: `'succeeded'`, `'failed'`, `'started'`) |
-| `$info` | `string` | Informations supplémentaires sur l'opération |
+| `$alias` | `TaskAliasVO` | Alias de la tâche |
+| `$fqcn` | `TaskFqcnVO` | Classe de la tâche |
+| `$status` | `ExecutionStatus` | Statut de l'exécution (SUCCEEDED/FAILED) |
+| `$info` | `DescriptionVO` | Information descriptive |
+| `$data` | `StrictDataObject|null` | Données supplémentaires optionnelles |
+
+**Retourne :** `bool` - `true` si l'ajout a réussi, `false` sinon
 
 **Exemple :**
 ```php
-$service = app(TaskExecutionDebugService::class);
-
 $service->addDebug(
-    'recurring',
-    'email-newsletter',
-    'failed',
-    'Connection timeout while sending email'
+    $alias,
+    new TaskFqcnVO(MyTask::class),
+    ExecutionStatus::FAILED,
+    new DescriptionVO('Tentative 1 échouée : timeout'),
+    StrictDataObject::from(['duration' => 30, 'retry' => 2])
 );
 ```
 
 ---
 
-### `findByRecurringTask(string $alias): Collection`
+### `addDebugForRecurringTask(...): bool`
 
-Récupère tous les logs de débogage pour une tâche récurrente.
+Alias de `addDebug()` pour les tâches récurrentes.
+
+---
+
+### `addDebugForUniqueTask(...): bool`
+
+Alias de `addDebug()` pour les tâches uniques.
+
+---
+
+### `clearTaskDebug(TaskAliasVO $alias): bool`
+
+Supprime toutes les entrées de débogage pour une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$alias` | `string` | Alias de la tâche récurrente |
+| `$alias` | `TaskAliasVO` | Alias de la tâche |
 
-**Retourne :** `Collection<int, object>` - Collection des entrées de débogage
+**Retourne :** `bool` - `true` si le nettoyage a réussi, `false` sinon
 
 **Exemple :**
 ```php
-$service = app(TaskExecutionDebugService::class);
-
-$debugs = $service->findByRecurringTask('email-newsletter');
-
-echo "Nombre d'exécutions: " . $debugs->count() . "\n";
+if ($service->clearTaskDebug($alias)) {
+    echo "Traces de débogage supprimées";
+}
 ```
 
 ---
 
-### `findByUniqueTask(string $taskId): Collection`
+### `clearTaskDebugByFqcn(TaskFqcnVO $fqcn): bool`
 
-Récupère tous les logs de débogage pour une tâche unique.
+Supprime toutes les entrées de débogage pour une classe de tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$taskId` | `string` | UUID de la tâche unique |
+| `$fqcn` | `TaskFqcnVO` | Classe de la tâche |
 
-**Retourne :** `Collection<int, object>` - Collection des entrées de débogage
+**Retourne :** `bool` - `true` si le nettoyage a réussi, `false` sinon
 
 **Exemple :**
 ```php
-$service = app(TaskExecutionDebugService::class);
-
-$debugs = $service->findByUniqueTask('550e8400-e29b-41d4-a716-446655440000');
-
-echo "Nombre de tentatives: " . $debugs->count() . "\n";
+$fqcn = new TaskFqcnVO(MyTask::class);
+$service->clearTaskDebugByFqcn($fqcn);
 ```
 
 ---
 
-### `addDebugForRecurringTask(string $alias, string $status, string $info): void`
+### `countTaskDebug(TaskAliasVO $alias): CounterVO`
 
-Ajoute une entrée de débogage pour une tâche récurrente.
+Compte le nombre d'entrées de débogage pour une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$alias` | `string` | Alias de la tâche récurrente |
-| `$status` | `string` | Statut de l'opération |
-| `$info` | `string` | Informations supplémentaires |
+| `$alias` | `TaskAliasVO` | Alias de la tâche |
+
+**Retourne :** `CounterVO` - Nombre d'entrées
 
 **Exemple :**
 ```php
-$service = app(TaskExecutionDebugService::class);
-
-$service->addDebugForRecurringTask(
-    'email-newsletter',
-    'started',
-    'Task execution started at ' . now()
-);
+$count = $service->countTaskDebug($alias);
+echo "{$count->getValue()} exécutions enregistrées";
 ```
 
 ---
 
-### `addDebugForUniqueTask(string $taskId, string $status, string $info): void`
+### `countTaskDebugByFqcn(TaskFqcnVO $fqcn): CounterVO`
 
-Ajoute une entrée de débogage pour une tâche unique.
+Compte le nombre d'entrées de débogage pour une classe de tâche.
+
+---
+
+### `hasDebug(TaskAliasVO $alias): bool`
+
+Vérifie si une tâche a des entrées de débogage.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$taskId` | `string` | UUID de la tâche unique |
-| `$status` | `string` | Statut de l'opération |
-| `$info` | `string` | Informations supplémentaires |
+| `$alias` | `TaskAliasVO` | Alias de la tâche |
+
+**Retourne :** `bool` - `true` si des entrées existent
 
 **Exemple :**
 ```php
-$service = app(TaskExecutionDebugService::class);
-
-$service->addDebugForUniqueTask(
-    '550e8400-e29b-41d4-a716-446655440000',
-    'completed',
-    'Task completed successfully'
-);
+if ($service->hasDebug($alias)) {
+    echo "Des traces d'exécution sont disponibles";
+}
 ```
 
 ---
 
-### `clearTaskDebug(string $taskType, string $taskIdentifier): void`
+### `hasDebugByFqcn(TaskFqcnVO $fqcn): bool`
 
-Supprime tous les logs de débogage pour une tâche spécifique.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskType` | `string` | Type de tâche (`'recurring'` ou `'unique'`) |
-| `$taskIdentifier` | `string` | Identifiant de la tâche (alias pour récurrente, UUID pour unique) |
-
-**Exemple :**
-```php
-$service = app(TaskExecutionDebugService::class);
-
-// Supprimer tous les logs d'une tâche récurrente
-$service->clearTaskDebug('recurring', 'email-newsletter');
-
-// Supprimer tous les logs d'une tâche unique
-$service->clearTaskDebug('unique', '550e8400-e29b-41d4-a716-446655440000');
-```
-
----
-
-### `countTaskDebug(string $taskType, string $taskIdentifier): int`
-
-Compte le nombre d'entrées de débogage pour une tâche spécifique.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$taskType` | `string` | Type de tâche (`'recurring'` ou `'unique'`) |
-| `$taskIdentifier` | `string` | Identifiant de la tâche (alias pour récurrente, UUID pour unique) |
-
-**Retourne :** `int` - Nombre d'entrées de débogage
-
-**Exemple :**
-```php
-$service = app(TaskExecutionDebugService::class);
-
-$count = $service->countTaskDebug('recurring', 'email-newsletter');
-echo "Nombre de tentatives: {$count}\n";
-```
-
-## Structure des données
-
-### Entrée de débogage (TaskExecutionDebug)
-
-```php
-// Structure des données stockées
-$data = [
-    'acted_at' => '2026-06-22T14:30:00+00:00',  // Date de l'action
-    'status' => 'succeeded',                     // Statut de l'opération
-    'info' => 'Task executed successfully',      // Informations
-];
-
-// Accès via le modèle
-$debug = $debugs->first();
-$actedAt = $debug->getActedAtVO();   // Iso8601DateTimeVO
-$status = $debug->getStatusVO();     // ExecutionStatus
-$info = $debug->getInfo();           // string
-```
+Vérifie si une classe de tâche a des entrées de débogage.
 
 ## Cas d'utilisation
 
-### Cas 1 : Journalisation des exécutions
+### Cas 1 : Suivi des échecs d'une tâche
+
+**Problème :** Une tâche échoue régulièrement, il faut comprendre pourquoi.
 
 ```php
-$service = app(TaskExecutionDebugService::class);
+$records = $service->findByAlias($alias);
 
-try {
-    // Exécution de la tâche
-    $task->execute($payload);
-    
-    // Journaliser le succès
-    $service->addDebugForRecurringTask(
-        'email-newsletter',
-        'succeeded',
-        'Task executed successfully'
-    );
-} catch (\Throwable $e) {
-    // Journaliser l'échec
-    $service->addDebugForRecurringTask(
-        'email-newsletter',
-        'failed',
-        $e->getMessage()
-    );
+$failedRecords = $records->filter(fn($r) => $r->status === ExecutionStatus::FAILED);
+
+foreach ($failedRecords as $record) {
+    echo "Échec du {$record->created_at->getValue()} : {$record->info->getValue()}\n";
+    if ($record->data) {
+        var_dump($record->data->toArray());
+    }
 }
 ```
 
-### Cas 2 : Consultation de l'historique
+---
+
+### Cas 2 : Journalisation des exécutions réussies
+
+**Problème :** Enregistrer chaque exécution réussie pour audit.
 
 ```php
-$service = app(TaskExecutionDebugService::class);
+$service->addDebug(
+    $alias,
+    new TaskFqcnVO(BackupTask::class),
+    ExecutionStatus::SUCCEEDED,
+    new DescriptionVO('Sauvegarde terminée avec succès'),
+    StrictDataObject::from([
+        'duration' => 120,
+        'files' => 45,
+        'size' => '2.3GB',
+    ])
+);
+```
 
-// Récupérer tous les logs d'une tâche
-$debugs = $service->findByRecurringTask('email-newsletter');
+---
 
-foreach ($debugs as $debug) {
-    $date = $debug->getActedAtVO()->toDateTime()->format('Y-m-d H:i:s');
-    $status = $debug->getStatusVO()->value;
-    $info = $debug->getInfo();
+### Cas 3 : Nettoyage périodique des logs
+
+**Problème :** Les logs de débogage s'accumulent et doivent être nettoyés.
+
+```php
+// Nettoyer les logs d'une tâche spécifique
+$service->clearTaskDebug($alias);
+
+// Nettoyer les logs d'un type de tâche
+$service->clearTaskDebugByFqcn(new TaskFqcnVO(DeprecatedTask::class));
+```
+
+---
+
+### Cas 4 : Dashboard de monitoring
+
+**Problème :** Afficher un dashboard des exécutions de tâches.
+
+```php
+$fqcn = new TaskFqcnVO(CriticalTask::class);
+
+if ($service->hasDebugByFqcn($fqcn)) {
+    $records = $service->findByFqcn($fqcn);
+    $success = $records->filter(fn($r) => $r->status === ExecutionStatus::SUCCEEDED);
+    $failed = $records->filter(fn($r) => $r->status === ExecutionStatus::FAILED);
     
-    echo "[{$date}] {$status}: {$info}\n";
+    echo "Taux de succès : " . round(($success->count() / $records->count()) * 100, 2) . "%\n";
 }
-```
-
-### Cas 3 : Nettoyage des logs
-
-```php
-$service = app(TaskExecutionDebugService::class);
-
-// Supprimer les logs d'une tâche spécifique
-$service->clearTaskDebug('recurring', 'email-newsletter');
-
-// Vérifier que les logs ont été supprimés
-$count = $service->countTaskDebug('recurring', 'email-newsletter');
-echo "Logs restants: {$count}\n"; // 0
-```
-
-### Cas 4 : Statut d'une tâche
-
-```php
-$service = app(TaskExecutionDebugService::class);
-
-$debugs = $service->findByUniqueTask('550e8400-e29b-41d4-a716-446655440000');
-$lastDebug = $debugs->first();
-
-if ($lastDebug) {
-    $status = $lastDebug->getStatusVO();
-    
-    match ($status) {
-        ExecutionStatus::SUCCEEDED => echo "✅ Tâche réussie\n",
-        ExecutionStatus::FAILED => echo "❌ Tâche échouée\n",
-        default => echo "⏳ Tâche en cours\n",
-    };
-}
-```
-
-## Flux d'exécution
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                  TaskExecutionDebugService                         │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  AJOUT                                                            │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  addDebug() / addDebugForRecurringTask()                   │   │
-│  │  addDebugForUniqueTask()                                   │   │
-│  │  ├─ Valider les paramètres                                 │   │
-│  │  ├─ Créer un StrictDataObject avec acted_at                │   │
-│  │  └─ repository->addDebug()                                 │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  RECHERCHE                                                         │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  findByTask() / findByRecurringTask() / findByUniqueTask() │   │
-│  │  ├─ Déléguer au repository                                  │   │
-│  │  └─ Retourner une Collection triée par date décroissante   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  SUPPRESSION                                                       │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  clearTaskDebug()                                          │   │
-│  │  ├─ Déléguer au repository                                  │   │
-│  │  └─ Supprimer toutes les entrées de la tâche               │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  COMPTAGE                                                          │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  countTaskDebug()                                          │   │
-│  │  ├─ Déléguer au repository                                  │   │
-│  │  └─ Retourner le nombre d'entrées                           │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Gestion des erreurs
 
-| Situation | Comportement |
-|-----------|--------------|
-| `addDebug()` avec `$taskType` invalide | Aucune validation - le type est stocké tel quel |
-| `findByTask()` avec une tâche inexistante | Retourne une `Collection` vide |
-| `clearTaskDebug()` avec une tâche inexistante | Aucune opération, pas d'erreur |
-| `countTaskDebug()` avec une tâche inexistante | Retourne `0` |
+| Situation | Comportement | Message loggé |
+|-----------|--------------|---------------|
+| Erreur lors de la recherche par alias | Retourne une collection vide | `task_debug_find_by_alias` |
+| Erreur lors de la recherche par FQCN | Retourne une collection vide | `task_debug_find_by_fqcn` |
+| Erreur lors de l'ajout d'une entrée | Retourne `false` | `task_debug_add_error` |
+| Erreur lors du nettoyage | Retourne `false` | `task_debug_clear_error` |
+| Erreur lors du comptage | Retourne `CounterVO(0)` | `task_debug_count_error` |
 
-## Dépendances
+## Flux d'exécution
 
-| Dépendance | Rôle |
-|------------|------|
-| `TaskExecutionDebugRepositoryInterface` | Accès aux données via Repository |
+```
+addDebug()
+    ├── Tentative d'ajout via repository
+    │   ├── Succès → Log DEBUG + retour true
+    │   └── Échec → Log ERROR + retour false
+    └── (Exception) → Log ERROR + retour false
+
+findByAlias()
+    ├── Tentative de recherche via repository
+    │   ├── Succès → Conversion models → records
+    │   └── Échec → Log ERROR + retour collection vide
+    └── (Exception) → Log ERROR + retour collection vide
+```
+
+## Intégration
+
+### Dépendances
+
+- `TaskExecutionDebugRepositoryInterface` : Accès aux données de débogage
+- `LoggerInterface` : Logging des opérations
+
+### Points d'extension
+
+- Le repository peut être remplacé pour utiliser un stockage différent
+- Les logs peuvent être redirigés vers différents canaux
 
 ## Performance
 
-- **Complexité** : O(1) pour les opérations unitaires
-- **Mémoire** : Les collections sont chargées en mémoire
-- **Base de données** : Chaque opération génère des requêtes Eloquent
-- **Index** : Les colonnes `task_type` et `task_identifier` devraient être indexées
+- **Recherches** : Indexées sur `alias` et `fqcn`
+- **Ajouts** : Écriture atomique en base de données
+- **Nettoyage** : Suppression en masse optimisée
+- **Recommandation** : Nettoyer périodiquement les anciennes entrées
 
 ## Compatibilité
 
-| Version | Support |
-|---------|---------|
-| PHP 8.1+ | ✅ Complet |
-| Laravel 12.x, 13.x, 14.x, 15.x | ✅ Complet |
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.2+ | ✅ Complet |
+| PHP 8.1 | ✅ Complet |
 
 ## Exemple complet
 
@@ -372,62 +330,54 @@ if ($lastDebug) {
 declare(strict_types=1);
 
 use AndyDefer\Task\Services\TaskExecutionDebugService;
+use AndyDefer\Task\Enums\ExecutionStatus;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\TaskFqcnVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
+/** @var TaskExecutionDebugService $service */
 $service = app(TaskExecutionDebugService::class);
 
-// 1. Ajouter des logs pour une tâche récurrente
-$service->addDebugForRecurringTask(
-    'email-newsletter',
-    'started',
-    'Task execution started'
+$alias = new TaskAliasVO('unique@abc-123');
+$fqcn = new TaskFqcnVO(MyTask::class);
+
+// 1. Ajout d'une trace de débogage
+$service->addDebug(
+    $alias,
+    $fqcn,
+    ExecutionStatus::SUCCEEDED,
+    new DescriptionVO('Task executed successfully'),
+    StrictDataObject::from(['duration_ms' => 1500, 'memory_usage' => '12MB'])
 );
 
-sleep(1);
-
-$service->addDebugForRecurringTask(
-    'email-newsletter',
-    'succeeded',
-    'Task completed successfully'
+// 2. Ajout d'une trace d'échec
+$service->addDebug(
+    $alias,
+    $fqcn,
+    ExecutionStatus::FAILED,
+    new DescriptionVO('Connection timeout after 30s'),
+    StrictDataObject::from(['attempt' => 2, 'timeout' => 30])
 );
 
-// 2. Consulter les logs
-$debugs = $service->findByRecurringTask('email-newsletter');
-echo "Nombre de logs: " . $debugs->count() . "\n";
+// 3. Consultation des logs
+$records = $service->findByAlias($alias);
+echo "Nombre d'exécutions : {$records->count()}\n";
 
-foreach ($debugs as $debug) {
-    echo sprintf(
-        "[%s] %s: %s\n",
-        $debug->getActedAtVO()->toDateTime()->format('H:i:s'),
-        $debug->getStatusVO()->value,
-        $debug->getInfo()
-    );
+// 4. Vérification de présence
+if ($service->hasDebug($alias)) {
+    echo "Des traces existent pour cette tâche\n";
 }
 
-// 3. Ajouter un log pour une tâche unique
-$service->addDebugForUniqueTask(
-    '550e8400-e29b-41d4-a716-446655440000',
-    'failed',
-    'Connection timeout'
-);
-
-// 4. Compter les logs
-$count = $service->countTaskDebug('unique', '550e8400-e29b-41d4-a716-446655440000');
-echo "Nombre de logs pour la tâche unique: {$count}\n";
-
-// 5. Supprimer les logs
-$service->clearTaskDebug('recurring', 'email-newsletter');
-echo "Logs supprimés\n";
-
-// 6. Vérifier la suppression
-$remaining = $service->countTaskDebug('recurring', 'email-newsletter');
-echo "Logs restants: {$remaining}\n"; // 0
+// 5. Nettoyage
+$service->clearTaskDebug($alias);
 ```
 
 ## Voir aussi
 
-- `TaskExecutionDebugServiceInterface` - Interface du service
-- `TaskExecutionDebugRepository` - Repository des logs de débogage
-- `TaskExecutionDebug` - Modèle Eloquent
-- `TaskExecutionDebugRecord` - DTO des logs de débogage
-- `UniqueTaskService` - Service des tâches uniques
-- `RecurringTaskService` - Service des tâches récurrentes
+- `TaskExecutionDebugRepositoryInterface` - Repository de débogage
+- `TaskExecutionDebugRecord` - Structure de données
+- `ExecutionStatus` - Statuts d'exécution
+- `UniqueTaskService` - Service de tâches uniques
+- `RecurringTaskService` - Service de tâches récurrentes
+---

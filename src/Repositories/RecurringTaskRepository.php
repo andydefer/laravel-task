@@ -28,8 +28,15 @@ use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Throwable;
 
 /**
+ * Repository for recurring task management.
+ *
+ * Handles storage, retrieval, and state transitions for recurring tasks.
+ * Provides methods for finding tasks by status, updating states, and
+ * processing ready-to-run tasks with automatic state transitions.
+ *
  * @extends AbstractRepository<RecurringTask, RecurringTaskRecord>
  */
 final class RecurringTaskRepository extends AbstractRepository implements RecurringTaskRepositoryInterface
@@ -38,6 +45,12 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     private readonly LoggerInterface $logger;
 
+    /**
+     * Constructor for the recurring task repository.
+     *
+     * @param  TaskExecutionDebugRepositoryInterface  $debugRepository  The debug repository
+     * @param  LoggerInterface  $logger  The logger instance
+     */
     public function __construct(
         TaskExecutionDebugRepositoryInterface $debugRepository,
         LoggerInterface $logger,
@@ -47,6 +60,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         $this->logger = $logger;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
         if (! $filters instanceof RecurringTaskFiltersRecord) {
@@ -110,6 +126,17 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * Updates the state of tasks based on current time.
+     *
+     * Performs automatic state transitions:
+     * - WAITING → PLAYING when start_at is reached
+     * - PLAYING → FINISHED when end_at is reached
+     * - PLAYING → CANCELED when failed_attempts >= max_failed_attempts
+     *
+     * @param  Iso8601DateTimeVO|null  $now  The current time (uses now if null)
+     * @return FreshStateResultRecord The result of state transitions
+     */
     private function freshState(?Iso8601DateTimeVO $now = null): FreshStateResultRecord
     {
         $now = $now ?? new Iso8601DateTimeVO;
@@ -143,7 +170,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'playing_to_finished' => new CounterVO($playingToFinished),
                 'playing_to_canceled' => new CounterVO($playingToCanceled),
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_fresh_state_error',
                 'payload' => [
@@ -162,6 +189,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     // ==================== FINDERS ====================
 
+    /**
+     * {@inheritDoc}
+     */
     public function findWaiting(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -176,7 +206,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'filters' => $filters,
                 'limit' => $limitValue,
             ]));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_find_waiting_error',
                 'payload' => [
@@ -189,6 +219,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findPlaying(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -203,7 +236,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'filters' => $filters,
                 'limit' => $limitValue,
             ]));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_find_playing_error',
                 'payload' => [
@@ -216,6 +249,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findPaused(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -230,7 +266,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'filters' => $filters,
                 'limit' => $limitValue,
             ]));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_find_paused_error',
                 'payload' => [
@@ -243,6 +279,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findFinished(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -257,7 +296,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'filters' => $filters,
                 'limit' => $limitValue,
             ]));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_find_finished_error',
                 'payload' => [
@@ -270,6 +309,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findCanceled(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -284,7 +326,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'filters' => $filters,
                 'limit' => $limitValue,
             ]));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_find_canceled_error',
                 'payload' => [
@@ -297,6 +339,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findReadyToRun(?Iso8601DateTimeVO $now = null, ?LimitVO $limit = null): RecurringTaskReadyToRunResultRecord
     {
         try {
@@ -321,7 +366,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'tasks' => $records,
                 'fresh_state' => $freshStateResult,
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_find_ready_to_run_error',
                 'payload' => [
@@ -342,6 +387,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findByAlias(TaskAliasVO $alias): ?RecurringTask
     {
         try {
@@ -354,7 +402,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             $results = $this->findBy(FindByRecord::from(['filters' => $filters]));
 
             return $results->first() ?? null;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_find_by_alias_error',
                 'payload' => [
@@ -369,6 +417,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     // ==================== MOVES ====================
 
+    /**
+     * {@inheritDoc}
+     */
     public function moveToPlaying(RecurringTaskRecord $task): bool
     {
         try {
@@ -391,7 +442,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]));
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_move_to_playing_error',
                 'payload' => [
@@ -404,6 +455,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function moveToPaused(RecurringTaskRecord $task): bool
     {
         try {
@@ -426,7 +480,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]));
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_move_to_paused_error',
                 'payload' => [
@@ -439,6 +493,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function moveToWaiting(RecurringTaskRecord $task): bool
     {
         try {
@@ -461,7 +518,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]));
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_move_to_waiting_error',
                 'payload' => [
@@ -474,6 +531,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function moveToFinished(RecurringTaskRecord $task): bool
     {
         try {
@@ -499,7 +559,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]));
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_move_to_finished_error',
                 'payload' => [
@@ -512,6 +572,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function moveToCanceled(RecurringTaskRecord $task): bool
     {
         try {
@@ -538,7 +601,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]));
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_move_to_canceled_error',
                 'payload' => [
@@ -553,6 +616,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     // ==================== UPDATE ====================
 
+    /**
+     * {@inheritDoc}
+     */
     public function updateAfterRun(RecurringTaskRecord $task, bool $success, ?DescriptionVO $error = null): bool
     {
         try {
@@ -586,10 +652,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]));
 
             $duration = (int) ($task->last_run_at?->diffInSeconds($now)->getValue() * 1000);
-
-            $durationMs = $task->last_run_at !== null
-                ? new MillisecondsVO($duration)
-                : null;
+            $durationMs = $task->last_run_at !== null ? new MillisecondsVO($duration) : null;
 
             $this->debugRepository->addDebug(
                 alias: $task->alias,
@@ -603,7 +666,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             );
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_update_after_run_error',
                 'payload' => [
@@ -619,6 +682,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     // ==================== COUNTS ====================
 
+    /**
+     * {@inheritDoc}
+     */
     public function countWaiting(): CounterVO
     {
         try {
@@ -628,7 +694,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]);
 
             return new CounterVO($this->count($filters));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_waiting_error',
                 'payload' => ['error' => $e->getMessage()],
@@ -638,6 +704,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countPlaying(): CounterVO
     {
         try {
@@ -647,7 +716,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]);
 
             return new CounterVO($this->count($filters));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_playing_error',
                 'payload' => ['error' => $e->getMessage()],
@@ -657,6 +726,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countPaused(): CounterVO
     {
         try {
@@ -666,7 +738,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]);
 
             return new CounterVO($this->count($filters));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_paused_error',
                 'payload' => ['error' => $e->getMessage()],
@@ -676,6 +748,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countFinished(): CounterVO
     {
         try {
@@ -685,7 +760,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]);
 
             return new CounterVO($this->count($filters));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_finished_error',
                 'payload' => ['error' => $e->getMessage()],
@@ -695,6 +770,9 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countCanceled(): CounterVO
     {
         try {
@@ -704,7 +782,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
             ]);
 
             return new CounterVO($this->count($filters));
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_canceled_error',
                 'payload' => ['error' => $e->getMessage()],
@@ -716,6 +794,12 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     // ==================== PRIVATE METHODS ====================
 
+    /**
+     * Converts an Eloquent model to a record object.
+     *
+     * @param  RecurringTask  $model  The model to convert
+     * @return RecurringTaskRecord The converted record
+     */
     private function modelToRecord(RecurringTask $model): RecurringTaskRecord
     {
         return RecurringTaskRecord::from([

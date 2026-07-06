@@ -160,10 +160,10 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert
-        $this->assertEquals(3, $result->totalSuccess->getValue());
-        $this->assertEquals(0, $result->totalFailed->getValue());
-        $this->assertFalse($result->hasErrors);
-        $this->assertGreaterThan(0, $result->cycleCount->getValue());
+        $this->assertEquals(3, $result->total_success->getValue());
+        $this->assertEquals(0, $result->total_failed->getValue());
+        $this->assertFalse($result->has_errors);
+        $this->assertGreaterThan(0, $result->cycle_count->getValue());
     }
 
     public function test_run_processes_tasks_with_parallel_workers(): void
@@ -191,10 +191,10 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert
-        $this->assertEquals(5, $result->totalSuccess->getValue());
-        $this->assertEquals(0, $result->totalFailed->getValue());
-        $this->assertFalse($result->hasErrors);
-        $this->assertGreaterThan(0, $result->cycleCount->getValue());
+        $this->assertEquals(5, $result->total_success->getValue());
+        $this->assertEquals(0, $result->total_failed->getValue());
+        $this->assertFalse($result->has_errors);
+        $this->assertGreaterThan(0, $result->cycle_count->getValue());
     }
 
     public function test_run_respects_limit_with_parallel(): void
@@ -223,9 +223,9 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert : Only 5 tasks should be processed
-        $this->assertEquals(5, $result->totalSuccess->getValue());
-        $this->assertEquals(0, $result->totalFailed->getValue());
-        $this->assertFalse($result->hasErrors);
+        $this->assertEquals(5, $result->total_success->getValue());
+        $this->assertEquals(0, $result->total_failed->getValue());
+        $this->assertFalse($result->has_errors);
     }
 
     public function test_run_handles_duration_limit_with_parallel(): void
@@ -253,9 +253,9 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert : Some tasks should be processed, but not all
-        $this->assertIsInt($result->totalSuccess->getValue());
-        $this->assertIsInt($result->totalFailed->getValue());
-        $this->assertGreaterThan(0, $result->cycleCount->getValue());
+        $this->assertIsInt($result->total_success->getValue());
+        $this->assertIsInt($result->total_failed->getValue());
+        $this->assertGreaterThan(0, $result->cycle_count->getValue());
     }
 
     public function test_run_handles_no_tasks_with_parallel(): void
@@ -279,9 +279,9 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert : No tasks processed
-        $this->assertEquals(0, $result->totalSuccess->getValue());
-        $this->assertEquals(0, $result->totalFailed->getValue());
-        $this->assertFalse($result->hasErrors);
+        $this->assertEquals(0, $result->total_success->getValue());
+        $this->assertEquals(0, $result->total_failed->getValue());
+        $this->assertFalse($result->has_errors);
     }
 
     public function test_run_aggregates_results_across_cycles_with_parallel(): void
@@ -309,10 +309,10 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert : All tasks should be processed
-        $this->assertEquals(8, $result->totalSuccess->getValue());
-        $this->assertEquals(0, $result->totalFailed->getValue());
-        $this->assertFalse($result->hasErrors);
-        $this->assertGreaterThan(0, $result->cycleCount->getValue());
+        $this->assertEquals(8, $result->total_success->getValue());
+        $this->assertEquals(0, $result->total_failed->getValue());
+        $this->assertFalse($result->has_errors);
+        $this->assertGreaterThan(0, $result->cycle_count->getValue());
     }
 
     public function test_run_with_parallel_one_equals_sequential(): void
@@ -353,9 +353,9 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert : Both should process all tasks
-        $this->assertEquals(3, $resultParallel1->totalSuccess->getValue());
-        $this->assertEquals(3, $resultSequential->totalSuccess->getValue());
-        $this->assertEquals($resultParallel1->totalSuccess->getValue(), $resultSequential->totalSuccess->getValue());
+        $this->assertEquals(3, $resultParallel1->total_success->getValue());
+        $this->assertEquals(3, $resultSequential->total_success->getValue());
+        $this->assertEquals($resultParallel1->total_success->getValue(), $resultSequential->total_success->getValue());
     }
 
     public function test_run_with_verbose_and_parallel(): void
@@ -383,9 +383,9 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert : Tasks processed correctly
-        $this->assertEquals(3, $result->totalSuccess->getValue());
-        $this->assertEquals(0, $result->totalFailed->getValue());
-        $this->assertFalse($result->hasErrors);
+        $this->assertEquals(3, $result->total_success->getValue());
+        $this->assertEquals(0, $result->total_failed->getValue());
+        $this->assertFalse($result->has_errors);
     }
 
     public function test_run_stops_on_signal_with_parallel(): void
@@ -413,8 +413,8 @@ final class LoopRunnerTest extends IntegrationTestCase
         );
 
         // Assert : Loop ran and processed tasks
-        $this->assertIsInt($result->totalSuccess->getValue());
-        $this->assertIsInt($result->totalFailed->getValue());
-        $this->assertGreaterThan(0, $result->cycleCount->getValue());
+        $this->assertIsInt($result->total_success->getValue());
+        $this->assertIsInt($result->total_failed->getValue());
+        $this->assertGreaterThan(0, $result->cycle_count->getValue());
     }
 }

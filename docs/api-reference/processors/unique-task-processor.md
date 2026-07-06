@@ -2,7 +2,7 @@
 
 ## Description
 
-Processeur de tâches uniques qui orchestre l'exécution d'un lot de tâches en une seule fois. Il récupère les tâches prêtes, les valide, les exécute et gère les expirations.
+Processeur de lots de tâches uniques. Il orchestre la récupération, la validation, l'exécution et la gestion des expirations pour un ensemble de tâches uniques prêtes à être exécutées.
 
 ## Hiérarchie / Implémentations
 
@@ -13,195 +13,198 @@ UniqueTaskProcessorInterface
 
 ## Rôle principal
 
-Ce processeur est le cœur du traitement des tâches uniques. Il :
+Traiter un lot de tâches uniques en :
+- Récupérant les tâches prêtes à être exécutées
+- Validant chaque tâche avant exécution
+- Exécutant les tâches via le `UniqueTaskRunner`
+- Gérant les tâches expirées
+- Agrégeant les résultats (succès/échecs)
+- Retournant un rapport de traitement
 
-1. **Récupère** les tâches prêtes (`findReadyToRun`)
-2. **Valide** chaque tâche avant exécution (`validator->canRun`)
-3. **Orchestre** l'exécution via le `UniqueTaskRunner`
-4. **Gère** les tâches expirées (grace period dépassée)
-5. **Agrège** les résultats et les erreurs
+## API / Méthodes publiques
 
-## API
+### `process(LimitVO $limit = new LimitVO): ProcessResultRecord`
 
-### `process(?int $limit = null): ProcessResultRecord`
-
-Point d'entrée principal du processeur.
+Traite un lot de tâches uniques.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$limit` | `?int` | Nombre maximum de tâches à exécuter (`null` = illimité) |
+| `$limit` | `LimitVO` | Nombre maximum de tâches à traiter (défaut : illimité) |
 
-**Retourne :** `ProcessResultRecord` - Résultat du traitement (succès, échecs, finitions)
+**Retourne :** `ProcessResultRecord` - Résumé du traitement (succès, échecs, erreurs)
 
 **Exemple :**
 ```php
 $processor = new UniqueTaskProcessor($repository, $runner, $validator);
-$result = $processor->process(10);
-```
+$result = $processor->process(new LimitVO(50));
 
----
+echo "Succès : {$result->success->getValue()}\n";
+echo "Échecs : {$result->failed->getValue()}\n";
 
-### `modelToRecord(UniqueTask $model): UniqueTaskRecord`
-
-Convertit un modèle Eloquent en Record DTO.
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$model` | `UniqueTask` | Modèle Eloquent à convertir |
-
-**Retourne :** `UniqueTaskRecord` - DTO de la tâche
-
-**Exemple :**
-```php
-$model = UniqueTask::find('550e8400-e29b-41d4-a716-446655440000');
-$record = $processor->modelToRecord($model);
-// $record est un UniqueTaskRecord immuable
-```
-
-## Cas d'utilisation
-
-### Cas 1 : Traitement standard des tâches uniques
-
-```php
-$processor = app(UniqueTaskProcessor::class);
-$result = $processor->process();
-
-echo "Succès: {$result->success->value}\n";
-echo "Échecs: {$result->failed->value}\n";
-```
-
-### Cas 2 : Traitement avec limite
-
-```php
-// Traiter uniquement les 5 premières tâches
-$result = $processor->process(5);
-```
-
-### Cas 3 : Tâche invalidée par le validator
-
-```php
-// Une tâche avec attempts = max_attempts
-// Le validator la rejette → la tâche est marquée FAILED
-// L'erreur "Validation failed: Maximum attempts reached" est enregistrée
-```
-
-### Cas 4 : Tâche expirée
-
-```php
-// Une tâche avec scheduled_at = now - 48h, grace_period = 3600 (1h)
-// Le processeur la détecte et la marque FAILED
-// L'erreur "Task expired" est enregistrée
+foreach ($result->errors as $error) {
+    echo "Erreur : {$error->description}\n";
+}
 ```
 
 ## Flux d'exécution
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    UniqueTaskProcessor                             │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  ÉTAPE 1 : Récupérer les tâches prêtes                            │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  findReadyToRun(date('c'))                                  │   │
-│  │  → Collection<UniqueTask> (modèles Eloquent)               │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ÉTAPE 2 : Appliquer la limite                                     │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  if ($limit !== null) { $tasks = $tasks->take($limit); }   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ÉTAPE 3 : Exécuter chaque tâche                                   │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  Pour chaque tâche :                                        │   │
-│  │  ├─ modelToRecord($task) → UniqueTaskRecord                │   │
-│  │  │                                                          │   │
-│  │  ├─ validator->canRun($taskRecord) ?                       │   │
-│  │  │  ├─ NON → moveToFailed() + error                       │   │
-│  │  │  └─ OUI → runner->run($taskRecord)                     │   │
-│  │  │                                                          │   │
-│  │  └─ runner->run() → ExecutionResultRecord                  │   │
-│  │     ├─ success → success++                                 │   │
-│  │     └─ failure → failed++ + error                          │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  ÉTAPE 4 : Traiter les tâches expirées                            │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  findExpired(date('c')) → Collection<UniqueTask>           │   │
-│  │  Pour chaque tâche :                                        │   │
-│  │  ├─ modelToRecord($task) → UniqueTaskRecord                │   │
-│  │  ├─ validator->isExpired($taskRecord) ?                    │   │
-│  │  └─ moveToFailed($taskRecord) + error                      │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                              │                                      │
-│                              ▼                                      │
-│  SORTIE : ProcessResultRecord                                      │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  success: nombre de succès                                  │   │
-│  │  failed: nombre d'échecs (validations + expirations)       │   │
-│  │  finished: toujours 0 (tâches uniques)                     │   │
-│  │  errors: collection des erreurs                             │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
+process(limit)
+    │
+    ├── 1. Initialisation
+    │   ├── startedAt = now
+    │   ├── counters = {success: 0, failed: 0}
+    │   └── errors = new Collection
+    │
+    ├── 2. Récupération des tâches
+    │   └── getReadyTasks(now, limit)
+    │       └── repository->findReadyToRun(now)
+    │
+    ├── 3. Traitement de chaque tâche
+    │   ├── convertModelToRecord()
+    │   ├── validator->canRun(record) ?
+    │   │   ├── Non → handleValidationFailure()
+    │   │   │   ├── moveToFailed()
+    │   │   │   ├── failed++
+    │   │   │   └── add error
+    │   │   └── Oui → processSingleTask()
+    │   │       ├── runner->run(record)
+    │   │       ├── success → success++
+    │   │       └── failed → failed++ + add error
+    │   └── (continue)
+    │
+    ├── 4. Gestion des tâches expirées
+    │   └── handleExpiredTasks()
+    │       ├── findExpired()
+    │       ├── moveToFailed()
+    │       ├── failed++
+    │       └── add expiration error
+    │
+    └── 5. Construction du résultat
+        └── buildResult(startedAt, counters, errors)
+```
+
+## Cas d'utilisation
+
+### Cas 1 : Traitement standard
+
+**Problème :** Traiter toutes les tâches uniques prêtes.
+
+```php
+$result = $processor->process();
+
+echo "Tâches traitées :\n";
+echo "✅ Succès : {$result->success->getValue()}\n";
+echo "❌ Échecs : {$result->failed->getValue()}\n";
+```
+
+---
+
+### Cas 2 : Traitement avec limite
+
+**Problème :** Traiter uniquement les 10 premières tâches pour éviter une surcharge.
+
+```php
+$result = $processor->process(new LimitVO(10));
+```
+
+---
+
+### Cas 3 : Gestion des erreurs de validation
+
+**Problème :** Une tâche ne peut pas être exécutée (statut invalide, expirée, etc.).
+
+```php
+$result = $processor->process();
+
+foreach ($result->errors as $error) {
+    if (str_contains($error->description, 'Validation failed')) {
+        echo "Erreur de validation : {$error->description}\n";
+        echo "Contexte : {$error->context}\n";
+    }
+}
+```
+
+---
+
+### Cas 4 : Tâches expirées
+
+**Problème :** Des tâches ont dépassé leur période de grâce.
+
+```php
+$result = $processor->process();
+
+foreach ($result->errors as $error) {
+    if (str_contains($error->description, 'expired')) {
+        echo "Tâche expirée : {$error->alias->getValue()}\n";
+        echo "Contexte : {$error->context}\n";
+    }
+}
 ```
 
 ## Gestion des erreurs
 
-### Cas de validation échouée
+| Situation | Action | Erreur enregistrée |
+|-----------|--------|-------------------|
+| Validation échouée | `moveToFailed()` | `Validation failed: {raison}` |
+| Échec d'exécution | - | Message d'erreur du runner |
+| Tâche expirée | `moveToFailed()` | `Task expired` |
+| Exception inattendue | - | Message d'exception |
 
-| Condition | Action | Erreur |
-|-----------|--------|--------|
-| Statut ≠ PENDING | `moveToFailed()` | `Validation failed: Task is not in PENDING state` |
-| `attempts >= max_attempts` | `moveToFailed()` | `Validation failed: Maximum attempts reached` |
-| Tâche expirée | `moveToFailed()` | `Validation failed: Task has expired` |
-| `scheduled_at > now` | `moveToFailed()` | `Validation failed: Task is not ready to run` |
+### Messages d'erreur de validation
 
-### Cas d'exécution échouée
+| Cause | Message |
+|-------|---------|
+| Classe invalide | `Validation failed: Invalid task class: X` |
+| Statut non PENDING | `Validation failed: Task is in X state, not PENDING` |
+| Tentatives max atteintes | `Validation failed: Maximum attempts reached` |
+| Tâche expirée | `Validation failed: Task has expired` |
+| Planifiée dans le futur | `Validation failed: Task is not ready to run (scheduled_at in the future)` |
 
-| Situation | Action | Erreur |
-|-----------|--------|--------|
-| Exception dans le runner | `moveToFailed()` | Message de l'exception |
-| Erreur d'instanciation | `moveToFailed()` | `Failed to instantiate task: ...` |
+## Intégration
 
-### Cas d'expiration
+### Dépendances injectées
 
-| Condition | Action | Erreur |
-|-----------|--------|--------|
-| `now > scheduled_at + grace_period` | `moveToFailed()` | `Task expired` |
+| Dépendance | Rôle |
+|------------|------|
+| `UniqueTaskRepositoryInterface` | Récupération et mise à jour des tâches |
+| `UniqueTaskRunnerInterface` | Exécution individuelle des tâches |
+| `UniqueTaskValidatorInterface` | Validation des tâches |
 
-## Validation avant exécution
+### Flux de données
 
-```php
-// Le validator vérifie 4 conditions
-if (! $this->validator->canRun($taskRecord)) {
-    // 1. Statut PENDING
-    // 2. scheduled_at <= now
-    // 3. attempts < max_attempts
-    // 4. non expiré (grace_period)
-    
-    // Récupération des erreurs détaillées
-    $errors = $this->validator->getValidationErrors($taskRecord);
-    // Exemple: "Task is not in PENDING state, Maximum attempts reached"
-}
+```
+Repository ──(tasks)──▶ Processor
+                           │
+                    ┌──────┴──────┐
+                    │             │
+              Validator         Runner
+                    │             │
+                    └──────┬──────┘
+                           │
+                    ┌──────┴──────┐
+                    │             │
+              Repository    Errors
+                    │             │
+                    └──────┬──────┘
+                           │
+                      Result
 ```
 
 ## Performance
 
-- **Complexité** : O(n) où n = nombre de tâches récupérées
-- **Mémoire** : Les tâches sont chargées en mémoire via les collections
-- **Base de données** : 2 requêtes (`findReadyToRun`, `findExpired`) + requêtes pour les mises à jour
-- **Limite** : Permet de contrôler la charge
+- **Complexité** : O(n) où n est le nombre de tâches traitées
+- **Mémoire** : Charge les tâches par lots (limit)
+- **Recommandation** : 
+  - Utiliser `LimitVO` pour éviter les surcharges
+  - Pour > 1000 tâches, utiliser le `--limit` dans la directive
 
 ## Compatibilité
 
-| Version | Support |
-|---------|---------|
-| PHP 8.1+ | ✅ Complet |
-| Laravel 10+ | ✅ Complet |
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.2+ | ✅ Complet |
+| PHP 8.1 | ✅ Complet |
 
 ## Exemple complet
 
@@ -211,36 +214,42 @@ if (! $this->validator->canRun($taskRecord)) {
 declare(strict_types=1);
 
 use AndyDefer\Task\Processors\UniqueTaskProcessor;
-use AndyDefer\Task\Records\ProcessResultRecord;
+use AndyDefer\Task\Repositories\UniqueTaskRepository;
+use AndyDefer\Task\Runners\UniqueTaskRunner;
+use AndyDefer\Task\Validators\UniqueTaskValidator;
+use AndyDefer\Task\ValueObjects\LimitVO;
 
-// Récupérer le processeur
-$processor = app(UniqueTaskProcessor::class);
+// 1. Construction du processor
+$repository = app(UniqueTaskRepository::class);
+$runner = app(UniqueTaskRunner::class);
+$validator = app(UniqueTaskValidator::class);
 
-// Exécuter avec limite de 10 tâches
-$result = $processor->process(10);
+$processor = new UniqueTaskProcessor($repository, $runner, $validator);
 
-// Afficher les résultats
-echo "Traitement terminé.\n";
-echo "✅ Succès: {$result->success->value}\n";
-echo "❌ Échecs: {$result->failed->value}\n";
+// 2. Traitement
+$result = $processor->process(new LimitVO(100));
 
-// Afficher les erreurs
-foreach ($result->errors as $error) {
-    echo "Erreur: {$error->identifier} - {$error->error}\n";
-    if ($error->context) {
-        echo "  Contexte: {$error->context}\n";
+// 3. Affichage des statistiques
+echo "=== Résumé du traitement ===\n";
+echo "✅ Succès : {$result->success->getValue()}\n";
+echo "❌ Échecs : {$result->failed->getValue()}\n";
+echo "📦 Total : " . ($result->success->getValue() + $result->failed->getValue()) . "\n";
+
+// 4. Affichage des erreurs
+if ($result->errors->count() > 0) {
+    echo "\n=== Détail des erreurs ===\n";
+    foreach ($result->errors as $error) {
+        echo "❌ {$error->alias->getValue()}\n";
+        echo "   Description : {$error->description}\n";
+        echo "   Contexte : {$error->context}\n\n";
     }
 }
-
-// Vérifier le statut global
-$hasErrors = $result->failed->value > 0;
-echo $hasErrors ? "⚠️ Des erreurs sont survenues" : "✅ Tout s'est bien passé";
 ```
 
 ## Voir aussi
 
+- `RecurringTaskProcessor` - Processeur de tâches récurrentes
 - `UniqueTaskRunner` - Exécuteur de tâches uniques
 - `UniqueTaskValidator` - Validation des tâches
-- `UniqueTaskRepository` - Accès aux données
 - `ProcessResultRecord` - Structure de résultat
-- `RecurringTaskProcessor` - Processeur pour les tâches récurrentes
+- `UniqueTaskRepositoryInterface` - Repository des tâches

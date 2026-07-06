@@ -16,6 +16,7 @@ use AndyDefer\Task\Records\TaskExecutionDebugRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\TaskFqcnVO;
@@ -25,15 +26,26 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
+ * Repository for task execution debug records.
+ *
+ * Handles storage, retrieval, and management of task execution debug information
+ * including status, timing, and error details for both unique and recurring tasks.
+ *
  * @extends AbstractRepository<TaskExecutionDebug, TaskExecutionDebugRecord>
  */
 final class TaskExecutionDebugRepository extends AbstractRepository implements TaskExecutionDebugRepositoryInterface
 {
+    /**
+     * Constructor for the task execution debug repository.
+     */
     public function __construct()
     {
         parent::__construct(TaskExecutionDebug::class, TaskExecutionDebugRecord::class);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
         if (! $filters instanceof TaskExecutionDebugFiltersRecord) {
@@ -73,51 +85,87 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         }
     }
 
-    public function findByAlias(TaskAliasVO $alias): Collection
+    /**
+     * {@inheritDoc}
+     */
+    public function findByAlias(TaskAliasVO $alias, ?LimitVO $limit = null): Collection
     {
         $filters = TaskExecutionDebugFiltersRecord::from([
             'alias' => $alias,
         ]);
 
-        // ✅ Ajouter le tri par created_at décroissant
         $sortBy = new SortColumns('created_at:desc');
 
-        return $this->findBy(
-            FindByRecord::from([
-                'filters' => $filters,
-                'sortBy' => $sortBy,
-            ])
-        );
+        $data = [
+            'filters' => $filters,
+            'sortBy' => $sortBy,
+        ];
+
+        if ($limit !== null) {
+            $data['limit'] = $limit->getValue();
+        }
+
+        return $this->findBy(FindByRecord::from($data));
     }
 
-    public function findByFqcn(TaskFqcnVO $fqcn): Collection
+    /**
+     * {@inheritDoc}
+     */
+    public function findByFqcn(TaskFqcnVO $fqcn, ?LimitVO $limit = null): Collection
     {
-        $filters = TaskExecutionDebugFiltersRecord::from([
-            'fqcn' => $fqcn,
-        ]);
+        $data = [
+            'filters' => TaskExecutionDebugFiltersRecord::from([
+                'fqcn' => $fqcn,
+            ]),
+        ];
 
-        return $this->findBy(FindByRecord::from(['filters' => $filters]));
+        if ($limit !== null) {
+            $data['limit'] = $limit->getValue();
+        }
+
+        return $this->findBy(FindByRecord::from($data));
     }
 
-    public function findByAliasAndFqcn(TaskAliasVO $alias, TaskFqcnVO $fqcn): Collection
+    /**
+     * {@inheritDoc}
+     */
+    public function findByAliasAndFqcn(TaskAliasVO $alias, TaskFqcnVO $fqcn, ?LimitVO $limit = null): Collection
     {
-        $filters = TaskExecutionDebugFiltersRecord::from([
-            'alias' => $alias,
-            'fqcn' => $fqcn,
-        ]);
+        $data = [
+            'filters' => TaskExecutionDebugFiltersRecord::from([
+                'alias' => $alias,
+                'fqcn' => $fqcn,
+            ]),
+        ];
 
-        return $this->findBy(FindByRecord::from(['filters' => $filters]));
+        if ($limit !== null) {
+            $data['limit'] = $limit->getValue();
+        }
+
+        return $this->findBy(FindByRecord::from($data));
     }
 
-    public function findByStatus(ExecutionStatus $status): Collection
+    /**
+     * {@inheritDoc}
+     */
+    public function findByStatus(ExecutionStatus $status, ?LimitVO $limit = null): Collection
     {
-        $filters = TaskExecutionDebugFiltersRecord::from([
-            'status' => $status,
-        ]);
+        $data = [
+            'filters' => TaskExecutionDebugFiltersRecord::from([
+                'status' => $status,
+            ]),
+        ];
 
-        return $this->findBy(FindByRecord::from(['filters' => $filters]));
+        if ($limit !== null) {
+            $data['limit'] = $limit->getValue();
+        }
+
+        return $this->findBy(FindByRecord::from($data));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function addDebug(
         TaskAliasVO $alias,
         TaskFqcnVO $fqcn,
@@ -153,6 +201,9 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         $this->create($record);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function addDebugWithStart(
         TaskAliasVO $alias,
         TaskFqcnVO $fqcn,
@@ -178,6 +229,9 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         $this->create($record);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function updateDebugWithEnd(
         TaskAliasVO $alias,
         TaskFqcnVO $fqcn,
@@ -185,7 +239,7 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         ?DescriptionVO $error = null,
         ?MillisecondsVO $duration_ms = null
     ): void {
-        $existing = $this->findByAliasAndFqcn($alias, $fqcn);
+        $existing = $this->findByAliasAndFqcn($alias, $fqcn, new LimitVO(1));
 
         if ($existing->isEmpty()) {
             return;
@@ -218,6 +272,9 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         ]));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function clearByAlias(TaskAliasVO $alias): void
     {
         $filters = TaskExecutionDebugFiltersRecord::from([
@@ -231,6 +288,9 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function clearByFqcn(TaskFqcnVO $fqcn): void
     {
         $filters = TaskExecutionDebugFiltersRecord::from([
@@ -244,6 +304,9 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countByAlias(TaskAliasVO $alias): CounterVO
     {
         $filters = TaskExecutionDebugFiltersRecord::from([
@@ -253,6 +316,9 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         return new CounterVO($this->count($filters));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countByFqcn(TaskFqcnVO $fqcn): CounterVO
     {
         $filters = TaskExecutionDebugFiltersRecord::from([
@@ -262,6 +328,9 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         return new CounterVO($this->count($filters));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countByStatus(ExecutionStatus $status): CounterVO
     {
         $filters = TaskExecutionDebugFiltersRecord::from([
@@ -271,6 +340,9 @@ final class TaskExecutionDebugRepository extends AbstractRepository implements T
         return new CounterVO($this->count($filters));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function modelToRecord(TaskExecutionDebug $model): TaskExecutionDebugRecord
     {
         return TaskExecutionDebugRecord::from([

@@ -152,7 +152,7 @@ final class WatchService implements WatchInterface
                 'success' => $success,
                 'failed' => $failed,
                 'errors' => new CounterVO($errors),
-                'hasErrors' => $hasErrors,
+                'has_errors' => $hasErrors,
             ]);
         } catch (Throwable $e) {
             $this->console->error('❌ Cycle failed: '.$e->getMessage());
@@ -161,7 +161,7 @@ final class WatchService implements WatchInterface
                 'success' => new CounterVO(0),
                 'failed' => new CounterVO(0),
                 'errors' => new CounterVO(1),
-                'hasErrors' => true,
+                'has_errors' => true,
                 'message' => $e->getMessage(),
             ]);
         }

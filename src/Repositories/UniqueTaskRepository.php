@@ -26,8 +26,15 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 /**
+ * Repository for unique task management.
+ *
+ * Handles storage, retrieval, and state transitions for unique tasks.
+ * Provides methods for finding tasks by status, updating states,
+ * and processing ready-to-run tasks with row locking.
+ *
  * @extends AbstractRepository<UniqueTask, UniqueTaskRecord>
  */
 final class UniqueTaskRepository extends AbstractRepository implements UniqueTaskRepositoryInterface
@@ -36,6 +43,12 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
     private readonly LoggerInterface $logger;
 
+    /**
+     * Constructor for the unique task repository.
+     *
+     * @param  TaskExecutionDebugRepositoryInterface  $debugRepository  The debug repository
+     * @param  LoggerInterface  $logger  The logger instance
+     */
     public function __construct(
         TaskExecutionDebugRepositoryInterface $debugRepository,
         LoggerInterface $logger,
@@ -45,6 +58,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         $this->logger = $logger;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
         if (! $filters instanceof UniqueTaskFiltersRecord) {
@@ -98,6 +114,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
     // ==================== FINDERS ====================
 
+    /**
+     * {@inheritDoc}
+     */
     public function findPending(LimitVO $limit = new LimitVO): Collection
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -112,6 +131,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         ]));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findCompleted(LimitVO $limit = new LimitVO): Collection
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -126,6 +148,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         ]));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findFailed(LimitVO $limit = new LimitVO): Collection
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -140,6 +165,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         ]));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findCanceled(LimitVO $limit = new LimitVO): Collection
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -155,9 +183,10 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
     }
 
     /**
-     * Finds tasks ready to run with row locking to prevent concurrency issues.
+     * {@inheritDoc}
      *
-     * Uses lockForUpdate() and skipLocked() to ensure each task is executed only once.
+     * Uses lockForUpdate() to prevent concurrency issues and ensure
+     * each task is executed only once.
      */
     public function findReadyToRun(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection
     {
@@ -177,6 +206,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         });
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findExpired(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection
     {
         $nowTimestamp = $now->getTimestamp();
@@ -203,6 +235,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         return new Collection($expired);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findById(UuidVO $id): ?UniqueTask
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -214,6 +249,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         return $results->first() ?? null;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findByAlias(TaskAliasVO $alias): ?UniqueTask
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -227,6 +265,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
     // ==================== MOVES ====================
 
+    /**
+     * {@inheritDoc}
+     */
     public function updateAttempts(UniqueTaskRecord $task, CounterVO $newAttempts): bool
     {
         try {
@@ -247,7 +288,7 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
             }
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_update_attempts_error',
                 'payload' => [
@@ -261,6 +302,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function addDebug(UniqueTaskRecord $task, ExecutionStatus $status, DescriptionVO $info): bool
     {
         try {
@@ -272,7 +316,7 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
             );
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_add_debug_error',
                 'payload' => [
@@ -287,6 +331,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function moveToCompleted(UniqueTaskRecord $task): bool
     {
         try {
@@ -312,7 +359,7 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
             }
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_move_to_completed_error',
                 'payload' => [
@@ -325,6 +372,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function moveToFailed(UniqueTaskRecord $task): bool
     {
         try {
@@ -350,7 +400,7 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
             }
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_move_to_failed_error',
                 'payload' => [
@@ -363,6 +413,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function moveToCanceled(UniqueTaskRecord $task): bool
     {
         try {
@@ -388,7 +441,7 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
             }
 
             return true;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'unique_task_move_to_canceled_error',
                 'payload' => [
@@ -403,6 +456,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
     // ==================== COUNTS ====================
 
+    /**
+     * {@inheritDoc}
+     */
     public function countPending(): CounterVO
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -412,6 +468,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         return new CounterVO($this->count($filters));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countCompleted(): CounterVO
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -421,6 +480,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         return new CounterVO($this->count($filters));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countFailed(): CounterVO
     {
         $filters = UniqueTaskFiltersRecord::from([
@@ -430,6 +492,9 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         return new CounterVO($this->count($filters));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countCanceled(): CounterVO
     {
         $filters = UniqueTaskFiltersRecord::from([

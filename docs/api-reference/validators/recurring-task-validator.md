@@ -2,7 +2,7 @@
 
 ## Description
 
-Validateur des tâches récurrentes. Fournit des méthodes pour vérifier si une tâche peut être exécutée, si elle est prête, expirée, ou si elle doit être ré-exécutée selon son intervalle.
+Validateur pour les tâches récurrentes. Fournit des méthodes de validation pour déterminer si une tâche récurrente peut être exécutée, si elle est prête, expirée, doit passer en FINISHED, ou doit être exécutée à nouveau.
 
 ## Hiérarchie / Implémentations
 
@@ -13,16 +13,14 @@ RecurringTaskValidatorInterface
 
 ## Rôle principal
 
-Ce validateur est le gardien de l'intégrité des tâches récurrentes. Il :
+Assurer l'intégrité et la cohérence des tâches récurrentes en validant :
+- L'éligibilité à l'exécution (`canRun`)
+- La préparation à l'exécution (`isReadyToRun`)
+- L'expiration (`isExpired`)
+- La nécessité de passer en FINISHED (`shouldMoveToFinished`)
+- La nécessité de ré-exécution (`shouldRunAgain`)
 
-1. **Valide** l'intégrité de la classe de tâche
-2. **Vérifie** les conditions d'exécution (`canRun`)
-3. **Détermine** si une tâche est prête à démarrer (`isReadyToRun`)
-4. **Détecte** les tâches expirées (`isExpired`, `shouldMoveToFinished`)
-5. **Calcule** si une tâche doit être ré-exécutée (`shouldRunAgain`)
-6. **Rapporte** les erreurs de validation (`getValidationErrors`)
-
-## API
+## API / Méthodes publiques
 
 ### `canRun(RecurringTaskRecord $record): bool`
 
@@ -30,20 +28,19 @@ Vérifie si une tâche peut être exécutée.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `RecurringTaskRecord` | Tâche à valider |
+| `$record` | `RecurringTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si la tâche peut être exécutée
+**Retourne :** `bool` - `true` si la tâche peut être exécutée, `false` sinon
 
 **Conditions :**
-- Classe valide (existe et étend `AbstractRecurringTask`)
-- Statut = `PLAYING`
-- `end_at` non dépassé
+- Classe de tâche valide
+- Statut = PLAYING
+- Non expirée
 
 **Exemple :**
 ```php
-$validator = new RecurringTaskValidator();
 if ($validator->canRun($record)) {
-    // Exécuter la tâche
+    $runner->run($record);
 }
 ```
 
@@ -51,19 +48,18 @@ if ($validator->canRun($record)) {
 
 ### `isReadyToRun(RecurringTaskRecord $record): bool`
 
-Vérifie si une tâche en `WAITING` est prête à passer en `PLAYING`.
+Vérifie si une tâche est prête à être exécutée (transition WAITING → PLAYING).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `RecurringTaskRecord` | Tâche à vérifier |
+| `$record` | `RecurringTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si la tâche est prête
+**Retourne :** `bool` - `true` si la tâche est prête, `false` sinon
 
 **Conditions :**
-- Classe valide
-- Statut = `WAITING`
-- `start_at` non null
-- `start_at <= now`
+- Classe de tâche valide
+- Statut = WAITING
+- `start_at` atteint (ou null)
 
 **Exemple :**
 ```php
@@ -76,17 +72,17 @@ if ($validator->isReadyToRun($record)) {
 
 ### `isExpired(RecurringTaskRecord $record): bool`
 
-Vérifie si une tâche est expirée.
+Vérifie si une tâche est expirée (end_at dépassé).
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `RecurringTaskRecord` | Tâche à vérifier |
+| `$record` | `RecurringTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si la tâche est expirée
+**Retourne :** `bool` - `true` si la tâche est expirée, `false` sinon
 
 **Conditions :**
-- `end_at` non null
-- `end_at < now`
+- Classe de tâche valide
+- `end_at` défini et dépassé
 
 **Exemple :**
 ```php
@@ -99,38 +95,45 @@ if ($validator->isExpired($record)) {
 
 ### `shouldMoveToFinished(RecurringTaskRecord $record): bool`
 
-Vérifie si une tâche doit être terminée (alias de `isExpired`).
+Détermine si une tâche doit passer en FINISHED.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `RecurringTaskRecord` | Tâche à vérifier |
+| `$record` | `RecurringTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si la tâche doit être terminée
+**Retourne :** `bool` - `true` si la tâche doit être marquée FINISHED
+
+**Condition :** Identique à `isExpired()`
+
+**Exemple :**
+```php
+if ($validator->shouldMoveToFinished($record)) {
+    $repository->moveToFinished($record);
+}
+```
 
 ---
 
 ### `shouldRunAgain(RecurringTaskRecord $record): bool`
 
-Vérifie si une tâche en `PLAYING` doit être exécutée à nouveau selon son intervalle.
+Détermine si une tâche doit être exécutée à nouveau.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `RecurringTaskRecord` | Tâche à vérifier |
+| `$record` | `RecurringTaskRecord` | Record de la tâche à valider |
 
-**Retourne :** `bool` - `true` si la tâche doit être ré-exécutée
+**Retourne :** `bool` - `true` si la tâche doit être exécutée à nouveau, `false` sinon
 
 **Conditions :**
-- Classe valide
-- Statut = `PLAYING`
+- Classe de tâche valide
+- Statut = PLAYING
 - Non expirée
-- `last_run_at` null OU `(now - last_run_at) >= interval_seconds`
+- Intervalle atteint (ou jamais exécutée)
 
 **Exemple :**
 ```php
 if ($validator->shouldRunAgain($record)) {
-    // Exécuter la tâche
-} else {
-    // Attendre le prochain cycle
+    $runner->run($record);
 }
 ```
 
@@ -138,168 +141,181 @@ if ($validator->shouldRunAgain($record)) {
 
 ### `getValidationErrors(RecurringTaskRecord $record): StringTypedCollection`
 
-Retourne toutes les erreurs de validation.
+Retourne la liste des erreurs de validation pour une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$record` | `RecurringTaskRecord` | Tâche à valider |
+| `$record` | `RecurringTaskRecord` | Record de la tâche à valider |
 
 **Retourne :** `StringTypedCollection` - Collection des messages d'erreur
-
-**Erreurs possibles :**
-- Classe invalide
-- Statut incorrect
-- Tâche expirée
-- Intervalle non atteint
 
 **Exemple :**
 ```php
 $errors = $validator->getValidationErrors($record);
 if ($errors->count() > 0) {
-    echo "Erreurs: " . $errors->join(', ');
+    echo "Erreurs : " . $errors->join(', ');
 }
 ```
 
----
+## Règles de validation
 
-### `isValidTaskClass(RecurringTaskRecord $record): bool` (privée)
+### canRun()
 
-Vérifie que la classe de la tâche existe et étend `AbstractRecurringTask`.
+| Vérification | Condition d'échec |
+|--------------|-------------------|
+| Classe valide | `false` |
+| Statut PLAYING | `false` |
+| Non expirée | `false` |
+| **Résultat** | `true` si toutes les conditions sont remplies |
 
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$record` | `RecurringTaskRecord` | Tâche à valider |
+### isReadyToRun()
 
-**Retourne :** `bool` - `true` si la classe est valide
+| Vérification | Condition d'échec |
+|--------------|-------------------|
+| Classe valide | `false` |
+| Statut WAITING | `false` |
+| start_at atteint | `false` si start_at > now |
+| **Résultat** | `true` si toutes les conditions sont remplies |
 
-**Conditions :**
-- `class_exists($record->fqcn)`
-- `is_subclass_of($record->fqcn, AbstractRecurringTask::class)`
+### isExpired()
 
-## Cas d'utilisation
+| Vérification | Condition d'échec |
+|--------------|-------------------|
+| Classe valide | `false` |
+| end_at défini | `false` si null |
+| end_at dépassé | `true` si end_at < now |
+| **Résultat** | `true` si expiré, `false` sinon |
 
-### Cas 1 : Validation avant exécution
+### shouldRunAgain()
 
-```php
-$validator = new RecurringTaskValidator();
-
-if (!$validator->canRun($record)) {
-    $errors = $validator->getValidationErrors($record);
-    throw new RuntimeException('Task cannot run: ' . $errors->join(', '));
-}
-
-// Exécuter la tâche
-```
-
-### Cas 2 : Vérification de l'intervalle
-
-```php
-$validator = new RecurringTaskValidator();
-
-if ($validator->shouldRunAgain($record)) {
-    // L'intervalle est atteint, exécuter
-    $runner->run($record);
-} else {
-    // L'intervalle n'est pas atteint, ne pas exécuter
-    echo "Prochaine exécution dans " . $this->getNextRunDelay($record) . " secondes";
-}
-```
-
-### Cas 3 : Gestion des tâches en WAITING
-
-```php
-$validator = new RecurringTaskValidator();
-
-if ($validator->isReadyToRun($record)) {
-    // La tâche est prête à démarrer
-    $repository->moveToPlaying($record);
-} elseif ($validator->shouldMoveToFinished($record)) {
-    // La tâche est expirée avant d'avoir démarré
-    $repository->moveToFinished($record);
-}
-```
-
-### Cas 4 : Détection des erreurs de validation
-
-```php
-$validator = new RecurringTaskValidator();
-
-$errors = $validator->getValidationErrors($record);
-if ($errors->count() > 0) {
-    foreach ($errors as $error) {
-        echo "❌ $error\n";
-    }
-} else {
-    echo "✅ Tâche valide\n";
-}
-```
-
-## Flux de validation
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    RecurringTaskValidator                          │
-├─────────────────────────────────────────────────────────────────────┤
-│                                                                     │
-│  canRun()                                                          │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ✅ isValidTaskClass($record)                              │   │
-│  │  ✅ $record->status === PLAYING                            │   │
-│  │  ✅ !$this->isExpired($record)                             │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  isReadyToRun()                                                    │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ✅ isValidTaskClass($record)                              │   │
-│  │  ✅ $record->status === WAITING                            │   │
-│  │  ✅ $record->start_at !== null                             │   │
-│  │  ✅ strtotime($record->start_at) <= now                   │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  isExpired()                                                       │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ✅ $record->end_at !== null                               │   │
-│  │  ✅ strtotime($record->end_at) < now                      │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│  shouldRunAgain()                                                  │
-│  ┌─────────────────────────────────────────────────────────────┐   │
-│  │  ✅ isValidTaskClass($record)                              │   │
-│  │  ✅ $record->status === PLAYING                            │   │
-│  │  ✅ !$this->isExpired($record)                             │   │
-│  │  ✅ $record->last_run_at === null                          │   │
-│  │     OU (now - last_run_at) >= interval                    │   │
-│  └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+| Vérification | Condition d'échec |
+|--------------|-------------------|
+| Classe valide | `false` |
+| Statut PLAYING | `false` |
+| Non expirée | `false` |
+| Intervalle atteint | `false` si last_run_at + interval > now |
+| **Résultat** | `true` si toutes les conditions sont remplies |
 
 ## Messages d'erreur
 
 | Situation | Message |
 |-----------|---------|
-| Classe invalide | `Invalid task class: {fqcn} does not exist or does not extend AbstractRecurringTask` |
+| Classe invalide | `Invalid task class: {fqcn}` |
 | Statut WAITING | `Task is in WAITING state, not PLAYING` |
 | Statut PAUSED | `Task is in PAUSED state` |
 | Statut FINISHED | `Task is already FINISHED` |
-| Statut invalide | `Task is not in PLAYING or WAITING state` |
-| Expirée | `Task has expired (end_at reached)` |
-| Pas prête | `Task is not ready to run (start_at not reached)` |
-| Intervalle non atteint | `Interval not reached (next run in X seconds)` |
+| Statut CANCELED | `Task is CANCELED` |
+| Statut inconnu | `Task is in {status} state, not PLAYING` |
+| Expiration | `Task has expired (end_at reached)` |
+| Start_at non atteint | `Task is not ready to run (start_at not reached)` |
+
+## Cas d'utilisation
+
+### Cas 1 : Validation avant exécution
+
+**Problème :** Vérifier qu'une tâche peut être exécutée.
+
+```php
+if (!$validator->canRun($record)) {
+    $errors = $validator->getValidationErrors($record);
+    throw new RuntimeException($errors->join(', '));
+}
+
+$runner->run($record);
+```
+
+---
+
+### Cas 2 : Vérification d'expiration
+
+**Problème :** Nettoyer les tâches expirées.
+
+```php
+if ($validator->isExpired($record)) {
+    $repository->moveToFinished($record);
+    echo "Tâche expirée : {$record->alias->getValue()}\n";
+}
+```
+
+---
+
+### Cas 3 : Déterminer si une tâche doit s'exécuter
+
+**Problème :** Vérifier si l'intervalle est atteint.
+
+```php
+if ($validator->shouldRunAgain($record)) {
+    $runner->run($record);
+} else {
+    echo "Intervalle non atteint pour {$record->alias->getValue()}\n";
+}
+```
+
+---
+
+### Cas 4 : Validation détaillée pour débogage
+
+**Problème :** Comprendre pourquoi une tâche ne s'exécute pas.
+
+```php
+$errors = $validator->getValidationErrors($record);
+if ($errors->count() > 0) {
+    echo "=== Erreurs de validation ===\n";
+    foreach ($errors as $error) {
+        echo "- {$error}\n";
+    }
+}
+```
+
+## Validation de la classe
+
+La méthode `isValidTaskClass()` vérifie :
+
+```php
+private function isValidTaskClass(RecurringTaskRecord $record): bool
+{
+    $className = $record->fqcn->getValue();
+    
+    // 1. La classe existe-t-elle ?
+    if (!class_exists($className)) {
+        return false;
+    }
+    
+    // 2. Est-ce une sous-classe de AbstractRecurringTask ?
+    if (!is_subclass_of($className, AbstractRecurringTask::class)) {
+        return false;
+    }
+    
+    return true;
+}
+```
+
+## Intégration
+
+### Dépendances
+
+- Aucune dépendance externe (utilise uniquement Carbon pour les dates)
+
+### Points d'utilisation
+
+| Composant | Utilisation |
+|-----------|-------------|
+| `RecurringTaskRunner` | Validation avant exécution |
+| `RecurringTaskProcessor` | Filtrage des tâches |
+| `RecurringTaskRepository` | Validation des transitions |
 
 ## Performance
 
-- **Complexité** : O(1) - toutes les opérations sont constantes
+- **Complexité** : O(1) - calculs simples
 - **Mémoire** : Aucune allocation mémoire significative
-- **Validation** : Utilise `class_exists` et `is_subclass_of` (rapides)
-- **Dates** : Utilise `strtotime` pour les comparaisons
+- **Recommandation** : Peut être appelé fréquemment sans impact
 
 ## Compatibilité
 
-| Version | Support |
-|---------|---------|
-| PHP 8.1+ | ✅ Complet |
-| Laravel 10+ | ✅ Complet |
+| Version PHP | Support |
+|-------------|---------|
+| PHP 8.2+ | ✅ Complet |
+| PHP 8.1 | ✅ Complet |
 
 ## Exemple complet
 
@@ -311,48 +327,53 @@ declare(strict_types=1);
 use AndyDefer\Task\Validators\RecurringTaskValidator;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
-use AndyDefer\Task\ValueObjects\CounterVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\TaskSignatureVO;
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
+use Illuminate\Support\Carbon;
 
 $validator = new RecurringTaskValidator();
 
-// 1. Tâche valide en PLAYING
-$validRecord = new RecurringTaskRecord(
-    alias: new TaskSignatureVO('test'),
-    fqcn: TestRecurringTask::class,
-    payload: StrictDataObject::from([]),
-    interval_seconds: new CounterVO(3600),
-    start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-    end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-    last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-    status: RecurringTaskStatus::PLAYING,
-);
+// Création d'un record de test
+$record = RecurringTaskRecord::from([
+    'alias' => new TaskAliasVO('recurring@test'),
+    'fqcn' => new RecurringTaskFqcnVO(MyRecurringTask::class),
+    'interval_seconds' => new DurationVO(3600),
+    'start_at' => new Iso8601DateTimeVO(Carbon::now()->subHour()->toIso8601String()),
+    'end_at' => new Iso8601DateTimeVO(Carbon::now()->addDay()->toIso8601String()),
+    'status' => RecurringTaskStatus::PLAYING,
+    'last_run_at' => new Iso8601DateTimeVO(Carbon::now()->subMinutes(30)->toIso8601String()),
+]);
 
-echo "canRun: " . ($validator->canRun($validRecord) ? '✅' : '❌') . "\n";
-echo "shouldRunAgain: " . ($validator->shouldRunAgain($validRecord) ? '✅' : '❌') . "\n";
+// Validation complète
+if ($validator->canRun($record)) {
+    echo "✅ La tâche peut être exécutée\n";
+}
 
-// 2. Tâche invalide (classe inexistante)
-$invalidRecord = new RecurringTaskRecord(
-    alias: new TaskSignatureVO('test'),
-    fqcn: 'NonExistentClass',
-    payload: StrictDataObject::from([]),
-    interval_seconds: new CounterVO(3600),
-    start_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-    end_at: new Iso8601DateTimeVO(now()->addDays(1)->toIso8601String()),
-    last_run_at: new Iso8601DateTimeVO(now()->subHours(2)->toIso8601String()),
-    status: RecurringTaskStatus::PLAYING,
-);
+if ($validator->shouldRunAgain($record)) {
+    echo "✅ La tâche doit être exécutée à nouveau\n";
+}
 
-// Récupérer les erreurs
-$errors = $validator->getValidationErrors($invalidRecord);
-echo "Erreurs: " . $errors->join(', ') . "\n";
-// Output: Invalid task class: NonExistentClass does not exist or does not extend AbstractRecurringTask
+// Vérification d'expiration
+if ($validator->isExpired($record)) {
+    echo "❌ La tâche est expirée\n";
+}
+
+// Récupération des erreurs
+$errors = $validator->getValidationErrors($record);
+if ($errors->count() > 0) {
+    echo "⚠️ Erreurs de validation :\n";
+    foreach ($errors as $error) {
+        echo "  - {$error}\n";
+    }
+}
 ```
 
 ## Voir aussi
 
-- `RecurringTaskValidatorInterface` - Interface du validateur
-- `UniqueTaskValidator` - Validateur des tâches uniques
-- `RecurringTaskRecord` - DTO des tâches récurrentes
-- `RecurringTaskStatus` - Énumération des statuts
+- `UniqueTaskValidator` - Validateur de tâches uniques
+- `RecurringTaskRunner` - Exécuteur de tâches récurrentes
+- `RecurringTaskProcessor` - Processeur de lots
+- `RecurringTaskStatus` - États des tâches
+---

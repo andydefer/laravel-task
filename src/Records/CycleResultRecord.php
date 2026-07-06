@@ -17,7 +17,7 @@ final class CycleResultRecord extends AbstractRecord
         public readonly CounterVO $success,
         public readonly CounterVO $failed,
         public readonly CounterVO $errors,
-        public readonly bool $hasErrors,
+        public readonly bool $has_errors,
         public readonly ?DescriptionVO $message = null,
     ) {}
 }

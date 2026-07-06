@@ -205,7 +205,7 @@ final class LoopRunner
      */
     private function aggregateCycleResult(CycleResultRecord $cycleResult): void
     {
-        $this->hasErrors = $this->hasErrors || $cycleResult->hasErrors;
+        $this->hasErrors = $this->hasErrors || $cycleResult->has_errors;
         $this->totalSuccess = $this->totalSuccess->add($cycleResult->success);
         $this->totalFailed = $this->totalFailed->add($cycleResult->failed);
         $this->totalErrors = $this->totalErrors->add($cycleResult->errors);
@@ -220,12 +220,12 @@ final class LoopRunner
     private function buildLoopResult(): LoopResultRecord
     {
         return new LoopResultRecord(
-            cycleCount: $this->cycleCount,
-            totalSuccess: $this->totalSuccess,
-            totalFailed: $this->totalFailed,
-            totalErrors: $this->totalErrors,
-            hasErrors: $this->hasErrors,
-            lastException: $this->lastException
+            cycle_count: $this->cycleCount,
+            total_success: $this->totalSuccess,
+            total_failed: $this->totalFailed,
+            total_errors: $this->totalErrors,
+            has_errors: $this->hasErrors,
+            last_exception: $this->lastException
         );
     }
 }
