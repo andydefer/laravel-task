@@ -88,6 +88,7 @@ final class LoopRunner
      * @param  DurationVO|null  $duration  Maximum duration (null = unlimited)
      * @param  Iso8601DateTimeVO|null  $startedAt  When the loop started
      * @param  DurationVO  $intervalSeconds  The interval between cycles
+     * @param  int|null  $parallelWorkers  Number of parallel workers (null = sequential)
      * @return LoopResultRecord The loop execution result
      */
     public function run(
@@ -98,7 +99,8 @@ final class LoopRunner
         bool $verbose,
         ?DurationVO $duration,
         ?Iso8601DateTimeVO $startedAt,
-        DurationVO $intervalSeconds
+        DurationVO $intervalSeconds,
+        ?int $parallelWorkers = null
     ): LoopResultRecord {
         while ($this->shouldContinueLoop($strategy, $duration, $startedAt)) {
             $this->iteration++;
@@ -109,7 +111,8 @@ final class LoopRunner
                 $hasOptionRecurringOnly,
                 $limit,
                 $verbose,
-                $intervalSeconds
+                $intervalSeconds,
+                $parallelWorkers
             );
 
             if ($cycleResult !== null) {
@@ -172,6 +175,7 @@ final class LoopRunner
      * @param  LimitVO|null  $limit  Optional limit on tasks
      * @param  bool  $verbose  Whether verbose output is enabled
      * @param  DurationVO  $intervalSeconds  The interval between cycles
+     * @param  int|null  $parallelWorkers  Number of parallel workers
      * @return CycleResultRecord|null The cycle result or null if stopped
      */
     private function executeCycle(
@@ -179,7 +183,8 @@ final class LoopRunner
         bool $recurringOnly,
         ?LimitVO $limit,
         bool $verbose,
-        DurationVO $intervalSeconds
+        DurationVO $intervalSeconds,
+        ?int $parallelWorkers
     ): ?CycleResultRecord {
         return $this->cycleExecutor->execute(
             $this->cycleCount,
@@ -188,7 +193,8 @@ final class LoopRunner
             $limit,
             $verbose,
             $this->signalHandler->shouldStop(),
-            $intervalSeconds
+            $intervalSeconds,
+            $parallelWorkers
         );
     }
 

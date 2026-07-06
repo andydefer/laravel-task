@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Contracts\Services;
 
 use AndyDefer\Directive\Services\DirectiveTestingService;
+use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Task\Records\CycleResultRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
@@ -15,21 +16,11 @@ use AndyDefer\Task\ValueObjects\LimitVO;
  * Interface for the watch service.
  *
  * Provides core functionality for the tasks-watch directive:
+ * - Building CLI arguments
  * - Executing process-tasks cycles
  * - Determining if the watch loop should continue
  * - Waiting between cycles
  * - Formatting durations
- *
- * @example
- * $service = app(WatchInterface::class);
- * $result = $service->executeCycle(
- *     new CounterVO(1),
- *     true,  // uniqueOnly
- *     false, // recurringOnly
- *     new LimitVO(10),
- *     true,  // verbose
- *     new Iso8601DateTimeVO()
- * );
  */
 interface WatchInterface
 {
@@ -58,22 +49,34 @@ interface WatchInterface
     public function isTestingMode(): bool;
 
     /**
-     * Executes a single cycle of task processing.
+     * Builds the CLI arguments for the process-tasks directive.
      *
-     * @param  CounterVO  $cycleNumber  The current cycle number
      * @param  bool  $uniqueOnly  Whether to process only unique tasks
      * @param  bool  $recurringOnly  Whether to process only recurring tasks
      * @param  LimitVO|null  $limit  Maximum number of tasks to process
      * @param  bool  $verbose  Whether to enable verbose output
+     * @param  int|null  $parallelWorkers  Number of parallel workers (null = sequential)
+     * @return StringTypedCollection Collection of CLI arguments
+     */
+    public function buildArguments(
+        bool $uniqueOnly,
+        bool $recurringOnly,
+        ?LimitVO $limit,
+        bool $verbose,
+        ?int $parallelWorkers = null
+    ): StringTypedCollection;
+
+    /**
+     * Executes a single cycle of process-tasks.
+     *
+     * @param  CounterVO  $cycleNumber  The current cycle number
+     * @param  StringTypedCollection  $arguments  CLI arguments to pass
      * @param  Iso8601DateTimeVO  $cycleStartedAt  When the cycle started
      * @return CycleResultRecord Results of the cycle execution
      */
     public function executeCycle(
         CounterVO $cycleNumber,
-        bool $uniqueOnly,
-        bool $recurringOnly,
-        ?LimitVO $limit,
-        bool $verbose,
+        StringTypedCollection $arguments,
         Iso8601DateTimeVO $cycleStartedAt
     ): CycleResultRecord;
 

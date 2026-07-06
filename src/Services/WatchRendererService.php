@@ -16,22 +16,44 @@ use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 
+/**
+ * Service for rendering watch loop output.
+ *
+ * Handles all console output for the tasks-watch directive including
+ * start messages, cycle progress, summaries, and signal notifications.
+ */
 final class WatchRendererService implements WatchRendererInterface
 {
+    /**
+     * Constructor for the watch renderer service.
+     *
+     * @param  Console  $console  The console instance for output
+     */
     public function __construct(
         private readonly Console $console,
     ) {}
 
+    /**
+     * {@inheritDoc}
+     */
     public function renderStartMessage(
         ?DurationVO $duration,
         DurationVO $intervalSeconds,
         StringTypedCollection $options,
-        bool $testingMode
+        bool $testingMode,
+        ?int $parallelWorkers = null
     ): void {
         $this->console->title('🚀 Starting tasks watch loop...');
 
         if ($testingMode) {
             $this->console->info('🔬 Mode: TESTING (in-process execution)');
+        }
+
+        if ($parallelWorkers !== null && $parallelWorkers > 1) {
+            $this->console->info(sprintf(
+                '⚡ Parallel execution: %d workers',
+                $parallelWorkers
+            ));
         }
 
         if ($duration !== null) {
@@ -59,6 +81,9 @@ final class WatchRendererService implements WatchRendererInterface
         $this->console->newLine(2);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function renderCycleStart(CounterVO $cycleNumber, Iso8601DateTimeVO $startedAt): void
     {
         $time = $startedAt->format('H:i:s');
@@ -70,6 +95,9 @@ final class WatchRendererService implements WatchRendererInterface
         ));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function renderCycleEnd(
         CycleResultRecord $result,
         Iso8601DateTimeVO $startedAt,
@@ -104,6 +132,9 @@ final class WatchRendererService implements WatchRendererInterface
         $this->console->line();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function renderSummary(
         CounterVO $cycleCount,
         CounterVO $totalSuccess,
@@ -125,7 +156,6 @@ final class WatchRendererService implements WatchRendererInterface
 
         $totalDuration = $startedAt->elapsed();
 
-        // ✅ Utilisation de KeyValue pour un affichage plus propre
         $data = MapCollection::from([
             'Cycles executed' => $cycleCount->getValue(),
             'Total success' => $totalSuccess->getValue(),
@@ -150,6 +180,9 @@ final class WatchRendererService implements WatchRendererInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function renderInterruptSignal(SignalName $signalName): void
     {
         $this->console->logWarning(sprintf(
@@ -158,8 +191,22 @@ final class WatchRendererService implements WatchRendererInterface
         ));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function renderTestingModeEnabled(): void
     {
         $this->console->info('🧪 Testing mode enabled');
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function renderParallelExecution(int $workerCount): void
+    {
+        $this->console->info(sprintf(
+            '⚡ Parallel execution: %d workers',
+            $workerCount
+        ));
     }
 }

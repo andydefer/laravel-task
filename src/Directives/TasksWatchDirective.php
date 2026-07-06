@@ -37,7 +37,7 @@ final class TasksWatchDirective extends AbstractDirective
      */
     public function getSignature(): string
     {
-        return 'tasks-watch {--duration=} {--interval=60} {--unique-only} {--recurring-only} {--limit=} {--verbose} {--testing}';
+        return 'tasks-watch {--duration=} {--interval=60} {--unique-only} {--recurring-only} {--limit=} {--verbose} {--testing} {--parallel=}';
     }
 
     /**
@@ -47,7 +47,7 @@ final class TasksWatchDirective extends AbstractDirective
      */
     public function getDescription(): string
     {
-        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 3) and duration. Use --testing for development without full Laravel environment.';
+        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 3) and duration. Use --testing for development without full Laravel environment. Use --parallel=N for parallel execution with N workers.';
     }
 
     /**
@@ -100,6 +100,7 @@ final class TasksWatchDirective extends AbstractDirective
         $duration = $this->getDurationOption();
         $limit = $this->getLimitOption();
         $intervalSeconds = $this->getIntervalOption();
+        $parallelWorkers = $this->getParallelWorkers();
 
         $this->renderStartMessage($renderer, $console);
 
@@ -112,7 +113,8 @@ final class TasksWatchDirective extends AbstractDirective
             verbose: $this->hasOption('verbose'),
             duration: $duration,
             startedAt: $startedAt,
-            intervalSeconds: $intervalSeconds
+            intervalSeconds: $intervalSeconds,
+            parallelWorkers: $parallelWorkers
         );
 
         $this->renderSummary(
@@ -136,7 +138,7 @@ final class TasksWatchDirective extends AbstractDirective
     {
         $validator = new OptionValidator;
 
-        return $validator->validate(
+        $result = $validator->validate(
             uniqueOnly: $this->hasOption('unique-only'),
             recurringOnly: $this->hasOption('recurring-only'),
             duration: $this->option('duration'),
@@ -144,6 +146,19 @@ final class TasksWatchDirective extends AbstractDirective
             limit: $this->option('limit'),
             console: $console
         );
+
+        if ($result !== null) {
+            return $result;
+        }
+
+        $parallel = $this->option('parallel');
+        if ($parallel !== null && (int) $parallel < 1) {
+            $console->error('Parallel workers must be at least 1');
+
+            return ExitCode::INVALID_ARGUMENT;
+        }
+
+        return null;
     }
 
     /**
@@ -181,6 +196,18 @@ final class TasksWatchDirective extends AbstractDirective
     }
 
     /**
+     * Returns the number of parallel workers.
+     *
+     * @return int|null The number of workers or null if not set
+     */
+    private function getParallelWorkers(): ?int
+    {
+        $parallel = $this->option('parallel');
+
+        return $parallel !== null ? (int) $parallel : null;
+    }
+
+    /**
      * Renders the start message for the watch command.
      *
      * @param  WatchRendererInterface  $renderer  The renderer instance
@@ -191,12 +218,14 @@ final class TasksWatchDirective extends AbstractDirective
         $duration = $this->getDurationOption();
         $intervalSeconds = $this->getIntervalOption();
         $options = $this->buildOptionsCollection();
+        $parallelWorkers = $this->getParallelWorkers();
 
         $renderer->renderStartMessage(
             duration: $duration,
             intervalSeconds: $intervalSeconds,
             options: $options,
-            testingMode: $this->hasOption('testing')
+            testingMode: $this->hasOption('testing'),
+            parallelWorkers: $parallelWorkers
         );
     }
 
@@ -228,6 +257,11 @@ final class TasksWatchDirective extends AbstractDirective
 
         if ($this->hasOption('testing')) {
             $options->add('--testing');
+        }
+
+        $parallel = $this->option('parallel');
+        if ($parallel !== null) {
+            $options->add("--parallel={$parallel}");
         }
 
         return $options;

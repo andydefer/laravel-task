@@ -72,12 +72,44 @@ final class WatchService implements WatchInterface
     /**
      * {@inheritDoc}
      */
-    public function executeCycle(
-        CounterVO $cycleNumber,
+    public function buildArguments(
         bool $uniqueOnly,
         bool $recurringOnly,
         ?LimitVO $limit,
         bool $verbose,
+        ?int $parallelWorkers = null
+    ): StringTypedCollection {
+        $arguments = new StringTypedCollection;
+
+        if ($uniqueOnly) {
+            $arguments->add('--unique-only');
+        }
+
+        if ($recurringOnly) {
+            $arguments->add('--recurring-only');
+        }
+
+        if ($limit !== null) {
+            $arguments->add("--limit={$limit->getValue()}");
+        }
+
+        if ($verbose) {
+            $arguments->add('--verbose');
+        }
+
+        if ($parallelWorkers !== null && $parallelWorkers > 1) {
+            $arguments->add("--parallel={$parallelWorkers}");
+        }
+
+        return $arguments;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function executeCycle(
+        CounterVO $cycleNumber,
+        StringTypedCollection $arguments,
         Iso8601DateTimeVO $cycleStartedAt
     ): CycleResultRecord {
         try {
@@ -87,7 +119,6 @@ final class WatchService implements WatchInterface
                 $cycleStartedAt->format('H:i:s')
             ));
 
-            $arguments = $this->buildArguments($uniqueOnly, $recurringOnly, $limit, $verbose);
             $jsonArguments = $arguments->merge(StringTypedCollection::from(['--format=json']));
             $output = $this->callProcessTasks($jsonArguments);
 
@@ -134,42 +165,6 @@ final class WatchService implements WatchInterface
                 'message' => $e->getMessage(),
             ]);
         }
-    }
-
-    /**
-     * Builds the CLI arguments for the process-tasks directive.
-     *
-     * @param  bool  $uniqueOnly  Whether to process only unique tasks
-     * @param  bool  $recurringOnly  Whether to process only recurring tasks
-     * @param  LimitVO|null  $limit  Maximum number of tasks to process
-     * @param  bool  $verbose  Whether to enable verbose output
-     * @return StringTypedCollection Collection of CLI arguments
-     */
-    private function buildArguments(
-        bool $uniqueOnly,
-        bool $recurringOnly,
-        ?LimitVO $limit,
-        bool $verbose
-    ): StringTypedCollection {
-        $arguments = new StringTypedCollection;
-
-        if ($uniqueOnly) {
-            $arguments->add('--unique-only');
-        }
-
-        if ($recurringOnly) {
-            $arguments->add('--recurring-only');
-        }
-
-        if ($limit !== null) {
-            $arguments->add("--limit={$limit->getValue()}");
-        }
-
-        if ($verbose) {
-            $arguments->add('--verbose');
-        }
-
-        return $arguments;
     }
 
     /**

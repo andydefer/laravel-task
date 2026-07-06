@@ -6,6 +6,7 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 
 use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\Services\DirectiveTestingService;
+use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
@@ -161,6 +162,48 @@ final class WatchServiceTest extends IntegrationTestCase
         return $this->uniqueRepository->findByAlias($alias);
     }
 
+    /**
+     * Builds arguments for the executeCycle call.
+     *
+     * @param  bool  $uniqueOnly  Whether to process only unique tasks
+     * @param  bool  $recurringOnly  Whether to process only recurring tasks
+     * @param  LimitVO|null  $limit  Optional limit
+     * @param  bool  $verbose  Whether verbose output is enabled
+     * @param  int|null  $parallelWorkers  Number of parallel workers
+     * @return StringTypedCollection The built arguments
+     */
+    private function buildArguments(
+        bool $uniqueOnly,
+        bool $recurringOnly,
+        ?LimitVO $limit,
+        bool $verbose,
+        ?int $parallelWorkers = null
+    ): StringTypedCollection {
+        $arguments = new StringTypedCollection;
+
+        if ($uniqueOnly) {
+            $arguments->add('--unique-only');
+        }
+
+        if ($recurringOnly) {
+            $arguments->add('--recurring-only');
+        }
+
+        if ($limit !== null) {
+            $arguments->add("--limit={$limit->getValue()}");
+        }
+
+        if ($verbose) {
+            $arguments->add('--verbose');
+        }
+
+        if ($parallelWorkers !== null && $parallelWorkers > 1) {
+            $arguments->add("--parallel={$parallelWorkers}");
+        }
+
+        return $arguments;
+    }
+
     // ==================== TESTS: Mode test ====================
 
     public function test_enable_testing_mode(): void
@@ -181,6 +224,126 @@ final class WatchServiceTest extends IntegrationTestCase
         $this->assertFalse($this->service->isTestingMode());
     }
 
+    // ==================== TESTS: buildArguments ====================
+
+    public function test_build_arguments_with_no_options(): void
+    {
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            parallelWorkers: null
+        );
+
+        $this->assertInstanceOf(StringTypedCollection::class, $arguments);
+        $this->assertCount(0, $arguments);
+    }
+
+    public function test_build_arguments_with_unique_only(): void
+    {
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: true,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            parallelWorkers: null
+        );
+
+        $this->assertTrue($arguments->contains('--unique-only'));
+        $this->assertCount(1, $arguments);
+    }
+
+    public function test_build_arguments_with_recurring_only(): void
+    {
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: false,
+            recurringOnly: true,
+            limit: null,
+            verbose: false,
+            parallelWorkers: null
+        );
+
+        $this->assertTrue($arguments->contains('--recurring-only'));
+        $this->assertCount(1, $arguments);
+    }
+
+    public function test_build_arguments_with_limit(): void
+    {
+        $limit = new LimitVO(10);
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: $limit,
+            verbose: false,
+            parallelWorkers: null
+        );
+
+        $this->assertTrue($arguments->contains('--limit=10'));
+        $this->assertCount(1, $arguments);
+    }
+
+    public function test_build_arguments_with_verbose(): void
+    {
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: true,
+            parallelWorkers: null
+        );
+
+        $this->assertTrue($arguments->contains('--verbose'));
+        $this->assertCount(1, $arguments);
+    }
+
+    public function test_build_arguments_with_parallel_workers(): void
+    {
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            parallelWorkers: 3
+        );
+
+        $this->assertTrue($arguments->contains('--parallel=3'));
+        $this->assertCount(1, $arguments);
+    }
+
+    public function test_build_arguments_with_parallel_one_does_not_add_flag(): void
+    {
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            parallelWorkers: 1
+        );
+
+        $this->assertFalse($arguments->contains('--parallel=1'));
+        $this->assertCount(0, $arguments);
+    }
+
+    public function test_build_arguments_with_all_options(): void
+    {
+        $limit = new LimitVO(5);
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: true,
+            recurringOnly: true,
+            limit: $limit,
+            verbose: true,
+            parallelWorkers: 4
+        );
+
+        $this->assertTrue($arguments->contains('--unique-only'));
+        $this->assertTrue($arguments->contains('--recurring-only'));
+        $this->assertTrue($arguments->contains('--limit=5'));
+        $this->assertTrue($arguments->contains('--verbose'));
+        $this->assertTrue($arguments->contains('--parallel=4'));
+        $this->assertCount(5, $arguments);
+    }
+
     // ==================== TESTS: executeCycle ====================
 
     public function test_execute_cycle_creates_and_executes_real_task(): void
@@ -198,13 +361,16 @@ final class WatchServiceTest extends IntegrationTestCase
 
         $cycleNumber = new CounterVO(1);
         $cycleStartedAt = new Iso8601DateTimeVO;
+        $arguments = $this->buildArguments(
+            uniqueOnly: true,
+            recurringOnly: false,
+            limit: null,
+            verbose: false
+        );
 
         $result = $this->service->executeCycle(
             $cycleNumber,
-            true,   // uniqueOnly
-            false,  // recurringOnly
-            null,   // limit
-            false,  // verbose
+            $arguments,
             $cycleStartedAt
         );
 
@@ -231,13 +397,16 @@ final class WatchServiceTest extends IntegrationTestCase
 
         $cycleNumber = new CounterVO(1);
         $cycleStartedAt = new Iso8601DateTimeVO;
+        $arguments = $this->buildArguments(
+            uniqueOnly: true,
+            recurringOnly: false,
+            limit: null,
+            verbose: false
+        );
 
         $result = $this->service->executeCycle(
             $cycleNumber,
-            true,   // uniqueOnly
-            false,  // recurringOnly
-            null,   // limit
-            false,  // verbose
+            $arguments,
             $cycleStartedAt
         );
 
@@ -265,13 +434,16 @@ final class WatchServiceTest extends IntegrationTestCase
         $cycleNumber = new CounterVO(1);
         $cycleStartedAt = new Iso8601DateTimeVO;
         $limit = new LimitVO(3);
+        $arguments = $this->buildArguments(
+            uniqueOnly: true,
+            recurringOnly: false,
+            limit: $limit,
+            verbose: false
+        );
 
         $result = $this->service->executeCycle(
             $cycleNumber,
-            true,   // uniqueOnly
-            false,  // recurringOnly
-            $limit, // limit
-            false,  // verbose
+            $arguments,
             $cycleStartedAt
         );
 
@@ -292,6 +464,45 @@ final class WatchServiceTest extends IntegrationTestCase
 
         $this->assertEquals(3, $completedCount);
         $this->assertEquals(2, $pendingCount);
+    }
+
+    public function test_execute_cycle_with_parallel_arguments(): void
+    {
+        $aliases = [];
+        for ($i = 1; $i <= 5; $i++) {
+            $aliases[] = $this->createUniqueTask(
+                alias: "test-parallel-task-{$i}",
+                scheduledAt: Carbon::now()->subMinutes(5),
+                attempts: 0,
+                maxAttempts: 3
+            );
+        }
+
+        $cycleNumber = new CounterVO(1);
+        $cycleStartedAt = new Iso8601DateTimeVO;
+        $limit = new LimitVO(5);
+        $arguments = $this->buildArguments(
+            uniqueOnly: true,
+            recurringOnly: false,
+            limit: $limit,
+            verbose: false,
+            parallelWorkers: 3
+        );
+
+        // Verify the parallel flag is in the arguments
+        $this->assertTrue($arguments->contains('--parallel=3'));
+        $this->assertTrue($arguments->contains('--limit=5'));
+        $this->assertTrue($arguments->contains('--unique-only'));
+
+        $result = $this->service->executeCycle(
+            $cycleNumber,
+            $arguments,
+            $cycleStartedAt
+        );
+
+        $this->assertInstanceOf(CycleResultRecord::class, $result);
+        $this->assertEquals(5, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
     }
 
     // ==================== TESTS: shouldContinue ====================

@@ -16,7 +16,7 @@ use AndyDefer\Task\ValueObjects\LimitVO;
  * Executes a single cycle of task processing.
  *
  * Orchestrates the execution of a watch cycle by delegating to the service
- * and rendering the results.
+ * and rendering the results. Supports parallel execution when enabled.
  */
 final class CycleExecutor
 {
@@ -41,6 +41,7 @@ final class CycleExecutor
      * @param  bool  $verbose  Whether verbose output is enabled
      * @param  bool  $shouldStop  Whether the cycle should be skipped due to stop signal
      * @param  DurationVO  $intervalSeconds  The interval between cycles
+     * @param  int|null  $parallelWorkers  Number of parallel workers (null = sequential)
      * @return CycleResultRecord|null The cycle result or null if stopped
      */
     public function execute(
@@ -50,7 +51,8 @@ final class CycleExecutor
         ?LimitVO $limit,
         bool $verbose,
         bool $shouldStop,
-        DurationVO $intervalSeconds
+        DurationVO $intervalSeconds,
+        ?int $parallelWorkers = null
     ): ?CycleResultRecord {
         if ($shouldStop) {
             return null;
@@ -59,13 +61,21 @@ final class CycleExecutor
         $cycleStartedAt = new Iso8601DateTimeVO;
         $this->renderer->renderCycleStart($cycleCount, $cycleStartedAt);
 
-        // ✅ Appel simplifié : plus besoin de buildArguments() ici
+        if ($parallelWorkers !== null && $parallelWorkers > 1) {
+            $this->renderer->renderParallelExecution($parallelWorkers);
+        }
+
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: $hasOptionUniqueOnly,
+            recurringOnly: $hasOptionRecurringOnly,
+            limit: $limit,
+            verbose: $verbose,
+            parallelWorkers: $parallelWorkers
+        );
+
         $result = $this->service->executeCycle(
             $cycleCount,
-            $hasOptionUniqueOnly,
-            $hasOptionRecurringOnly,
-            $limit,
-            $verbose,
+            $arguments,
             $cycleStartedAt
         );
 
