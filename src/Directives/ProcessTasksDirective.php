@@ -35,7 +35,7 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     public function getSignature(): string
     {
-        return 'process-tasks {--unique-only} {--recurring-only} {--verbose} {--limit=} {--format=}';
+        return 'process-tasks {limit=?} {format=text} {--unique-only} {--recurring-only} {--verbose}';
     }
 
     /**
@@ -71,7 +71,7 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     public function execute(): ExitCode
     {
-        $app = $this->getLaravel();
+        $app = $this->getContainer();
 
         if ($app === null) {
             throw new RuntimeException('Laravel container is not available');
@@ -84,11 +84,11 @@ final class ProcessTasksDirective extends AbstractDirective
             return $validationResult;
         }
 
-        $uniqueOnly = $this->hasOption('unique-only');
-        $recurringOnly = $this->hasOption('recurring-only');
-        $verbose = $this->hasOption('verbose');
+        $uniqueOnly = $this->hasFlag('unique-only');
+        $recurringOnly = $this->hasFlag('recurring-only');
+        $verbose = $this->hasFlag('verbose');
         $limit = $this->getValidatedLimit();
-        $format = $this->option('format') ?? 'text';
+        $format = $this->argument('format') ?? 'text';
 
         $uniqueService = $this->getUniqueTaskService();
         $recurringService = $this->getRecurringTaskService();
@@ -144,7 +144,7 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     private function getUniqueTaskService(): UniqueTaskServiceInterface
     {
-        $laravel = $this->getLaravel();
+        $laravel = $this->getContainer();
 
         if ($laravel === null) {
             throw new RuntimeException('Laravel container is not available. Task processing requires Laravel.');
@@ -162,7 +162,7 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     private function getRecurringTaskService(): RecurringTaskServiceInterface
     {
-        $laravel = $this->getLaravel();
+        $laravel = $this->getContainer();
 
         if ($laravel === null) {
             throw new RuntimeException('Laravel container is not available. Task processing requires Laravel.');
@@ -179,8 +179,8 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     private function validateOptions(Console $console): ?ExitCode
     {
-        $uniqueOnly = $this->hasOption('unique-only');
-        $recurringOnly = $this->hasOption('recurring-only');
+        $uniqueOnly = $this->hasFlag('unique-only');
+        $recurringOnly = $this->hasFlag('recurring-only');
 
         if ($uniqueOnly && $recurringOnly) {
             $console->error('Cannot use both --unique-only and --recurring-only');
@@ -188,7 +188,7 @@ final class ProcessTasksDirective extends AbstractDirective
             return ExitCode::INVALID_ARGUMENT;
         }
 
-        $limit = $this->option('limit');
+        $limit = $this->argument('limit');
 
         if ($limit !== null && (int) $limit <= 0) {
             $console->error('Limit must be a positive integer');
@@ -196,7 +196,7 @@ final class ProcessTasksDirective extends AbstractDirective
             return ExitCode::INVALID_ARGUMENT;
         }
 
-        $format = $this->option('format');
+        $format = $this->argument('format');
 
         if ($format !== null && ! in_array($format, ['text', 'json'], true)) {
             $console->error('Format must be "text" or "json"');
@@ -214,7 +214,7 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     private function getValidatedLimit(): ?int
     {
-        $limit = $this->option('limit');
+        $limit = $this->argument('limit');
 
         return $limit !== null ? (int) $limit : null;
     }

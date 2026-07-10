@@ -317,7 +317,6 @@ final class TaskServiceProvider extends ServiceProvider
         $this->hydration = new HydrationService;
         $this->logger = new LoggerService(
             jsonlService: $jsonlService,
-            hydrationService: $this->hydration
         );
     }
 

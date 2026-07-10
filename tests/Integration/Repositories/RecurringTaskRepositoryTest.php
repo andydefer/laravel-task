@@ -75,7 +75,6 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
         $this->logger = new LoggerService(
             jsonlService: $jsonlService,
-            hydrationService: $hydration,
         );
 
         $this->debugRepository = new TaskExecutionDebugRepository;

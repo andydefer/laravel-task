@@ -295,7 +295,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_both_flags_returns_invalid_argument(): void
     {
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--unique-only', '--recurring-only']
         );
@@ -306,7 +306,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_limit_zero_returns_invalid_argument(): void
     {
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--limit=0']
         );
@@ -317,7 +317,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_interval_below_minimum_returns_invalid_argument(): void
     {
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--interval=2']
         );
@@ -328,7 +328,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_duration_zero_returns_invalid_argument(): void
     {
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--duration=0']
         );
@@ -339,7 +339,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_parallel_zero_returns_invalid_argument(): void
     {
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--parallel=0', '--duration=1', '--interval=3']
         );
@@ -352,7 +352,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_testing_mode_returns_success_when_no_tasks(): void
     {
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--duration=1', '--interval=3']
         );
@@ -373,7 +373,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $alias = $this->createUniqueTask('unique-1');
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--unique-only', '--duration=1', '--interval=3']
         );
@@ -389,7 +389,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $alias = $this->createRecurringTask('recurring-1', RecurringTaskStatus::PLAYING);
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--recurring-only', '--duration=1', '--interval=3']
         );
@@ -408,7 +408,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
             $aliases[] = $this->createUniqueTask("unique-{$i}");
         }
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--unique-only', '--limit=3', '--duration=1', '--interval=3']
         );
@@ -424,7 +424,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $alias = $this->createFailingUniqueTask();
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--duration=1', '--interval=3']
         );
@@ -440,7 +440,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $this->createFailingRecurringTask();
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--duration=1', '--interval=3']
         );
@@ -457,7 +457,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $alias1 = $this->createUniqueTask('unique-success');
         $alias2 = $this->createFailingUniqueTask();
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--duration=1', '--interval=3']
         );
@@ -477,7 +477,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $alias = $this->createUniqueTask('parallel-task-1');
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--parallel=3', '--unique-only', '--duration=1', '--interval=3']
         );
@@ -495,7 +495,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
             $aliases[] = $this->createUniqueTask("parallel-task-{$i}");
         }
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--parallel=4', '--unique-only', '--limit=8', '--duration=1', '--interval=3']
         );
@@ -515,7 +515,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
             $this->createFailingUniqueTask();
         }
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--parallel=3', '--duration=1', '--interval=3']
         );
@@ -539,7 +539,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
             );
         }
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--parallel=3', '--recurring-only', '--duration=1', '--interval=3']
         );
@@ -555,7 +555,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         // Test avec parallel=1
         $alias1 = $this->createUniqueTask('sequential-task-1');
 
-        $responseParallel1 = $this->service->run(
+        $responseParallel1 = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--parallel=1', '--unique-only', '--duration=1', '--interval=3']
         );
@@ -566,7 +566,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         // Test sans parallel (séquentiel)
         $alias2 = $this->createUniqueTask('sequential-task-2');
 
-        $responseSequential = $this->service->run(
+        $responseSequential = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--unique-only', '--duration=1', '--interval=3']
         );
@@ -579,7 +579,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $alias = $this->createUniqueTask('verbose-parallel');
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--parallel=2', '--unique-only', '--verbose', '--duration=1', '--interval=3']
         );
@@ -605,7 +605,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
             );
         }
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--parallel=3', '--duration=1', '--interval=3']
         );
@@ -620,7 +620,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $alias = $this->createUniqueTask('parallel-min-interval');
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             TasksWatchDirective::class,
             ['--testing', '--parallel=2', '--interval=3', '--unique-only', '--duration=1']
         );

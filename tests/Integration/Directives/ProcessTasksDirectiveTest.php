@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Tests\Integration\Directives;
 
+use AndyDefer\Directive\Bootstrap\Paths;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
@@ -54,7 +55,11 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $frozenNow = Carbon::create(2026, 6, 23, 12, 0, 0);
         Carbon::setTestNow($frozenNow);
 
-        $this->service = new DirectiveTestingService($this->app);
+        $this->service = new DirectiveTestingService(
+            $this->app,
+            //      [Paths::projectRoot().'/src/Directives']
+        );
+        //   dd(getcwd().'/src/Directives', is_dir(getcwd().'/Directives'));
 
         $this->debugRepository = new TaskExecutionDebugRepository;
         $this->uniqueRepository = new UniqueTaskRepository(
@@ -242,7 +247,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_execute_returns_success_when_no_tasks(): void
     {
-        $response = $this->service->run(ProcessTasksDirective::class, []);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, []);
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('=== Batch Results ===', $response->output);
@@ -256,7 +261,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         $this->createUniqueTask('unique-1');
 
-        $response = $this->service->run(ProcessTasksDirective::class, ['--unique-only']);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, ['--unique-only']);
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
@@ -269,7 +274,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         $this->createRecurringTask('recurring-1');
 
-        $response = $this->service->run(ProcessTasksDirective::class, ['--recurring-only']);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, ['--recurring-only']);
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('=== Recurring Batch Results ===', $response->output);
@@ -280,7 +285,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_both_flags_returns_invalid_argument(): void
     {
-        $response = $this->service->run(ProcessTasksDirective::class, ['--unique-only', '--recurring-only']);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, ['--unique-only', '--recurring-only']);
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
         $this->assertStringContainsString('Cannot use both --unique-only and --recurring-only', $response->output);
@@ -294,7 +299,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
             $this->createUniqueTask("unique-{$i}");
         }
 
-        $response = $this->service->run(ProcessTasksDirective::class, ['--limit=3', '--unique-only']);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, ['--limit=3', '--unique-only']);
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('Limit: 3 tasks', $response->output);
@@ -306,7 +311,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_limit_zero_returns_invalid_argument(): void
     {
-        $response = $this->service->run(ProcessTasksDirective::class, ['--limit=0']);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, ['--limit=0']);
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
         $this->assertStringContainsString('Limit must be a positive integer', $response->output);
@@ -320,7 +325,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->createUniqueTask('unique-2');
         $this->createRecurringTask('recurring-1');
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--format=json']
         );
@@ -356,7 +361,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->createUniqueTask('unique-2');
         $this->createRecurringTask('recurring-1');
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--unique-only', '--format=json']
         );
@@ -382,7 +387,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->createRecurringTask('recurring-1');
         $this->createRecurringTask('recurring-2');
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--recurring-only', '--format=json']
         );
@@ -408,7 +413,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
             $this->createUniqueTask("unique-{$i}");
         }
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--limit=3', '--unique-only', '--format=json']
         );
@@ -428,10 +433,11 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         $this->createFailingUniqueTask();
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--format=json']
         );
+        echo $response->output;
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
 
@@ -450,7 +456,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         $this->createFailingRecurringTask();
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--format=json']
         );
@@ -470,7 +476,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
 
     public function test_invalid_format_returns_error(): void
     {
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--format=xml']
         );
@@ -485,7 +491,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         $this->createFailingUniqueTask();
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--verbose']
         );
@@ -502,7 +508,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         $this->createUniqueTask('unique-1');
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--verbose']
         );
@@ -517,7 +523,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->createFailingUniqueTask();
         $this->createFailingRecurringTask();
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--verbose']
         );
@@ -537,7 +543,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
     {
         $this->createUniqueTask('unique-1');
 
-        $response = $this->service->run(ProcessTasksDirective::class, []);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, []);
 
         $this->assertStringContainsString('=== Batch Results ===', $response->output);
         $this->assertStringContainsString('Unique:    ✅ 1, ❌ 0', $response->output);
@@ -552,7 +558,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
             $this->createUniqueTask("unique-{$i}");
         }
 
-        $response = $this->service->run(
+        $response = $this->service->runDirective(
             ProcessTasksDirective::class,
             ['--limit=3', '--unique-only']
         );
@@ -570,7 +576,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->createUniqueTask('unique-2');
         $this->createRecurringTask('recurring-1');
 
-        $response = $this->service->run(ProcessTasksDirective::class, []);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, []);
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('=== Batch Results ===', $response->output);
@@ -585,7 +591,7 @@ final class ProcessTasksDirectiveTest extends IntegrationTestCase
         $this->createFailingUniqueTask();
         $this->createRecurringTask('recurring-1');
 
-        $response = $this->service->run(ProcessTasksDirective::class, []);
+        $response = $this->service->runDirective(ProcessTasksDirective::class, []);
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
         $this->assertStringContainsString('=== Batch Results ===', $response->output);

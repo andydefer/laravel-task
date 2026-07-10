@@ -71,7 +71,6 @@ final class RecurringTaskTest extends IntegrationTestCase
 
         $this->logger = new LoggerService(
             jsonlService: $jsonlService,
-            hydrationService: $this->hydration,
         );
 
         $this->context = new RecurringTaskContext;
