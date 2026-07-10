@@ -306,7 +306,6 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
             ['~', '3', '0', '~', '--testing']
         );
 
-        dd($response->output);
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
         $this->assertStringContainsString('Limit must be a positive integer', $response->output);
     }

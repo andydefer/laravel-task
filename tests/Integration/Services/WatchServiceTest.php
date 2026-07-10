@@ -9,6 +9,7 @@ use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\SignatureParser\QueryBuilder;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\WatchInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
@@ -44,6 +45,8 @@ final class WatchServiceTest extends IntegrationTestCase
 
     private WatchInterface $service;
 
+    private QueryBuilder $queryBuilder;
+
     private UniqueTaskRepository $uniqueRepository;
 
     private UniqueTaskServiceInterface $uniqueService;
@@ -59,6 +62,7 @@ final class WatchServiceTest extends IntegrationTestCase
         ob_start();
 
         $console = $this->app->make(Console::class);
+        $
         $this->service = new WatchService($console);
 
         $this->testingService = new DirectiveTestingService($this->app);

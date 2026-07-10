@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Directives;
 use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\AbstractDirective;
 use AndyDefer\Directive\Enums\ExitCode;
+use AndyDefer\Directive\Services\ComposerReaderService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
@@ -71,65 +72,72 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     public function execute(): ExitCode
     {
-        $app = $this->getContainer();
+        try {
+            $app = $this->getContainer();
 
-        if ($app === null) {
-            throw new RuntimeException('Laravel container is not available');
-        }
-
-        $console = $app->make(Console::class);
-
-        $validationResult = $this->validateOptions($console);
-        if ($validationResult !== null) {
-            return $validationResult;
-        }
-
-        $uniqueOnly = $this->isFlagActive('unique-only');
-        $recurringOnly = $this->isFlagActive('recurring-only');
-        $verbose = $this->isFlagActive('verbose');
-        $limit = $this->getValidatedLimit();
-        $format = $this->argument('format') ?? 'text';
-
-        $uniqueService = $this->getUniqueTaskService();
-        $recurringService = $this->getRecurringTaskService();
-
-        $hasFailures = false;
-
-        if ($uniqueOnly) {
-            $result = $this->processUniqueOnly($uniqueService, $limit);
-            $hasFailures = $result->failed->isPositive();
-
-            if ($format === 'json') {
-                $this->outputUniqueJson($console, $result);
-            } else {
-                $this->displayProcessingStart($console, $limit);
-                $this->displayUniqueResults($console, $result);
-                $this->displayErrorsIfVerbose($console, $verbose, $result->errors, 'Unique');
+            if ($app === null) {
+                throw new RuntimeException('Laravel container is not available');
             }
-        } elseif ($recurringOnly) {
-            $result = $this->processRecurringOnly($recurringService, $limit);
-            $hasFailures = $result->failed->isPositive();
 
-            if ($format === 'json') {
-                $this->outputRecurringJson($console, $result);
-            } else {
-                $this->displayProcessingStart($console, $limit);
-                $this->displayRecurringResults($console, $result);
-                $this->displayErrorsIfVerbose($console, $verbose, $result->errors, 'Recurring');
+            $console = $app->make(Console::class);
+
+            $validationResult = $this->validateOptions($console);
+            if ($validationResult !== null) {
+                return $validationResult;
             }
-        } else {
-            $uniqueResult = $this->processUniqueOnly($uniqueService, $limit);
-            $recurringResult = $this->processRecurringOnly($recurringService, $limit);
 
-            $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
+            $uniqueOnly = $this->isFlagActive('unique-only');
+            $recurringOnly = $this->isFlagActive('recurring-only');
+            $verbose = $this->isFlagActive('verbose');
+            $limit = $this->getValidatedLimit();
+            $format = $this->argument('format') ?? 'text';
 
-            if ($format === 'json') {
-                $this->outputFullJson($console, $uniqueResult, $recurringResult);
+            $uniqueService = $this->getUniqueTaskService();
+            $recurringService = $this->getRecurringTaskService();
+
+            $hasFailures = false;
+
+            if ($uniqueOnly) {
+                $result = $this->processUniqueOnly($uniqueService, $limit);
+                $hasFailures = $result->failed->isPositive();
+
+                if ($format === 'json') {
+                    $this->outputUniqueJson($console, $result);
+                } else {
+                    $this->displayProcessingStart($console, $limit);
+                    $this->displayUniqueResults($console, $result);
+                    $this->displayErrorsIfVerbose($console, $verbose, $result->errors, 'Unique');
+                }
+            } elseif ($recurringOnly) {
+                $result = $this->processRecurringOnly($recurringService, $limit);
+                $hasFailures = $result->failed->isPositive();
+
+                if ($format === 'json') {
+                    $this->outputRecurringJson($console, $result);
+                } else {
+                    $this->displayProcessingStart($console, $limit);
+                    $this->displayRecurringResults($console, $result);
+                    $this->displayErrorsIfVerbose($console, $verbose, $result->errors, 'Recurring');
+                }
             } else {
-                $this->displayProcessingStart($console, $limit);
-                $this->displayFullResults($console, $uniqueResult, $recurringResult);
-                $this->displayFullErrorsIfVerbose($console, $verbose, $uniqueResult, $recurringResult);
+                $uniqueResult = $this->processUniqueOnly($uniqueService, $limit);
+                $recurringResult = $this->processRecurringOnly($recurringService, $limit);
+
+                $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
+
+                if ($format === 'json') {
+                    $this->outputFullJson($console, $uniqueResult, $recurringResult);
+                } else {
+                    $this->displayProcessingStart($console, $limit);
+                    $this->displayFullResults($console, $uniqueResult, $recurringResult);
+                    $this->displayFullErrorsIfVerbose($console, $verbose, $uniqueResult, $recurringResult);
+                }
             }
+
+        } catch (\Throwable $th) {
+            dd($th);
+            // throw $th;
+            ComposerReaderService::class;
         }
 
         return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;

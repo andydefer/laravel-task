@@ -33,15 +33,16 @@ final class WatchService implements WatchInterface
 
     private bool $testingMode = false;
 
+    private readonly QueryBuilder $queryBuilder;
+
     /**
      * Constructor for the watch service.
      *
      * @param  Console  $console  The console instance for output
-     * @param  QueryBuilder  $queryBuilder  The query builder for constructing CLI arguments
      */
     public function __construct(
         private readonly Console $console,
-        private readonly QueryBuilder $queryBuilder,
+
     ) {}
 
     /**

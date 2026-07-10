@@ -1,0 +1,16 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/../vendor/autoload.php';
+
+use AndyDefer\Task\TaskApp;
+
+$app = TaskApp::create(__DIR__ . '/..');
+
+// Activer le mode verbose (optionnel)
+$app->verbose(true);
+
+$exitCode = $app->run($argv);
+exit($exitCode);

@@ -1,0 +1,221 @@
+[2026-07-10 19:34:59] production.ERROR: Uncaught TypeError: AndyDefer\Task\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16}(): Argument #1 ($exceptions) must be of type Illuminate\Support\Facades\Exceptions, Illuminate\Foundation\Configuration\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\Task\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->{closure:Illuminate\Foundation\Configuration\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\Foundation\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\Foundation\Bootstrap\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\Foundation\Bootstrap\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\Foundation\Bootstrap\HandleExceptions->{closure:Illuminate\Foundation\Bootstrap\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught TypeError: AndyDefer\\Task\\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16}(): Argument #1 ($exceptions) must be of type Illuminate\\Support\\Facades\\Exceptions, Illuminate\\Foundation\\Configuration\\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\\Task\\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\\Foundation\\Configuration\\ApplicationBuilder->{closure:Illuminate\\Foundation\\Configuration\\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\\Container\\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\\Container\\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\\Container\\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\\Container\\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\\Foundation\\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\\Container\\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\\Foundation\\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\\Foundation\\Bootstrap\\HandleExceptions->{closure:Illuminate\\Foundation\\Bootstrap\\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown at /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16)
+[stacktrace]
+#0 {main}
+"} 
+[2026-07-10 19:35:06] production.ERROR: Uncaught TypeError: AndyDefer\Task\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16}(): Argument #1 ($exceptions) must be of type Illuminate\Support\Facades\Exceptions, Illuminate\Foundation\Configuration\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\Task\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->{closure:Illuminate\Foundation\Configuration\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\Foundation\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\Foundation\Bootstrap\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\Foundation\Bootstrap\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\Foundation\Bootstrap\HandleExceptions->{closure:Illuminate\Foundation\Bootstrap\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught TypeError: AndyDefer\\Task\\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16}(): Argument #1 ($exceptions) must be of type Illuminate\\Support\\Facades\\Exceptions, Illuminate\\Foundation\\Configuration\\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\\Task\\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\\Foundation\\Configuration\\ApplicationBuilder->{closure:Illuminate\\Foundation\\Configuration\\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\\Container\\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\\Container\\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\\Container\\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\\Container\\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\\Foundation\\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\\Container\\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\\Foundation\\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\\Foundation\\Bootstrap\\HandleExceptions->{closure:Illuminate\\Foundation\\Bootstrap\\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown at /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:16)
+[stacktrace]
+#0 {main}
+"} 
+[2026-07-10 19:47:17] production.ERROR: Uncaught TypeError: AndyDefer\Task\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}(): Argument #1 ($exceptions) must be of type Illuminate\Support\Facades\Exceptions, Illuminate\Foundation\Configuration\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\Task\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->{closure:Illuminate\Foundation\Configuration\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\Foundation\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\Foundation\Bootstrap\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\Foundation\Bootstrap\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\Foundation\Bootstrap\HandleExceptions->{closure:Illuminate\Foundation\Bootstrap\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught TypeError: AndyDefer\\Task\\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}(): Argument #1 ($exceptions) must be of type Illuminate\\Support\\Facades\\Exceptions, Illuminate\\Foundation\\Configuration\\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\\Task\\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\\Foundation\\Configuration\\ApplicationBuilder->{closure:Illuminate\\Foundation\\Configuration\\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\\Container\\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\\Container\\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\\Container\\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\\Container\\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\\Foundation\\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\\Container\\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\\Foundation\\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\\Foundation\\Bootstrap\\HandleExceptions->{closure:Illuminate\\Foundation\\Bootstrap\\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown at /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19)
+[stacktrace]
+#0 {main}
+"} 
+[2026-07-10 19:50:00] production.ERROR: Uncaught TypeError: AndyDefer\Task\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}(): Argument #1 ($exceptions) must be of type Illuminate\Support\Facades\Exceptions, Illuminate\Foundation\Configuration\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\Task\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->{closure:Illuminate\Foundation\Configuration\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\Foundation\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\Foundation\Bootstrap\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\Foundation\Bootstrap\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\Foundation\Bootstrap\HandleExceptions->{closure:Illuminate\Foundation\Bootstrap\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught TypeError: AndyDefer\\Task\\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}(): Argument #1 ($exceptions) must be of type Illuminate\\Support\\Facades\\Exceptions, Illuminate\\Foundation\\Configuration\\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\\Task\\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\\Foundation\\Configuration\\ApplicationBuilder->{closure:Illuminate\\Foundation\\Configuration\\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\\Container\\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\\Container\\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\\Container\\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\\Container\\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\\Foundation\\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\\Container\\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\\Foundation\\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\\Foundation\\Bootstrap\\HandleExceptions->{closure:Illuminate\\Foundation\\Bootstrap\\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown at /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19)
+[stacktrace]
+#0 {main}
+"} 
+[2026-07-10 19:51:11] production.ERROR: Uncaught TypeError: AndyDefer\Task\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}(): Argument #1 ($exceptions) must be of type Illuminate\Support\Facades\Exceptions, Illuminate\Foundation\Configuration\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\Task\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->{closure:Illuminate\Foundation\Configuration\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\Foundation\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\Foundation\Bootstrap\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\Foundation\Bootstrap\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\Foundation\Bootstrap\HandleExceptions->{closure:Illuminate\Foundation\Bootstrap\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught TypeError: AndyDefer\\Task\\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}(): Argument #1 ($exceptions) must be of type Illuminate\\Support\\Facades\\Exceptions, Illuminate\\Foundation\\Configuration\\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\\Task\\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\\Foundation\\Configuration\\ApplicationBuilder->{closure:Illuminate\\Foundation\\Configuration\\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\\Container\\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\\Container\\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\\Container\\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\\Container\\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\\Foundation\\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\\Container\\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\\Foundation\\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\\Foundation\\Bootstrap\\HandleExceptions->{closure:Illuminate\\Foundation\\Bootstrap\\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown at /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19)
+[stacktrace]
+#0 {main}
+"} 
+[2026-07-10 19:51:21] production.ERROR: Uncaught TypeError: AndyDefer\Task\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}(): Argument #1 ($exceptions) must be of type Illuminate\Support\Facades\Exceptions, Illuminate\Foundation\Configuration\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\Task\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->{closure:Illuminate\Foundation\Configuration\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\Foundation\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\Foundation\Bootstrap\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\Foundation\Bootstrap\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\Foundation\Bootstrap\HandleExceptions->{closure:Illuminate\Foundation\Bootstrap\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught TypeError: AndyDefer\\Task\\TaskApp::{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}(): Argument #1 ($exceptions) must be of type Illuminate\\Support\\Facades\\Exceptions, Illuminate\\Foundation\\Configuration\\Exceptions given, called in /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php on line 385 and defined in /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19
+Stack trace:
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(385): AndyDefer\\Task\\TaskApp->{closure:/home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19}()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\\Foundation\\Configuration\\ApplicationBuilder->{closure:Illuminate\\Foundation\\Configuration\\ApplicationBuilder::withExceptions():385}()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\\Container\\Container->fireCallbackArray()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\\Container\\Container->fireAfterResolvingCallbacks()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\\Container\\Container->fireResolvingCallbacks()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\\Container\\Container->resolve()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\\Foundation\\Application->resolve()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\\Container\\Container->make()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(295): Illuminate\\Foundation\\Application->make()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(190): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->getExceptionHandler()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/HandleExceptions.php(262): Illuminate\\Foundation\\Bootstrap\\HandleExceptions->handleException()
+#11 [internal function]: Illuminate\\Foundation\\Bootstrap\\HandleExceptions->{closure:Illuminate\\Foundation\\Bootstrap\\HandleExceptions::forwardsTo():261}()
+#12 {main}
+  thrown at /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php:19)
+[stacktrace]
+#0 {main}
+"} 
+[2026-07-10 19:52:04] production.ERROR: The /home/andy-kani/pro/sites/packages/laravel-task/bootstrap/cache directory must be present and writable. {"exception":"[object] (Exception(code: 0): The /home/andy-kani/pro/sites/packages/laravel-task/bootstrap/cache directory must be present and writable. at /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php:179)
+[stacktrace]
+#0 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(132): Illuminate\\Foundation\\PackageManifest->write()
+#1 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(108): Illuminate\\Foundation\\PackageManifest->build()
+#2 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(90): Illuminate\\Foundation\\PackageManifest->getManifest()
+#3 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(79): Illuminate\\Foundation\\PackageManifest->config()
+#4 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/RegisterFacades.php(26): Illuminate\\Foundation\\PackageManifest->aliases()
+#5 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(342): Illuminate\\Foundation\\Bootstrap\\RegisterFacades->bootstrap()
+#6 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(494): Illuminate\\Foundation\\Application->bootstrapWith()
+#7 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(445): Illuminate\\Foundation\\Console\\Kernel->bootstrap()
+#8 /home/andy-kani/pro/sites/packages/laravel-task/vendor/laravel/framework/src/Illuminate/Support/Facades/Facade.php(363): Illuminate\\Foundation\\Console\\Kernel->call()
+#9 /home/andy-kani/pro/sites/packages/laravel-task/src/Bootstrap/TestApplicationFactory.php(57): Illuminate\\Support\\Facades\\Facade::__callStatic()
+#10 /home/andy-kani/pro/sites/packages/laravel-task/src/TaskApp.php(40): require('...')
+#11 /home/andy-kani/pro/sites/packages/laravel-task/src/TaskApp.php(56): AndyDefer\\Task\\TaskApp->__construct()
+#12 /home/andy-kani/pro/sites/packages/laravel-task/bin/task(10): AndyDefer\\Task\\TaskApp::create()
+#13 {main}
+"} 
