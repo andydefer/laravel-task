@@ -263,9 +263,6 @@ final class TaskServiceProvider extends ServiceProvider
 
         // ✅ WATCH SERVICES
         $this->registerWatchServices();
-
-        // ❌ DIRECTIVES - PAS BESOIN DE LES BINDER
-        // Elles sont gérées automatiquement par laravel-directive
     }
 
     /**
@@ -273,6 +270,17 @@ final class TaskServiceProvider extends ServiceProvider
      */
     private function registerWatchServices(): void
     {
+        // ✅ WatchRendererService
+        $this->app->singleton(
+            abstract: WatchRendererInterface::class,
+            concrete: function (Application $app) {
+                return new WatchRendererService(
+                    console: $app->make(Console::class)
+                );
+            }
+        );
+        $this->app->alias(WatchRendererInterface::class, WatchRendererService::class);
+
         // ✅ WatchService avec Console
         $this->app->singleton(
             abstract: WatchInterface::class,
@@ -283,17 +291,6 @@ final class TaskServiceProvider extends ServiceProvider
             }
         );
         $this->app->alias(WatchInterface::class, WatchService::class);
-
-        // ✅ WatchRendererService avec Console
-        $this->app->singleton(
-            abstract: WatchRendererInterface::class,
-            concrete: function (Application $app) {
-                return new WatchRendererService(
-                    console: $app->make(Console::class)
-                );
-            }
-        );
-        $this->app->alias(WatchRendererInterface::class, WatchRendererService::class);
     }
 
     private function registerLogger(): void

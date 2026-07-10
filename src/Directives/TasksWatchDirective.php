@@ -37,7 +37,7 @@ final class TasksWatchDirective extends AbstractDirective
      */
     public function getSignature(): string
     {
-        return 'tasks-watch {duration=?} {interval=60} {limit=?} {parallel=?} {--unique-only} {--recurring-only} {--verbose} {--testing}';
+        return 'tasks-watch {interval=60} {duration=?} {limit=?} {parallel=?} {--unique-only} {--recurring-only} {--verbose} {--testing}';
     }
 
     /**
@@ -107,10 +107,10 @@ final class TasksWatchDirective extends AbstractDirective
         /** @var LoopResultRecord $result */
         $result = $loopRunner->run(
             strategy: $strategy,
-            hasOptionUniqueOnly: $this->hasFlag('unique-only'),
-            hasOptionRecurringOnly: $this->hasFlag('recurring-only'),
+            hasOptionUniqueOnly: $this->isFlagActive('unique-only'),
+            hasOptionRecurringOnly: $this->isFlagActive('recurring-only'),
             limit: $limit,
-            verbose: $this->hasFlag('verbose'),
+            verbose: $this->isFlagActive('verbose'),
             duration: $duration,
             startedAt: $startedAt,
             intervalSeconds: $intervalSeconds,
@@ -139,8 +139,8 @@ final class TasksWatchDirective extends AbstractDirective
         $validator = new OptionValidator;
 
         $result = $validator->validate(
-            uniqueOnly: $this->hasFlag('unique-only'),
-            recurringOnly: $this->hasFlag('recurring-only'),
+            uniqueOnly: $this->isFlagActive('unique-only'),
+            recurringOnly: $this->isFlagActive('recurring-only'),
             duration: $this->argument('duration'),
             interval: $this->argument('interval'),
             limit: $this->argument('limit'),
@@ -224,7 +224,7 @@ final class TasksWatchDirective extends AbstractDirective
             duration: $duration,
             intervalSeconds: $intervalSeconds,
             options: $options,
-            testingMode: $this->hasFlag('testing'),
+            testingMode: $this->isFlagActive('testing'),
             parallelWorkers: $parallelWorkers
         );
     }
@@ -238,30 +238,39 @@ final class TasksWatchDirective extends AbstractDirective
     {
         $options = new StringTypedCollection;
 
-        if ($this->hasFlag('unique-only')) {
+        // ✅ 1. interval (valeur par défaut)
+        $interval = $this->argument('interval');
+        if ($interval !== null && $interval !== '60') {
+            $options->add($interval);
+        }
+
+        // ✅ 2. duration (nullable) - TOUJOURS présent
+        $duration = $this->argument('duration');
+        $options->add($duration ?? '~');
+
+        // ✅ 3. limit (nullable) - TOUJOURS présent
+        $limit = $this->argument('limit');
+        $options->add($limit ?? '~');
+
+        // ✅ 4. parallel (nullable) - TOUJOURS présent
+        $parallel = $this->argument('parallel');
+        $options->add($parallel ?? '~');
+
+        // ✅ 5. Flags (toujours en dernier)
+        if ($this->isFlagActive('unique-only')) {
             $options->add('--unique-only');
         }
 
-        if ($this->hasFlag('recurring-only')) {
+        if ($this->isFlagActive('recurring-only')) {
             $options->add('--recurring-only');
         }
 
-        $limit = $this->argument('limit');
-        if ($limit !== null) {
-            $options->add("limit={$limit}");
-        }
-
-        if ($this->hasFlag('verbose')) {
+        if ($this->isFlagActive('verbose')) {
             $options->add('--verbose');
         }
 
-        if ($this->hasFlag('testing')) {
+        if ($this->isFlagActive('testing')) {
             $options->add('--testing');
-        }
-
-        $parallel = $this->argument('parallel');
-        if ($parallel !== null) {
-            $options->add("parallel={$parallel}");
         }
 
         return $options;

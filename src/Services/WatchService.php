@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Services;
 use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
+use AndyDefer\SignatureParser\QueryBuilder;
 use AndyDefer\Task\Contracts\Services\WatchInterface;
 use AndyDefer\Task\Directives\ProcessTasksDirective;
 use AndyDefer\Task\Records\CycleResultRecord;
@@ -36,9 +37,11 @@ final class WatchService implements WatchInterface
      * Constructor for the watch service.
      *
      * @param  Console  $console  The console instance for output
+     * @param  QueryBuilder  $queryBuilder  The query builder for constructing CLI arguments
      */
     public function __construct(
         private readonly Console $console,
+        private readonly QueryBuilder $queryBuilder,
     ) {}
 
     /**
@@ -77,31 +80,44 @@ final class WatchService implements WatchInterface
         bool $recurringOnly,
         ?LimitVO $limit,
         bool $verbose,
-        ?int $parallelWorkers = null
+        bool $testing,
+        ?int $parallel = null,
+        ?int $duration = null,
+        ?int $interval = null
     ): StringTypedCollection {
-        $arguments = new StringTypedCollection;
+        // ✅ Cloner le QueryBuilder pour chaque appel (immutable)
+        $builder = clone $this->queryBuilder;
 
+        // ✅ 1. limit (position 1)
+        $builder->setArgument('limit', $limit !== null ? (string) $limit->getValue() : 'infinite');
+
+        // ✅ 2. format (position 2) - toujours json pour le watch
+        $builder->setArgument('format', 'json');
+
+        // ✅ 3. Flags
         if ($uniqueOnly) {
-            $arguments->add('--unique-only');
+            $builder->setFlag('--unique-only', true);
         }
 
         if ($recurringOnly) {
-            $arguments->add('--recurring-only');
-        }
-
-        if ($limit !== null) {
-            $arguments->add("--limit={$limit->getValue()}");
+            $builder->setFlag('--recurring-only', true);
         }
 
         if ($verbose) {
-            $arguments->add('--verbose');
+            $builder->setFlag('--verbose', true);
         }
 
-        if ($parallelWorkers !== null && $parallelWorkers > 1) {
-            $arguments->add("--parallel={$parallelWorkers}");
+        if ($testing) {
+            $builder->setFlag('--testing', true);
         }
 
-        return $arguments;
+        // ✅ duration, interval, parallel sont gérés par TasksWatchDirective
+        // Ils sont passés via les arguments positionnels de la directive
+
+        $query = $builder->build();
+        $parts = explode(' ', $query);
+
+        return StringTypedCollection::from($parts);
     }
 
     /**
@@ -180,7 +196,7 @@ final class WatchService implements WatchInterface
         if ($this->testingMode && $this->testingService !== null) {
             $args = $arguments->toArray();
             $this->console->logDebug('🔬 Running in testing mode...');
-            $response = $this->testingService->run(ProcessTasksDirective::class, $args);
+            $response = $this->testingService->runDirective(ProcessTasksDirective::class, $args);
 
             return $this->stripAnsi($response->output);
         }

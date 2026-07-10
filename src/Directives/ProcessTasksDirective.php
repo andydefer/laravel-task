@@ -35,7 +35,7 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     public function getSignature(): string
     {
-        return 'process-tasks {limit=?} {format=text} {--unique-only} {--recurring-only} {--verbose}';
+        return 'process-tasks {limit=infinite} {format=text} {--unique-only} {--recurring-only} {--verbose}';
     }
 
     /**
@@ -84,9 +84,9 @@ final class ProcessTasksDirective extends AbstractDirective
             return $validationResult;
         }
 
-        $uniqueOnly = $this->hasFlag('unique-only');
-        $recurringOnly = $this->hasFlag('recurring-only');
-        $verbose = $this->hasFlag('verbose');
+        $uniqueOnly = $this->isFlagActive('unique-only');
+        $recurringOnly = $this->isFlagActive('recurring-only');
+        $verbose = $this->isFlagActive('verbose');
         $limit = $this->getValidatedLimit();
         $format = $this->argument('format') ?? 'text';
 
@@ -179,8 +179,8 @@ final class ProcessTasksDirective extends AbstractDirective
      */
     private function validateOptions(Console $console): ?ExitCode
     {
-        $uniqueOnly = $this->hasFlag('unique-only');
-        $recurringOnly = $this->hasFlag('recurring-only');
+        $uniqueOnly = $this->isFlagActive('unique-only');
+        $recurringOnly = $this->isFlagActive('recurring-only');
 
         if ($uniqueOnly && $recurringOnly) {
             $console->error('Cannot use both --unique-only and --recurring-only');
@@ -188,12 +188,17 @@ final class ProcessTasksDirective extends AbstractDirective
             return ExitCode::INVALID_ARGUMENT;
         }
 
-        $limit = $this->argument('limit');
+        $limitRaw = $this->argument('limit');
 
-        if ($limit !== null && (int) $limit <= 0) {
-            $console->error('Limit must be a positive integer');
+        // ✅ 0, null, 'infinite' → pas de limite (valide)
+        if ($limitRaw !== null && $limitRaw !== 'infinite' && $limitRaw !== '0') {
+            $limit = (int) $limitRaw;
 
-            return ExitCode::INVALID_ARGUMENT;
+            if ($limit <= 0) {
+                $console->error('Limit must be a positive integer, "infinite", or 0 (no limit)');
+
+                return ExitCode::INVALID_ARGUMENT;
+            }
         }
 
         $format = $this->argument('format');
@@ -210,13 +215,18 @@ final class ProcessTasksDirective extends AbstractDirective
     /**
      * Returns the validated limit value.
      *
-     * @return int|null The limit or null if not set
+     * @return int|null The limit or null if not set (infinite)
      */
     private function getValidatedLimit(): ?int
     {
-        $limit = $this->argument('limit');
+        $limitRaw = $this->argument('limit');
 
-        return $limit !== null ? (int) $limit : null;
+        // ✅ 0, null, 'infinite' → pas de limite
+        if ($limitRaw === null || $limitRaw === 'infinite' || $limitRaw === '0') {
+            return null;
+        }
+
+        return (int) $limitRaw;
     }
 
     /**
@@ -231,6 +241,8 @@ final class ProcessTasksDirective extends AbstractDirective
 
         if ($limit !== null) {
             $console->info('Limit: '.$limit.' tasks');
+        } else {
+            $console->info('Limit: infinite (no limit)');
         }
     }
 

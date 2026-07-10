@@ -218,10 +218,6 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->fail(sprintf('Line containing "%s" and "%s" not found', $needle1, $needle2));
     }
 
-    /**
-     * Assert that the output contains the options line.
-     * If options are provided, check that each option is present.
-     */
     private function assertOptionsDisplayed(string $output, array $expectedOptions = []): void
     {
         $lines = explode("\n", $output);
@@ -230,25 +226,20 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         foreach ($lines as $line) {
             $cleaned = preg_replace('/\s+/', ' ', trim($line));
-            // Check for the options line with various possible formats
             if (str_contains($cleaned, 'Options:')) {
                 $optionsLineFound = true;
-                // Extract everything after "Options:"
                 $parts = explode('Options:', $cleaned);
                 $optionsPart = trim($parts[1] ?? '');
                 break;
             }
         }
 
-        // If we expect options, verify they are present
         if (! empty($expectedOptions)) {
             $this->assertTrue($optionsLineFound, 'Options line not found in output');
             foreach ($expectedOptions as $expected) {
                 $this->assertStringContainsString($expected, $optionsPart, sprintf('Option "%s" not found in "%s"', $expected, $optionsPart));
             }
         }
-        // If no expected options, just check that the output doesn't contain unexpected options
-        // or that the options line is not present with weird content
     }
 
     // ==================== TESTS: Signature ====================
@@ -259,14 +250,18 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $signature = $directive->getSignature();
 
         $this->assertStringContainsString('tasks-watch', $signature);
-        $this->assertStringContainsString('--duration=', $signature);
-        $this->assertStringContainsString('--interval=', $signature);
+
+        // ✅ Arguments (SANS tirets)
+        $this->assertStringContainsString('duration=?', $signature);
+        $this->assertStringContainsString('interval=60', $signature);
+        $this->assertStringContainsString('limit=?', $signature);
+        $this->assertStringContainsString('parallel=?', $signature);
+
+        // ✅ Flags (AVEC tirets)
         $this->assertStringContainsString('--unique-only', $signature);
         $this->assertStringContainsString('--recurring-only', $signature);
-        $this->assertStringContainsString('--limit=', $signature);
         $this->assertStringContainsString('--verbose', $signature);
         $this->assertStringContainsString('--testing', $signature);
-        $this->assertStringContainsString('--parallel=', $signature);
     }
 
     public function test_get_description_returns_string(): void
@@ -297,7 +292,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--unique-only', '--recurring-only']
+            ['~', '3', '~', '~', '--unique-only', '--recurring-only', '--testing']
         );
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
@@ -308,9 +303,10 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--limit=0']
+            ['~', '3', '0', '~', '--testing']
         );
 
+        dd($response->output);
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
         $this->assertStringContainsString('Limit must be a positive integer', $response->output);
     }
@@ -319,7 +315,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--interval=2']
+            ['~', '2', '~', '~', '--testing']
         );
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
@@ -330,7 +326,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--duration=0']
+            ['0', '3', '~', '~', '--testing']
         );
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
@@ -341,7 +337,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--parallel=0', '--duration=1', '--interval=3']
+            ['1', '3', '~', '0', '--testing']
         );
 
         $this->assertSame(ExitCode::INVALID_ARGUMENT, $response->exit_code);
@@ -354,7 +350,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--duration=1', '--interval=3']
+            ['1', '3', '~', '~', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
@@ -363,9 +359,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('Duration: 1', $response->output);
         $this->assertStringContainsString('Interval: 3', $response->output);
         $this->assertStringContainsString('📊 Summary', $response->output);
-
         $this->assertLineContainsTwo($response->output, 'Total success', '0');
-
         $this->assertStringContainsString('⏰ Duration reached.', $response->output);
     }
 
@@ -375,13 +369,12 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--unique-only', '--duration=1', '--interval=3']
+            ['1', '3', '~', '~', '--unique-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertOptionsDisplayed($response->output, ['--unique-only']);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
-
         $this->assertLineContainsTwo($response->output, 'Total success', '1');
     }
 
@@ -391,13 +384,12 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--recurring-only', '--duration=1', '--interval=3']
+            ['1', '3', '~', '~', '--recurring-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertOptionsDisplayed($response->output, ['--recurring-only']);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
-
         $this->assertLineContainsTwo($response->output, 'Total success', '1');
     }
 
@@ -410,13 +402,12 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--unique-only', '--limit=3', '--duration=1', '--interval=3']
+            ['1', '3', '3', '~', '--unique-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-        $this->assertOptionsDisplayed($response->output, ['--unique-only', '--limit=3']);
+        $this->assertOptionsDisplayed($response->output, ['--unique-only']);
         $this->assertStringContainsString('✅ 3 tasks succeeded', $response->output);
-
         $this->assertLineContainsTwo($response->output, 'Total success', '3');
     }
 
@@ -426,12 +417,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--duration=1', '--interval=3']
+            ['1', '3', '~', '~', '--testing']
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
         $this->assertStringContainsString('❌ 1 tasks failed', $response->output);
-
         $this->assertLineContainsTwo($response->output, 'Total failures', '1');
         $this->assertLineContainsTwo($response->output, 'Total errors', '1');
     }
@@ -442,12 +432,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--duration=1', '--interval=3']
+            ['1', '3', '~', '~', '--testing']
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
         $this->assertStringContainsString('❌ 1 tasks failed', $response->output);
-
         $this->assertLineContainsTwo($response->output, 'Total failures', '1');
         $this->assertLineContainsTwo($response->output, 'Total errors', '1');
     }
@@ -459,13 +448,12 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--duration=1', '--interval=3']
+            ['1', '3', '~', '~', '--testing']
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
         $this->assertStringContainsString('❌ 1 tasks failed', $response->output);
-
         $this->assertLineContainsTwo($response->output, 'Total success', '1');
         $this->assertLineContainsTwo($response->output, 'Total failures', '1');
         $this->assertLineContainsTwo($response->output, 'Total errors', '1');
@@ -479,11 +467,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--parallel=3', '--unique-only', '--duration=1', '--interval=3']
+            ['1', '3', '~', '3', '--unique-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-        $this->assertOptionsDisplayed($response->output, ['--unique-only', '--parallel=3']);
+        $this->assertOptionsDisplayed($response->output, ['--unique-only']);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
         $this->assertLineContainsTwo($response->output, 'Total success', '1');
     }
@@ -497,11 +485,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--parallel=4', '--unique-only', '--limit=8', '--duration=1', '--interval=3']
+            ['1', '3', '8', '4', '--unique-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-        $this->assertOptionsDisplayed($response->output, ['--unique-only', '--limit=8', '--parallel=4']);
+        $this->assertOptionsDisplayed($response->output, ['--unique-only']);
         $this->assertStringContainsString('✅ 8 tasks succeeded', $response->output);
         $this->assertLineContainsTwo($response->output, 'Total success', '8');
     }
@@ -517,7 +505,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--parallel=3', '--duration=1', '--interval=3']
+            ['1', '3', '~', '3', '--testing']
         );
 
         $this->assertSame(ExitCode::FAILURE, $response->exit_code);
@@ -541,34 +529,32 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--parallel=3', '--recurring-only', '--duration=1', '--interval=3']
+            ['1', '3', '~', '3', '--recurring-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-        $this->assertOptionsDisplayed($response->output, ['--recurring-only', '--parallel=3']);
+        $this->assertOptionsDisplayed($response->output, ['--recurring-only']);
         $this->assertStringContainsString('✅ 5 tasks succeeded', $response->output);
         $this->assertLineContainsTwo($response->output, 'Total success', '5');
     }
 
     public function test_execute_testing_mode_with_parallel_one_equals_sequential(): void
     {
-        // Test avec parallel=1
         $alias1 = $this->createUniqueTask('sequential-task-1');
 
         $responseParallel1 = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--parallel=1', '--unique-only', '--duration=1', '--interval=3']
+            ['1', '3', '~', '1', '--unique-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $responseParallel1->exit_code);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $responseParallel1->output);
 
-        // Test sans parallel (séquentiel)
         $alias2 = $this->createUniqueTask('sequential-task-2');
 
         $responseSequential = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--unique-only', '--duration=1', '--interval=3']
+            ['1', '3', '~', '~', '--unique-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $responseSequential->exit_code);
@@ -581,11 +567,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--parallel=2', '--unique-only', '--verbose', '--duration=1', '--interval=3']
+            ['1', '3', '~', '2', '--unique-only', '--verbose', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-        $this->assertOptionsDisplayed($response->output, ['--unique-only', '--verbose', '--parallel=2']);
+        $this->assertOptionsDisplayed($response->output, ['--unique-only', '--verbose']);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
     }
 
@@ -607,11 +593,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--parallel=3', '--duration=1', '--interval=3']
+            ['1', '3', '~', '3', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
-        $this->assertOptionsDisplayed($response->output, ['--parallel=3']);
+        $this->assertOptionsDisplayed($response->output, []);
         $this->assertStringContainsString('✅ 6 tasks succeeded', $response->output);
         $this->assertLineContainsTwo($response->output, 'Total success', '6');
     }
@@ -622,12 +608,56 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $response = $this->service->runDirective(
             TasksWatchDirective::class,
-            ['--testing', '--parallel=2', '--interval=3', '--unique-only', '--duration=1']
+            ['1', '3', '~', '2', '--unique-only', '--testing']
         );
 
         $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
         $this->assertStringContainsString('Interval: 3', $response->output);
-        $this->assertOptionsDisplayed($response->output, ['--parallel=2', '--unique-only']);
+        $this->assertOptionsDisplayed($response->output, ['--unique-only']);
         $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
+    }
+
+    // ==================== TESTS: Format des arguments ====================
+
+    public function test_execute_with_limit_as_positional_argument(): void
+    {
+        $alias = $this->createUniqueTask('limit-positional');
+
+        $response = $this->service->runDirective(
+            TasksWatchDirective::class,
+            ['1', '3', '3', '~', '--unique-only', '--testing']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
+        $this->assertLineContainsTwo($response->output, 'Total success', '1');
+    }
+
+    public function test_execute_with_limit_zero_as_positional_argument_means_no_limit(): void
+    {
+        $alias = $this->createUniqueTask('limit-zero');
+
+        $response = $this->service->runDirective(
+            TasksWatchDirective::class,
+            ['1', '3', '0', '~', '--unique-only', '--testing']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
+        $this->assertLineContainsTwo($response->output, 'Total success', '1');
+    }
+
+    public function test_execute_with_infinite_limit(): void
+    {
+        $alias = $this->createUniqueTask('limit-infinite');
+
+        $response = $this->service->runDirective(
+            TasksWatchDirective::class,
+            ['1', '3', 'infinite', '~', '--unique-only', '--testing']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('✅ 1 tasks succeeded', $response->output);
+        $this->assertLineContainsTwo($response->output, 'Total success', '1');
     }
 }

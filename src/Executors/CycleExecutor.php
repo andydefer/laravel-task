@@ -35,24 +35,28 @@ final class CycleExecutor
      * Executes a single cycle of task processing.
      *
      * @param  CounterVO  $cycleCount  The current cycle number
-     * @param  bool  $hasOptionUniqueOnly  Whether to process only unique tasks
-     * @param  bool  $hasOptionRecurringOnly  Whether to process only recurring tasks
+     * @param  bool  $uniqueOnly  Whether to process only unique tasks
+     * @param  bool  $recurringOnly  Whether to process only recurring tasks
      * @param  LimitVO|null  $limit  Optional limit on tasks to process
      * @param  bool  $verbose  Whether verbose output is enabled
+     * @param  bool  $testing  Whether testing mode is enabled
      * @param  bool  $shouldStop  Whether the cycle should be skipped due to stop signal
      * @param  DurationVO  $intervalSeconds  The interval between cycles
      * @param  int|null  $parallelWorkers  Number of parallel workers (null = sequential)
+     * @param  int|null  $duration  Duration in seconds (null = unlimited)
      * @return CycleResultRecord|null The cycle result or null if stopped
      */
     public function execute(
         CounterVO $cycleCount,
-        bool $hasOptionUniqueOnly,
-        bool $hasOptionRecurringOnly,
+        bool $uniqueOnly,
+        bool $recurringOnly,
         ?LimitVO $limit,
         bool $verbose,
+        bool $testing,
         bool $shouldStop,
         DurationVO $intervalSeconds,
-        ?int $parallelWorkers = null
+        ?int $parallelWorkers = null,
+        ?int $duration = null
     ): ?CycleResultRecord {
         if ($shouldStop) {
             return null;
@@ -65,20 +69,19 @@ final class CycleExecutor
             $this->renderer->renderParallelExecution($parallelWorkers);
         }
 
+        // ✅ Construire les arguments avec QueryBuilder via WatchService
         $arguments = $this->service->buildArguments(
-            uniqueOnly: $hasOptionUniqueOnly,
-            recurringOnly: $hasOptionRecurringOnly,
+            uniqueOnly: $uniqueOnly,
+            recurringOnly: $recurringOnly,
             limit: $limit,
             verbose: $verbose,
-            parallelWorkers: $parallelWorkers
+            testing: $testing,
+            parallel: $parallelWorkers,
+            duration: $duration,
+            interval: (int) $intervalSeconds->seconds
         );
 
-        $result = $this->service->executeCycle(
-            $cycleCount,
-            $arguments,
-            $cycleStartedAt
-        );
-
+        $result = $this->service->executeCycle($cycleCount, $arguments, $cycleStartedAt);
         $this->renderer->renderCycleEnd($result, $cycleStartedAt, $intervalSeconds);
 
         return $result;

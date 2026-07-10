@@ -55,7 +55,10 @@ interface WatchInterface
      * @param  bool  $recurringOnly  Whether to process only recurring tasks
      * @param  LimitVO|null  $limit  Maximum number of tasks to process
      * @param  bool  $verbose  Whether to enable verbose output
-     * @param  int|null  $parallelWorkers  Number of parallel workers (null = sequential)
+     * @param  bool  $testing  Whether testing mode is enabled
+     * @param  int|null  $parallel  Number of parallel workers (null = sequential)
+     * @param  int|null  $duration  Duration in seconds (null = unlimited)
+     * @param  int|null  $interval  Interval in seconds (null = use default 60)
      * @return StringTypedCollection Collection of CLI arguments
      */
     public function buildArguments(
@@ -63,7 +66,10 @@ interface WatchInterface
         bool $recurringOnly,
         ?LimitVO $limit,
         bool $verbose,
-        ?int $parallelWorkers = null
+        bool $testing,
+        ?int $parallel = null,
+        ?int $duration = null,
+        ?int $interval = null
     ): StringTypedCollection;
 
     /**

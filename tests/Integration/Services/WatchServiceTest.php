@@ -84,24 +84,11 @@ final class WatchServiceTest extends IntegrationTestCase
 
     // ==================== HELPERS ====================
 
-    /**
-     * Generates a UUID for an alias.
-     *
-     * @param  string  $aliasName  The alias name
-     * @return string The generated UUID
-     */
     private function getUuidForAlias(string $aliasName): string
     {
         return Uuid::uuid4()->toString();
     }
 
-    /**
-     * Creates a TaskAliasVO from a name and optional UUID.
-     *
-     * @param  string  $name  The alias name
-     * @param  string|null  $uuid  Optional UUID
-     * @return TaskAliasVO The created alias
-     */
     private function generateAliasFromName(string $name, ?string $uuid = null): TaskAliasVO
     {
         $uuid = $uuid ?? $this->getUuidForAlias($name);
@@ -109,18 +96,6 @@ final class WatchServiceTest extends IntegrationTestCase
         return new TaskAliasVO('unique@'.$uuid);
     }
 
-    /**
-     * Creates a unique task for testing.
-     *
-     * @param  string  $alias  The alias name
-     * @param  string|null  $id  Optional task ID
-     * @param  UniqueTaskStatus  $status  The task status
-     * @param  \DateTimeInterface|null  $scheduledAt  The scheduled time
-     * @param  int  $gracePeriodSeconds  The grace period
-     * @param  int  $attempts  Current attempts
-     * @param  int  $maxAttempts  Maximum attempts
-     * @return TaskAliasVO The created alias
-     */
     private function createUniqueTask(
         string $alias,
         ?string $id = null,
@@ -151,12 +126,6 @@ final class WatchServiceTest extends IntegrationTestCase
         return $aliasVO;
     }
 
-    /**
-     * Finds a task by its alias.
-     *
-     * @param  TaskAliasVO  $alias  The task alias
-     * @return UniqueTask|null The found task or null
-     */
     private function findTaskByAlias(TaskAliasVO $alias): ?UniqueTask
     {
         return $this->uniqueRepository->findByAlias($alias);
@@ -164,44 +133,27 @@ final class WatchServiceTest extends IntegrationTestCase
 
     /**
      * Builds arguments for the executeCycle call.
-     *
-     * @param  bool  $uniqueOnly  Whether to process only unique tasks
-     * @param  bool  $recurringOnly  Whether to process only recurring tasks
-     * @param  LimitVO|null  $limit  Optional limit
-     * @param  bool  $verbose  Whether verbose output is enabled
-     * @param  int|null  $parallelWorkers  Number of parallel workers
-     * @return StringTypedCollection The built arguments
      */
     private function buildArguments(
         bool $uniqueOnly,
         bool $recurringOnly,
         ?LimitVO $limit,
         bool $verbose,
-        ?int $parallelWorkers = null
+        bool $testing,
+        ?int $parallel = null,
+        ?int $duration = null,
+        ?int $interval = null
     ): StringTypedCollection {
-        $arguments = new StringTypedCollection;
-
-        if ($uniqueOnly) {
-            $arguments->add('--unique-only');
-        }
-
-        if ($recurringOnly) {
-            $arguments->add('--recurring-only');
-        }
-
-        if ($limit !== null) {
-            $arguments->add("--limit={$limit->getValue()}");
-        }
-
-        if ($verbose) {
-            $arguments->add('--verbose');
-        }
-
-        if ($parallelWorkers !== null && $parallelWorkers > 1) {
-            $arguments->add("--parallel={$parallelWorkers}");
-        }
-
-        return $arguments;
+        return $this->service->buildArguments(
+            uniqueOnly: $uniqueOnly,
+            recurringOnly: $recurringOnly,
+            limit: $limit,
+            verbose: $verbose,
+            testing: $testing,
+            parallel: $parallel,
+            duration: $duration,
+            interval: $interval
+        );
     }
 
     // ==================== TESTS: Mode test ====================
@@ -233,11 +185,20 @@ final class WatchServiceTest extends IntegrationTestCase
             recurringOnly: false,
             limit: null,
             verbose: false,
-            parallelWorkers: null
+            testing: false,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
         $this->assertInstanceOf(StringTypedCollection::class, $arguments);
-        $this->assertCount(0, $arguments);
+
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(4, $arguments);
+        $this->assertEquals('60', $arguments->first());
+        $this->assertEquals('~', $arguments[1] ?? null);
+        $this->assertEquals('~', $arguments[2] ?? null);
+        $this->assertEquals('~', $arguments[3] ?? null);
     }
 
     public function test_build_arguments_with_unique_only(): void
@@ -247,11 +208,19 @@ final class WatchServiceTest extends IntegrationTestCase
             recurringOnly: false,
             limit: null,
             verbose: false,
-            parallelWorkers: null
+            testing: false,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
-        $this->assertTrue($arguments->contains('--unique-only'));
-        $this->assertCount(1, $arguments);
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(5, $arguments);
+        $this->assertEquals('60', $arguments->first());
+        $this->assertEquals('~', $arguments[1] ?? null);
+        $this->assertEquals('~', $arguments[2] ?? null);
+        $this->assertEquals('~', $arguments[3] ?? null);
+        $this->assertEquals('--unique-only', $arguments[4] ?? null);
     }
 
     public function test_build_arguments_with_recurring_only(): void
@@ -261,11 +230,19 @@ final class WatchServiceTest extends IntegrationTestCase
             recurringOnly: true,
             limit: null,
             verbose: false,
-            parallelWorkers: null
+            testing: false,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
-        $this->assertTrue($arguments->contains('--recurring-only'));
-        $this->assertCount(1, $arguments);
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(5, $arguments);
+        $this->assertEquals('60', $arguments->first());
+        $this->assertEquals('~', $arguments[1] ?? null);
+        $this->assertEquals('~', $arguments[2] ?? null);
+        $this->assertEquals('~', $arguments[3] ?? null);
+        $this->assertEquals('--recurring-only', $arguments[4] ?? null);
     }
 
     public function test_build_arguments_with_limit(): void
@@ -276,11 +253,18 @@ final class WatchServiceTest extends IntegrationTestCase
             recurringOnly: false,
             limit: $limit,
             verbose: false,
-            parallelWorkers: null
+            testing: false,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
-        $this->assertTrue($arguments->contains('--limit=10'));
-        $this->assertCount(1, $arguments);
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(4, $arguments);
+        $this->assertEquals('60', $arguments->first());
+        $this->assertEquals('~', $arguments[1] ?? null);
+        $this->assertEquals('10', $arguments[2] ?? null);
+        $this->assertEquals('~', $arguments[3] ?? null);
     }
 
     public function test_build_arguments_with_verbose(): void
@@ -290,39 +274,104 @@ final class WatchServiceTest extends IntegrationTestCase
             recurringOnly: false,
             limit: null,
             verbose: true,
-            parallelWorkers: null
+            testing: false,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
-        $this->assertTrue($arguments->contains('--verbose'));
-        $this->assertCount(1, $arguments);
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(5, $arguments);
+        $this->assertEquals('60', $arguments->first());
+        $this->assertEquals('~', $arguments[1] ?? null);
+        $this->assertEquals('~', $arguments[2] ?? null);
+        $this->assertEquals('~', $arguments[3] ?? null);
+        $this->assertEquals('--verbose', $arguments[4] ?? null);
     }
 
-    public function test_build_arguments_with_parallel_workers(): void
+    public function test_build_arguments_with_testing(): void
     {
         $arguments = $this->service->buildArguments(
             uniqueOnly: false,
             recurringOnly: false,
             limit: null,
             verbose: false,
-            parallelWorkers: 3
+            testing: true,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
-        $this->assertTrue($arguments->contains('--parallel=3'));
-        $this->assertCount(1, $arguments);
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(5, $arguments);
+        $this->assertEquals('60', $arguments->first());
+        $this->assertEquals('~', $arguments[1] ?? null);
+        $this->assertEquals('~', $arguments[2] ?? null);
+        $this->assertEquals('~', $arguments[3] ?? null);
+        $this->assertEquals('--testing', $arguments[4] ?? null);
     }
 
-    public function test_build_arguments_with_parallel_one_does_not_add_flag(): void
+    public function test_build_arguments_with_parallel(): void
     {
         $arguments = $this->service->buildArguments(
             uniqueOnly: false,
             recurringOnly: false,
             limit: null,
             verbose: false,
-            parallelWorkers: 1
+            testing: false,
+            parallel: 3,
+            duration: null,
+            interval: null
         );
 
-        $this->assertFalse($arguments->contains('--parallel=1'));
-        $this->assertCount(0, $arguments);
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(4, $arguments);
+        $this->assertEquals('60', $arguments->first());
+        $this->assertEquals('~', $arguments[1] ?? null);
+        $this->assertEquals('~', $arguments[2] ?? null);
+        $this->assertEquals('3', $arguments[3] ?? null);
+    }
+
+    public function test_build_arguments_with_parallel_one(): void
+    {
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            testing: false,
+            parallel: 1,
+            duration: null,
+            interval: null
+        );
+
+        // ✅ parallel=1 devient '1'
+        $this->assertCount(4, $arguments);
+        $this->assertEquals('60', $arguments->first());
+        $this->assertEquals('~', $arguments[1] ?? null);
+        $this->assertEquals('~', $arguments[2] ?? null);
+        $this->assertEquals('1', $arguments[3] ?? null);
+    }
+
+    public function test_build_arguments_with_custom_interval_and_duration(): void
+    {
+        $arguments = $this->service->buildArguments(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            testing: false,
+            parallel: null,
+            duration: 30,
+            interval: 10
+        );
+
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(4, $arguments);
+        $this->assertEquals('10', $arguments->first());
+        $this->assertEquals('30', $arguments[1] ?? null);
+        $this->assertEquals('~', $arguments[2] ?? null);
+        $this->assertEquals('~', $arguments[3] ?? null);
     }
 
     public function test_build_arguments_with_all_options(): void
@@ -333,15 +382,22 @@ final class WatchServiceTest extends IntegrationTestCase
             recurringOnly: true,
             limit: $limit,
             verbose: true,
-            parallelWorkers: 4
+            testing: true,
+            parallel: 4,
+            duration: 60,
+            interval: 30
         );
 
-        $this->assertTrue($arguments->contains('--unique-only'));
-        $this->assertTrue($arguments->contains('--recurring-only'));
-        $this->assertTrue($arguments->contains('--limit=5'));
-        $this->assertTrue($arguments->contains('--verbose'));
-        $this->assertTrue($arguments->contains('--parallel=4'));
-        $this->assertCount(5, $arguments);
+        // ✅ Ordre strict: interval, duration, limit, parallel, flags
+        $this->assertCount(9, $arguments);
+        $this->assertEquals('30', $arguments->first());
+        $this->assertEquals('60', $arguments[1] ?? null);
+        $this->assertEquals('5', $arguments[2] ?? null);
+        $this->assertEquals('4', $arguments[3] ?? null);
+        $this->assertEquals('--unique-only', $arguments[4] ?? null);
+        $this->assertEquals('--recurring-only', $arguments[5] ?? null);
+        $this->assertEquals('--verbose', $arguments[6] ?? null);
+        $this->assertEquals('--testing', $arguments[7] ?? null);
     }
 
     // ==================== TESTS: executeCycle ====================
@@ -365,7 +421,11 @@ final class WatchServiceTest extends IntegrationTestCase
             uniqueOnly: true,
             recurringOnly: false,
             limit: null,
-            verbose: false
+            verbose: false,
+            testing: true,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
         $result = $this->service->executeCycle(
@@ -401,7 +461,11 @@ final class WatchServiceTest extends IntegrationTestCase
             uniqueOnly: true,
             recurringOnly: false,
             limit: null,
-            verbose: false
+            verbose: false,
+            testing: true,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
         $result = $this->service->executeCycle(
@@ -438,7 +502,11 @@ final class WatchServiceTest extends IntegrationTestCase
             uniqueOnly: true,
             recurringOnly: false,
             limit: $limit,
-            verbose: false
+            verbose: false,
+            testing: true,
+            parallel: null,
+            duration: null,
+            interval: null
         );
 
         $result = $this->service->executeCycle(
@@ -486,13 +554,20 @@ final class WatchServiceTest extends IntegrationTestCase
             recurringOnly: false,
             limit: $limit,
             verbose: false,
-            parallelWorkers: 3
+            testing: true,
+            parallel: 3,
+            duration: null,
+            interval: null
         );
 
-        // Verify the parallel flag is in the arguments
-        $this->assertTrue($arguments->contains('--parallel=3'));
-        $this->assertTrue($arguments->contains('--limit=5'));
-        $this->assertTrue($arguments->contains('--unique-only'));
+        // ✅ 6 éléments au total
+        $this->assertCount(6, $arguments);
+        $this->assertEquals('60', $arguments->first());       // 0: interval
+        $this->assertEquals('~', $arguments[1] ?? null);      // 1: duration
+        $this->assertEquals('5', $arguments[2] ?? null);      // 2: limit
+        $this->assertEquals('3', $arguments[3] ?? null);      // 3: parallel
+        $this->assertEquals('--unique-only', $arguments[4] ?? null); // 4: flag
+        $this->assertEquals('--testing', $arguments[5] ?? null);     // 5: flag testing
 
         $result = $this->service->executeCycle(
             $cycleNumber,
@@ -500,6 +575,7 @@ final class WatchServiceTest extends IntegrationTestCase
             $cycleStartedAt
         );
 
+        dd($result);
         $this->assertInstanceOf(CycleResultRecord::class, $result);
         $this->assertEquals(5, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
