@@ -15,13 +15,14 @@
         "ramsey/uuid": "^4.7",
         "andydefer/laravel-logger": "3.9.0",
         "andydefer/laravel-repository": "2.10.1",
-        "andydefer/laravel-directive": "^3.43"
+        "andydefer/laravel-directive": "^3.45"
     },
     "require-dev": {
         "orchestra/testbench": "^9.0|^10.0",
         "phpunit/phpunit": "^10.5|^11.0|^12.0",
         "mockery/mockery": "^1.6",
-        "laravel/pint": "^1.29"
+        "laravel/pint": "^1.29",
+        "laravel/tinker": "^2.11"
     },
     "autoload": {
         "psr-4": {

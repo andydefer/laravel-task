@@ -8,66 +8,108 @@ use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\AbstractDirective;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
-use AndyDefer\Task\Contracts\Services\WatchInterface;
-use AndyDefer\Task\Contracts\Services\WatchRendererInterface;
-use AndyDefer\Task\Enums\WatchMode;
-use AndyDefer\Task\Executors\CycleExecutor;
-use AndyDefer\Task\Factories\WatchLoopStrategyFactory;
 use AndyDefer\Task\Handlers\SignalHandler;
-use AndyDefer\Task\Records\LoopResultRecord;
-use AndyDefer\Task\Runners\LoopRunner;
-use AndyDefer\Task\Validators\OptionValidator;
+use AndyDefer\Task\Records\TaskExecutionResultRecord;
+use AndyDefer\Task\Services\Watchs\CycleCalculator;
+use AndyDefer\Task\Services\Watchs\ParallelExecutor;
+use AndyDefer\Task\Services\Watchs\ResultAggregator;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use RuntimeException;
+use Throwable;
 
-/**
- * Console directive for watching and processing tasks continuously.
- *
- * Runs tasks in a continuous loop with configurable intervals and duration.
- * Supports both unique and recurring tasks with various filtering options.
- */
 final class TasksWatchDirective extends AbstractDirective
 {
-    /**
-     * Returns the command signature with available options.
-     *
-     * @return string The command signature
-     */
+    private const MIN_INTERVAL_SECONDS = 3;
+
+    private Console $console;
+
+    private SignalHandler $signalHandler;
+
+    private CycleCalculator $cycleCalculator;
+
+    private ParallelExecutor $parallelExecutor;
+
+    private ResultAggregator $aggregator;
+
     public function getSignature(): string
     {
-        return 'tasks-watch {interval=60} {duration=?} {limit=?} {parallel=?} {--unique-only} {--recurring-only} {--verbose} {--testing}';
+        return 'tasks:watch {interval=60} {duration=?} {limit=?} {parallel=?} {--unique-only} {--recurring-only} {--verbose}';
     }
 
-    /**
-     * Returns the command description.
-     *
-     * @return string The command description
-     */
     public function getDescription(): string
     {
-        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 3) and duration. Use --testing for development without full Laravel environment. Use --parallel=N for parallel execution with N workers.';
+        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 3) and duration. Use --parallel=N for parallel execution with N workers.';
     }
 
-    /**
-     * Returns the command aliases.
-     *
-     * @return StringTypedCollection Collection of command aliases
-     */
     public function getAliases(): StringTypedCollection
     {
         return StringTypedCollection::from(['task-watch', 'tasks-watch']);
     }
 
-    /**
-     * Executes the task watching directive.
-     *
-     * @return ExitCode The exit code indicating success or failure
-     *
-     * @throws RuntimeException When Laravel container is not available
-     */
     protected function execute(): ExitCode
+    {
+        try {
+            $this->boot();
+
+            $this->console->info('👀 Starting task watch...');
+            $this->displayStartMessage();
+
+            $this->signalHandler->install();
+
+            $startedAt = new Iso8601DateTimeVO;
+            $hasFailures = false;
+
+            while ($this->cycleCalculator->shouldContinue($this->aggregator->getCycleCount(), $this->signalHandler->shouldStop())) {
+                $this->signalHandler->dispatch();
+
+                if ($this->signalHandler->shouldStop()) {
+                    break;
+                }
+
+                $cycleNumber = $this->aggregator->getCycleCount() + 1;
+                $this->console->line(sprintf('🔄 Cycle #%d', $cycleNumber));
+
+                $cycleResults = $this->executeCycle();
+
+                if (! empty($cycleResults)) {
+                    $this->aggregator->addResults($cycleResults);
+                }
+
+                $this->displayCycleSummary($cycleResults);
+
+                $waitTime = $this->cycleCalculator->getNextWaitTime($cycleNumber);
+                if ($waitTime->getValue() > 0 && $this->cycleCalculator->shouldContinue($cycleNumber, $this->signalHandler->shouldStop())) {
+                    $this->waitWithSignals($waitTime);
+                }
+
+                if ($this->aggregator->hasFailures()) {
+                    $hasFailures = true;
+                }
+            }
+
+            $this->displayFinalSummary($startedAt);
+
+            return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
+
+        } catch (Throwable $e) {
+            $this->getKernel()->addProblem(
+                'tasks_watch_error',
+                'Failed to watch tasks',
+                $e->getMessage(),
+                ['exception' => get_class($e)]
+            );
+
+            if (isset($this->console)) {
+                $this->console->error('❌ Error: '.$e->getMessage());
+            }
+
+            return ExitCode::RUNTIME_ERROR;
+        }
+    }
+
+    private function boot(): void
     {
         $app = $this->getContainer();
 
@@ -75,236 +117,158 @@ final class TasksWatchDirective extends AbstractDirective
             throw new RuntimeException('Laravel container is not available');
         }
 
-        $service = $app->make(WatchInterface::class);
-        $renderer = $app->make(WatchRendererInterface::class);
-        $console = $app->make(Console::class);
+        $this->console = $app->make(Console::class);
 
-        $validationResult = $this->validateOptions($console);
-        if ($validationResult !== null) {
-            return $validationResult;
+        $interval = $this->getInterval();
+        $duration = $this->getDuration();
+        $kernel = $this->getKernel();
+
+        if ($kernel === null) {
+            throw new RuntimeException('Kernel is not available');
         }
 
-        $strategy = WatchLoopStrategyFactory::create($this, $app, $service);
-
-        if ($strategy->getMode()->isTesting()) {
-            $renderer->renderTestingModeEnabled();
-        }
-
-        $signalHandler = new SignalHandler($renderer);
-        $signalHandler->install();
-
-        $cycleExecutor = new CycleExecutor($service, $renderer);
-        $loopRunner = new LoopRunner($cycleExecutor, $signalHandler, $renderer);
-
-        $startedAt = new Iso8601DateTimeVO;
-        $duration = $this->getDurationOption();
-        $limit = $this->getLimitOption();
-        $intervalSeconds = $this->getIntervalOption();
-        $parallelWorkers = $this->getParallelWorkers();
-
-        $this->renderStartMessage($renderer, $console);
-
-        /** @var LoopResultRecord $result */
-        $result = $loopRunner->run(
-            strategy: $strategy,
-            hasOptionUniqueOnly: $this->isFlagActive('unique-only'),
-            hasOptionRecurringOnly: $this->isFlagActive('recurring-only'),
-            limit: $limit,
-            verbose: $this->isFlagActive('verbose'),
-            duration: $duration,
-            startedAt: $startedAt,
-            intervalSeconds: $intervalSeconds,
-            parallelWorkers: $parallelWorkers
-        );
-
-        $this->renderSummary(
-            $renderer,
-            $result,
-            $startedAt,
-            $signalHandler->shouldStop(),
-            $strategy->getMode()
-        );
-
-        return $result->has_errors ? ExitCode::FAILURE : ExitCode::SUCCESS;
+        $this->signalHandler = new SignalHandler($this->console);
+        $this->cycleCalculator = new CycleCalculator($interval, $duration);
+        $this->parallelExecutor = new ParallelExecutor($this->getParallelWorkers(), $this->console, $kernel);
+        $this->aggregator = new ResultAggregator;
     }
 
-    /**
-     * Validates the command options.
-     *
-     * @param  Console  $console  The console instance for error output
-     * @return ExitCode|null Exit code if validation fails, null otherwise
-     */
-    private function validateOptions(Console $console): ?ExitCode
+    private function executeCycle(): array
     {
-        $validator = new OptionValidator;
+        $uniqueOnly = $this->isFlagActive('unique-only');
+        $recurringOnly = $this->isFlagActive('recurring-only');
+        $verbose = $this->isFlagActive('verbose');
+        $limit = $this->getLimit();
 
-        $result = $validator->validate(
-            uniqueOnly: $this->isFlagActive('unique-only'),
-            recurringOnly: $this->isFlagActive('recurring-only'),
-            duration: $this->argument('duration'),
-            interval: $this->argument('interval'),
-            limit: $this->argument('limit'),
-            console: $console
+        return $this->parallelExecutor->execute(
+            uniqueOnly: $uniqueOnly,
+            recurringOnly: $recurringOnly,
+            limit: $limit,
+            verbose: $verbose
         );
-
-        if ($result !== null) {
-            return $result;
-        }
-
-        $parallel = $this->argument('parallel');
-        if ($parallel !== null && (int) $parallel < 1) {
-            $console->error('Parallel workers must be at least 1');
-
-            return ExitCode::INVALID_ARGUMENT;
-        }
-
-        return null;
     }
 
-    /**
-     * Returns the duration option as a Value Object.
-     *
-     * @return DurationVO|null The duration or null if not set
-     */
-    private function getDurationOption(): ?DurationVO
+    private function getInterval(): DurationVO
+    {
+        $interval = (float) ($this->argument('interval') ?? 60);
+
+        return new DurationVO(max($interval, self::MIN_INTERVAL_SECONDS));
+    }
+
+    private function getDuration(): ?DurationVO
     {
         $duration = $this->argument('duration');
 
         return $duration !== null ? new DurationVO((float) $duration) : null;
     }
 
-    /**
-     * Returns the limit option as a Value Object.
-     *
-     * @return LimitVO|null The limit or null if not set
-     */
-    private function getLimitOption(): ?LimitVO
+    private function getLimit(): ?LimitVO
     {
         $limit = $this->argument('limit');
 
         return $limit !== null ? new LimitVO((int) $limit) : null;
     }
 
-    /**
-     * Returns the interval option as a Value Object.
-     *
-     * @return DurationVO The interval duration
-     */
-    private function getIntervalOption(): DurationVO
-    {
-        return new DurationVO((float) ($this->argument('interval') ?? 60));
-    }
-
-    /**
-     * Returns the number of parallel workers.
-     *
-     * @return int|null The number of workers or null if not set
-     */
-    private function getParallelWorkers(): ?int
+    private function getParallelWorkers(): int
     {
         $parallel = $this->argument('parallel');
 
-        return $parallel !== null ? (int) $parallel : null;
+        return $parallel !== null ? max(1, (int) $parallel) : 1;
     }
 
-    /**
-     * Renders the start message for the watch command.
-     *
-     * @param  WatchRendererInterface  $renderer  The renderer instance
-     * @param  Console  $console  The console instance
-     */
-    private function renderStartMessage(WatchRendererInterface $renderer, Console $console): void
+    private function waitWithSignals(DurationVO $waitTime): void
     {
-        $duration = $this->getDurationOption();
-        $intervalSeconds = $this->getIntervalOption();
-        $options = $this->buildOptionsCollection();
-        $parallelWorkers = $this->getParallelWorkers();
+        $seconds = (int) $waitTime->getValue();
 
-        $renderer->renderStartMessage(
-            duration: $duration,
-            intervalSeconds: $intervalSeconds,
-            options: $options,
-            testingMode: $this->isFlagActive('testing'),
-            parallelWorkers: $parallelWorkers
-        );
+        for ($i = 0; $i < $seconds; $i++) {
+            if ($this->signalHandler->shouldStop()) {
+                break;
+            }
+
+            $this->signalHandler->dispatch();
+
+            if ($i % 10 === 0 && $i > 0) {
+                $remaining = $seconds - $i;
+                $this->console->logDebug("⏳ Waiting... {$remaining}s remaining");
+            }
+
+            sleep(1);
+        }
     }
 
-    /**
-     * Builds a collection of active command options.
-     *
-     * @return StringTypedCollection Collection of option strings
-     */
-    private function buildOptionsCollection(): StringTypedCollection
+    private function displayStartMessage(): void
     {
-        $options = new StringTypedCollection;
+        $this->console->info(sprintf('  Interval: %ds', (int) $this->getInterval()->getValue()));
 
-        // ✅ 1. interval (valeur par défaut)
-        $interval = $this->argument('interval');
-        if ($interval !== null && $interval !== '60') {
-            $options->add($interval);
+        $duration = $this->getDuration();
+        if ($duration !== null) {
+            $this->console->info(sprintf('  Duration: %ds', (int) $duration->getValue()));
         }
 
-        // ✅ 2. duration (nullable) - TOUJOURS présent
-        $duration = $this->argument('duration');
-        $options->add($duration ?? '~');
+        $workers = $this->getParallelWorkers();
+        if ($workers > 1) {
+            $this->console->info(sprintf('  Workers: %d', $workers));
+        }
 
-        // ✅ 3. limit (nullable) - TOUJOURS présent
-        $limit = $this->argument('limit');
-        $options->add($limit ?? '~');
+        $limit = $this->getLimit();
+        if ($limit !== null) {
+            $this->console->info(sprintf('  Limit: %d', $limit->getValue()));
+        }
 
-        // ✅ 4. parallel (nullable) - TOUJOURS présent
-        $parallel = $this->argument('parallel');
-        $options->add($parallel ?? '~');
-
-        // ✅ 5. Flags (toujours en dernier)
+        $options = [];
         if ($this->isFlagActive('unique-only')) {
-            $options->add('--unique-only');
+            $options[] = '--unique-only';
         }
-
         if ($this->isFlagActive('recurring-only')) {
-            $options->add('--recurring-only');
+            $options[] = '--recurring-only';
         }
-
         if ($this->isFlagActive('verbose')) {
-            $options->add('--verbose');
+            $options[] = '--verbose';
         }
 
-        if ($this->isFlagActive('testing')) {
-            $options->add('--testing');
+        if (! empty($options)) {
+            $this->console->info('  Options: '.implode(' ', $options));
         }
 
-        return $options;
+        $this->console->line('Press Ctrl+C to stop');
+        $this->console->line();
     }
 
-    /**
-     * Renders the final summary after the watch loop completes.
-     *
-     * @param  WatchRendererInterface  $renderer  The renderer instance
-     * @param  LoopResultRecord  $result  The loop execution result
-     * @param  Iso8601DateTimeVO  $startedAt  The start timestamp
-     * @param  bool  $shouldStop  Whether a signal stopped the loop
-     * @param  WatchMode  $mode  The watch mode
-     */
-    private function renderSummary(
-        WatchRendererInterface $renderer,
-        LoopResultRecord $result,
-        Iso8601DateTimeVO $startedAt,
-        bool $shouldStop,
-        WatchMode $mode
-    ): void {
-        $duration = $this->argument('duration');
-        $durationReached = $duration !== null;
+    private function displayCycleSummary(array $results): void
+    {
+        $successCount = 0;
+        $failedCount = 0;
 
-        $renderer->renderSummary(
-            cycleCount: $result->cycle_count,
-            totalSuccess: $result->total_success,
-            totalFailed: $result->total_failed,
-            totalErrors: $result->total_errors,
-            startedAt: $startedAt,
-            testingMode: $mode->isTesting(),
-            stoppedBySignal: $shouldStop,
-            durationReached: $durationReached,
-            exception: $result->last_exception
-        );
+        foreach ($results as $result) {
+            if ($result instanceof TaskExecutionResultRecord) {
+                $successCount += $result->success->getValue();
+                $failedCount += $result->failed->getValue();
+            }
+        }
+
+        $this->console->info(sprintf('  ✅ Success: %d, ❌ Failed: %d', $successCount, $failedCount));
+        $this->console->line();
+    }
+
+    private function displayFinalSummary(Iso8601DateTimeVO $startedAt): void
+    {
+        $elapsed = $startedAt->elapsed();
+        $totalCycles = $this->aggregator->getCycleCount();
+
+        $this->console->line();
+        $this->console->title('📊 Watch Summary');
+        $this->console->line();
+
+        $this->console->info(sprintf('  🔄 Cycles: %d', $totalCycles));
+        $this->console->info(sprintf('  ✅ Success: %d', $this->aggregator->getTotalSuccess()->getValue()));
+        $this->console->info(sprintf('  ❌ Failed: %d', $this->aggregator->getTotalFailed()->getValue()));
+        $this->console->info(sprintf('  ⚠️  Errors: %d', $this->aggregator->getTotalErrors()->getValue()));
+        $this->console->info(sprintf('  ⏱️  Duration: %.2fs', $elapsed->seconds));
+
+        if ($this->signalHandler->shouldStop()) {
+            $this->console->alert('  🛑 Stopped by signal');
+        }
+
+        $this->console->line();
     }
 }

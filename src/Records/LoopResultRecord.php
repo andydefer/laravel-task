@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Records;
 
+use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
 
-final class LoopResultRecord
+final class LoopResultRecord extends AbstractRecord
 {
     public function __construct(
         public readonly CounterVO $cycle_count,

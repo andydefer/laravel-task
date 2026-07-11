@@ -19,7 +19,7 @@ use Throwable;
  * @example
  * // From within your application
  * $app = TaskApp::create(__DIR__);
- * $exitCode = $app->runDirective('process-tasks', ['--verbose']);
+ * $exitCode = $app->runDirective('tasks:process', ['--verbose']);
  *
  * // From CLI
  * $app = TaskApp::create(__DIR__);
@@ -85,7 +85,7 @@ final class TaskApp
     /**
      * Run a directive by its signature.
      *
-     * @param  string  $query  The signature (e.g., "process-tasks --verbose")
+     * @param  string  $query  The signature (e.g., "tasks:process --verbose")
      * @return int The exit code
      */
     public function runSignature(string $query): int

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "44d6a91f4cfc241a1eaabdda372a3639",
+    "content-hash": "22aec8d9b3fbde3f37729469c6d09fd3",
     "packages": [
         {
             "name": "andydefer/algo-kit",
@@ -106,16 +106,16 @@
         },
         {
             "name": "andydefer/laravel-directive",
-            "version": "v3.43.0",
+            "version": "v3.45.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-directive.git",
-                "reference": "7a3a66106a7afa858b1f7b1acc77766b67b06e13"
+                "reference": "994b5d32383c7c73d2dd9862b359a3b31aec43ce"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/7a3a66106a7afa858b1f7b1acc77766b67b06e13",
-                "reference": "7a3a66106a7afa858b1f7b1acc77766b67b06e13",
+                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/994b5d32383c7c73d2dd9862b359a3b31aec43ce",
+                "reference": "994b5d32383c7c73d2dd9862b359a3b31aec43ce",
                 "shasum": ""
             },
             "require": {
@@ -168,9 +168,9 @@
             "description": "A flexible CLI command system for Laravel that breaks free from Artisan's constraints. Directives introduces a clean separation between what your command does (business logic) and how it's presented (output/UI).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-directive/issues",
-                "source": "https://github.com/andydefer/laravel-directive/tree/v3.43.0"
+                "source": "https://github.com/andydefer/laravel-directive/tree/v3.45.0"
             },
-            "time": "2026-07-10T19:17:38+00:00"
+            "time": "2026-07-10T22:43:40+00:00"
         },
         {
             "name": "andydefer/laravel-jsonl",

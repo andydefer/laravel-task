@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace AndyDefer\Task;
 
 use AndyDefer\ConsoleWriter\Console\Console;
+use AndyDefer\Directive\Container\LaravelContainerAdapter;
+use AndyDefer\Directive\DirectiveKernel;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
 use AndyDefer\LaravelJsonl\JsonlService;
@@ -13,6 +15,7 @@ use AndyDefer\Logger\Configs\LoggerConfig;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\LoggerService;
 use AndyDefer\PhpServices\Services\FileSystemService;
+use AndyDefer\Task\Bootstrap\ApplicationFactory;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
@@ -25,8 +28,6 @@ use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\TaskExecutionDebugServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
-use AndyDefer\Task\Contracts\Services\WatchInterface;
-use AndyDefer\Task\Contracts\Services\WatchRendererInterface;
 use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
 use AndyDefer\Task\Loggers\RecurringTaskLogger;
@@ -41,8 +42,6 @@ use AndyDefer\Task\Runners\UniqueTaskRunner;
 use AndyDefer\Task\Services\RecurringTaskService;
 use AndyDefer\Task\Services\TaskExecutionDebugService;
 use AndyDefer\Task\Services\UniqueTaskService;
-use AndyDefer\Task\Services\WatchRendererService;
-use AndyDefer\Task\Services\WatchService;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -59,6 +58,7 @@ final class TaskServiceProvider extends ServiceProvider
 
     public function register(): void
     {
+
         $this->registerLogger();
 
         // ✅ SERVICES DE BASE
@@ -261,36 +261,15 @@ final class TaskServiceProvider extends ServiceProvider
         );
         $this->app->alias(RecurringTaskServiceInterface::class, RecurringTaskService::class);
 
-        // ✅ WATCH SERVICES
-        $this->registerWatchServices();
-    }
-
-    /**
-     * Enregistre les services de watch.
-     */
-    private function registerWatchServices(): void
-    {
-        // ✅ WatchRendererService
+        // ✅ BOUND KERNEL
         $this->app->singleton(
-            abstract: WatchRendererInterface::class,
-            concrete: function (Application $app) {
-                return new WatchRendererService(
-                    console: $app->make(Console::class)
-                );
+            abstract: DirectiveKernel::class,
+            concrete: function () {
+                $container = new LaravelContainerAdapter(ApplicationFactory::create());
+
+                return DirectiveKernel::init($container);
             }
         );
-        $this->app->alias(WatchRendererInterface::class, WatchRendererService::class);
-
-        // ✅ WatchService avec Console
-        $this->app->singleton(
-            abstract: WatchInterface::class,
-            concrete: function (Application $app) {
-                return new WatchService(
-                    console: $app->make(Console::class)
-                );
-            }
-        );
-        $this->app->alias(WatchInterface::class, WatchService::class);
     }
 
     private function registerLogger(): void

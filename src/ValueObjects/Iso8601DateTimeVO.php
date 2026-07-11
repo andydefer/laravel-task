@@ -74,6 +74,20 @@ final class Iso8601DateTimeVO extends AbstractValueObject
     }
 
     /**
+     * Calculate the difference in milliseconds between this datetime and another.
+     *
+     * @param  self  $other  The other datetime
+     * @return MillisecondsVO The duration in milliseconds between the two datetimes
+     */
+    public function diffInMilliseconds(self $other): MillisecondsVO
+    {
+        $startTimestamp = $this->toCarbon()->getTimestamp();
+        $endTimestamp = $other->toCarbon()->getTimestamp();
+
+        return new MillisecondsVO((int) (($endTimestamp - $startTimestamp) * 1000));
+    }
+
+    /**
      * Calculate the duration since this datetime in milliseconds.
      *
      * @return MillisecondsVO The duration from this datetime to now in milliseconds

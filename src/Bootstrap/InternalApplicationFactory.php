@@ -12,6 +12,7 @@ use Illuminate\Database\DatabaseServiceProvider;
 use Illuminate\Events\EventServiceProvider;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Providers\ArtisanServiceProvider;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Facade;
 
@@ -31,6 +32,7 @@ class InternalApplicationFactory
                 //
             })
             ->withProviders([
+                ArtisanServiceProvider::class,
                 DatabaseServiceProvider::class,
                 EventServiceProvider::class,
             ])

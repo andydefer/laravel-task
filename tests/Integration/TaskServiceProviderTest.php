@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration;
 
 use AndyDefer\ConsoleWriter\Console\Console;
+use AndyDefer\Directive\DirectiveKernel;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\LoggerService;
@@ -20,10 +21,9 @@ use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\TaskExecutionDebugServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
-use AndyDefer\Task\Contracts\Services\WatchInterface;
 use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
-use AndyDefer\Task\Directives\ProcessTasksDirective;
+use AndyDefer\Task\Directives\TasksProcessDirective;
 use AndyDefer\Task\Directives\TasksWatchDirective;
 use AndyDefer\Task\Loggers\RecurringTaskLogger;
 use AndyDefer\Task\Loggers\UniqueTaskLogger;
@@ -37,7 +37,6 @@ use AndyDefer\Task\Runners\UniqueTaskRunner;
 use AndyDefer\Task\Services\RecurringTaskService;
 use AndyDefer\Task\Services\TaskExecutionDebugService;
 use AndyDefer\Task\Services\UniqueTaskService;
-use AndyDefer\Task\Services\WatchService;
 use AndyDefer\Task\TaskServiceProvider;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
@@ -355,24 +354,12 @@ final class TaskServiceProviderTest extends IntegrationTestCase
         $this->assertSame($instance1, $instance2);
     }
 
-    // ==================== WATCH SERVICES ====================
-
-    public function test_watch_service_is_bound(): void
+    public function test_directive_kernel_is_bound(): void
     {
-        $this->assertTrue($this->app->bound(WatchInterface::class));
+        $this->assertTrue($this->app->bound(DirectiveKernel::class));
 
-        $instance = $this->app->make(WatchInterface::class);
-        $this->assertInstanceOf(WatchService::class, $instance);
-    }
-
-    public function test_watch_service_alias_works(): void
-    {
-        $this->assertTrue($this->app->bound(WatchService::class));
-
-        $instance1 = $this->app->make(WatchInterface::class);
-        $instance2 = $this->app->make(WatchService::class);
-
-        $this->assertSame($instance1, $instance2);
+        $instance = $this->app->make(DirectiveKernel::class);
+        $this->assertInstanceOf(DirectiveKernel::class, $instance);
     }
 
     // ==================== SINGLETONS ====================
@@ -411,11 +398,19 @@ final class TaskServiceProviderTest extends IntegrationTestCase
         $this->assertSame($instance1, $instance2);
     }
 
+    public function test_directive_kernel_is_singleton(): void
+    {
+        $instance1 = $this->app->make(DirectiveKernel::class);
+        $instance2 = $this->app->make(DirectiveKernel::class);
+
+        $this->assertSame($instance1, $instance2);
+    }
+
     // ==================== DIRECTIVES ====================
 
     public function test_process_tasks_directive_exists(): void
     {
-        $this->assertTrue(class_exists(ProcessTasksDirective::class));
+        $this->assertTrue(class_exists(TasksProcessDirective::class));
     }
 
     public function test_tasks_watch_directive_exists(): void
@@ -433,8 +428,8 @@ final class TaskServiceProviderTest extends IntegrationTestCase
         $this->assertTrue($this->app->bound(LoggerInterface::class));
         $this->assertTrue($this->app->bound(UniqueTaskServiceInterface::class));
         $this->assertTrue($this->app->bound(RecurringTaskServiceInterface::class));
-        $this->assertTrue($this->app->bound(WatchInterface::class));
         $this->assertTrue($this->app->bound(Console::class));
+        $this->assertTrue($this->app->bound(DirectiveKernel::class));
     }
 
     public function test_service_provider_boots_migrations(): void
@@ -442,7 +437,6 @@ final class TaskServiceProviderTest extends IntegrationTestCase
         $provider = new TaskServiceProvider($this->app);
         $provider->boot();
 
-        // Vérifier que les migrations sont publiées
         $this->assertTrue(method_exists($provider, 'loadMigrationsFrom'));
     }
 }
