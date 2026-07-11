@@ -26,17 +26,17 @@ use Throwable;
  * $app = TaskApp::create(__DIR__);
  * $exitCode = $app->run($argv);
  */
-final class TaskApp implements ApplicationInterface
+class TaskApp implements ApplicationInterface
 {
-    private TaskContainer $container;
+    protected TaskContainer $container;
 
-    private DirectiveKernel $kernel;
+    protected DirectiveKernel $kernel;
 
-    private Console $console;
+    protected Console $console;
 
-    private bool $verbose = false;
+    protected bool $verbose = false;
 
-    private function __construct(string $basePath)
+    protected function __construct(string $basePath)
     {
         $this->container = TaskContainer::create(ApplicationFactory::create(), $basePath);
         $this->kernel = $this->container->make(DirectiveKernel::class);
@@ -48,9 +48,9 @@ final class TaskApp implements ApplicationInterface
      *
      * @param  string  $basePath  The project root path
      */
-    public static function create(string $basePath): self
+    public static function create(string $basePath): static
     {
-        return new self($basePath);
+        return new static($basePath);
     }
 
     /**
@@ -138,7 +138,7 @@ final class TaskApp implements ApplicationInterface
      *
      * @param  bool  $enabled  Whether verbose mode is enabled
      */
-    public function verbose(bool $enabled = true): self
+    public function verbose(bool $enabled = true): static
     {
         $this->verbose = $enabled;
 

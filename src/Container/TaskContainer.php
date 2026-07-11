@@ -13,7 +13,7 @@ use Illuminate\Foundation\Application;
  * Use this for standalone applications or when you want a
  * ready-to-use container for Laravel Task without Laravel.
  */
-final class TaskContainer extends Container
+class TaskContainer extends Container
 {
     protected function __construct(
         private readonly Application $app,
