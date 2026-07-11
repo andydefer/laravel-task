@@ -8,6 +8,7 @@ use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\DirectiveKernel;
 use AndyDefer\Task\Bootstrap\ApplicationFactory;
 use AndyDefer\Task\Container\TaskContainer;
+use AndyDefer\Task\Contracts\ApplicationInterface;
 use Throwable;
 
 /**
@@ -25,7 +26,7 @@ use Throwable;
  * $app = TaskApp::create(__DIR__);
  * $exitCode = $app->run($argv);
  */
-final class TaskApp
+final class TaskApp implements ApplicationInterface
 {
     private TaskContainer $container;
 
@@ -37,9 +38,6 @@ final class TaskApp
 
     private function __construct(string $basePath)
     {
-
-        // $application = ApplicationFactory::create();
-
         $this->container = TaskContainer::create(ApplicationFactory::create(), $basePath);
         $this->kernel = $this->container->make(DirectiveKernel::class);
         $this->console = $this->container->make(Console::class);
