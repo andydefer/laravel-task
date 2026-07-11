@@ -27,7 +27,7 @@ class TaskContainer extends Container
      */
     public static function create(Application $app, string $basePath = __DIR__): static
     {
-        return new self($app, $basePath);
+        return new static($app, $basePath);
     }
 
     /**
