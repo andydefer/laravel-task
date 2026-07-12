@@ -150,28 +150,28 @@ final class TasksWatchDirective extends AbstractDirective
 
     private function getInterval(): DurationVO
     {
-        $interval = (float) ($this->argument('interval') ?? 60);
+        $interval = (float) ($this->getArgument('interval') ?? 60);
 
         return new DurationVO(max($interval, self::MIN_INTERVAL_SECONDS));
     }
 
     private function getDuration(): ?DurationVO
     {
-        $duration = $this->argument('duration');
+        $duration = $this->getArgument('duration');
 
         return $duration !== null ? new DurationVO((float) $duration) : null;
     }
 
     private function getLimit(): ?LimitVO
     {
-        $limit = $this->argument('limit');
+        $limit = $this->getArgument('limit');
 
         return $limit !== null ? new LimitVO((int) $limit) : null;
     }
 
     private function getParallelWorkers(): int
     {
-        $parallel = $this->argument('parallel');
+        $parallel = $this->getArgument('parallel');
 
         return $parallel !== null ? max(1, (int) $parallel) : 1;
     }

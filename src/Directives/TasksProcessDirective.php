@@ -185,7 +185,7 @@ final class TasksProcessDirective extends AbstractDirective
 
     private function validateAndGetLimit(): ?int
     {
-        $limitRaw = $this->argument('limit');
+        $limitRaw = $this->getArgument('limit');
 
         if ($limitRaw === null || $limitRaw === 'infinite' || $limitRaw === '0') {
             return null;
