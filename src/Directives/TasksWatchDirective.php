@@ -45,7 +45,7 @@ final class TasksWatchDirective extends AbstractDirective
 
     public function getAliases(): StringTypedCollection
     {
-        return StringTypedCollection::from(['task-watch', 'tasks-watch']);
+        return StringTypedCollection::from(['task-watch', 'tw']);
     }
 
     protected function execute(): ExitCode

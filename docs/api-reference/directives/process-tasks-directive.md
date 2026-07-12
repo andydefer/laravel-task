@@ -54,7 +54,7 @@ $description = $directive->getDescription();
 **Exemple :**
 ```php
 $aliases = $directive->getAliases();
-// ['task-process', 'tasks-process']
+// ['task-process', 'tp']
 ```
 
 ---

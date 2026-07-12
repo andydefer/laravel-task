@@ -59,7 +59,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $aliases = $directive->getAliases();
 
         $this->assertTrue($aliases->contains('task-watch'));
-        $this->assertTrue($aliases->contains('tasks-watch'));
+        $this->assertTrue($aliases->contains('tw'));
         $this->assertSame(2, $aliases->count());
     }
 

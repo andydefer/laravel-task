@@ -236,7 +236,7 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
         $aliases = $directive->getAliases();
 
         $this->assertTrue($aliases->contains('task-process'));
-        $this->assertTrue($aliases->contains('tasks-process'));
+        $this->assertTrue($aliases->contains('tp'));
         $this->assertSame(2, $aliases->count());
     }
 

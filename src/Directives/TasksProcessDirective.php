@@ -45,7 +45,7 @@ final class TasksProcessDirective extends AbstractDirective
 
     public function getAliases(): StringTypedCollection
     {
-        return StringTypedCollection::from(['task-process', 'tasks-process']);
+        return StringTypedCollection::from(['task-process', 'tp']);
     }
 
     public function execute(): ExitCode
