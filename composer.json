@@ -15,7 +15,7 @@
         "ramsey/uuid": "^4.7",
         "andydefer/laravel-logger": "^3.9.1",
         "andydefer/laravel-repository": "^2.10.2",
-        "andydefer/laravel-directive": "^3.50.0"
+        "andydefer/laravel-directive": "^3.51.0"
     },
     "require-dev": {
         "orchestra/testbench": "^9.0|^10.0",
