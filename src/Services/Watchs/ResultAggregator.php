@@ -96,6 +96,6 @@ final class ResultAggregator
 
     public function hasFailures(): bool
     {
-        return $this->totalFailed > 0;
+        return $this->totalFailed > 0 || $this->totalErrors > 0;
     }
 }

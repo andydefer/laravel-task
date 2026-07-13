@@ -38,7 +38,7 @@ final class CycleCalculatorTest extends IntegrationTestCase
 
         $calculator = new CycleCalculator($interval, $duration);
 
-        $this->assertEquals(10, $calculator->getTotalCycles());
+        $this->assertEquals(11, $calculator->getTotalCycles());
     }
 
     public function test_get_total_cycles_without_duration_returns_int_max(): void
@@ -50,14 +50,47 @@ final class CycleCalculatorTest extends IntegrationTestCase
         $this->assertEquals(PHP_INT_MAX, $calculator->getTotalCycles());
     }
 
-    public function test_get_total_cycles_rounds_up(): void
+    public function test_get_total_cycles_floor_plus_one(): void
+    {
+        $interval = new DurationVO(3);
+        $duration = new DurationVO(30);
+
+        $calculator = new CycleCalculator($interval, $duration);
+
+        // 30 / 3 = 10, + 1 = 11 cycles
+        $this->assertEquals(11, $calculator->getTotalCycles());
+    }
+
+    public function test_get_total_cycles_with_remaining_time(): void
     {
         $interval = new DurationVO(3);
         $duration = new DurationVO(10);
 
         $calculator = new CycleCalculator($interval, $duration);
 
+        // 10 / 3 = 3.33, floor = 3, + 1 = 4 cycles
+        // 4 cycles × 3s = 12s (couvre les 10s)
         $this->assertEquals(4, $calculator->getTotalCycles());
+    }
+
+    public function test_get_estimated_duration(): void
+    {
+        $interval = new DurationVO(3);
+        $duration = new DurationVO(30);
+
+        $calculator = new CycleCalculator($interval, $duration);
+
+        // 11 cycles × 3s = 30s
+        $this->assertEquals(30.0, $calculator->getEstimatedDuration());
+    }
+
+    public function test_get_estimated_duration_without_duration(): void
+    {
+        $interval = new DurationVO(3);
+
+        $calculator = new CycleCalculator($interval);
+
+        $this->assertEquals(PHP_FLOAT_MAX, $calculator->getEstimatedDuration());
     }
 
     public function test_get_remaining_cycles(): void
@@ -67,8 +100,9 @@ final class CycleCalculatorTest extends IntegrationTestCase
 
         $calculator = new CycleCalculator($interval, $duration);
 
-        $this->assertEquals(8, $calculator->getRemainingCycles(2));
-        $this->assertEquals(0, $calculator->getRemainingCycles(10));
+        // 100 / 10 = 10, + 1 = 11 cycles
+        $this->assertEquals(9, $calculator->getRemainingCycles(2));
+        $this->assertEquals(0, $calculator->getRemainingCycles(11));
         $this->assertEquals(0, $calculator->getRemainingCycles(15));
     }
 
@@ -90,9 +124,10 @@ final class CycleCalculatorTest extends IntegrationTestCase
 
         $calculator = new CycleCalculator($interval, $duration);
 
+        // 100 / 10 = 10, + 1 = 11 cycles
         $this->assertTrue($calculator->shouldContinue(0, false));
-        $this->assertTrue($calculator->shouldContinue(9, false));
-        $this->assertFalse($calculator->shouldContinue(10, false));
+        $this->assertTrue($calculator->shouldContinue(10, false));
+        $this->assertFalse($calculator->shouldContinue(11, false));
         $this->assertFalse($calculator->shouldContinue(0, true));
     }
 
@@ -113,18 +148,12 @@ final class CycleCalculatorTest extends IntegrationTestCase
 
         $calculator = new CycleCalculator($interval, $duration);
 
-        $testCases = [
-            ['cycle' => 1, 'expected' => 10],
-            ['cycle' => 9, 'expected' => 10],
-            ['cycle' => 10, 'expected' => 0],
-            ['cycle' => 11, 'expected' => 0],
-        ];
-
-        // Assertions
+        // 100 / 10 = 10, + 1 = 11 cycles
+        // On attend après chaque cycle sauf le dernier (cycle 11)
         $this->assertEquals(10, $calculator->getNextWaitTime(1)->getValue());
-        $this->assertEquals(10, $calculator->getNextWaitTime(9)->getValue());
-        $this->assertEquals(0, $calculator->getNextWaitTime(10)->getValue());
+        $this->assertEquals(10, $calculator->getNextWaitTime(10)->getValue());
         $this->assertEquals(0, $calculator->getNextWaitTime(11)->getValue());
+        $this->assertEquals(0, $calculator->getNextWaitTime(12)->getValue());
     }
 
     public function test_min_interval_is_respected(): void
@@ -137,5 +166,27 @@ final class CycleCalculatorTest extends IntegrationTestCase
         $totalCycles = $calculator->getTotalCycles();
 
         $this->assertGreaterThanOrEqual(1, $totalCycles);
+    }
+
+    public function test_get_total_cycles_with_exact_division(): void
+    {
+        $interval = new DurationVO(5);
+        $duration = new DurationVO(30);
+
+        $calculator = new CycleCalculator($interval, $duration);
+
+        // 30 / 5 = 6, + 1 = 7 cycles
+        $this->assertEquals(7, $calculator->getTotalCycles());
+    }
+
+    public function test_get_total_cycles_with_one_cycle(): void
+    {
+        $interval = new DurationVO(5);
+        $duration = new DurationVO(3);
+
+        $calculator = new CycleCalculator($interval, $duration);
+
+        // 3 / 5 = 0, + 1 = 1 cycle
+        $this->assertEquals(1, $calculator->getTotalCycles());
     }
 }
