@@ -66,4 +66,14 @@ class TaskContainer extends Container
     {
         return $this->app;
     }
+
+    /**
+     * Set the Laravel application instance
+     */
+    public function setApp(Application $app): self
+    {
+        $this->app = $app;
+
+        return $this;
+    }
 }
