@@ -16,7 +16,7 @@ use Illuminate\Foundation\Application;
 class TaskContainer extends Container
 {
     protected function __construct(
-        private readonly Application $app,
+        protected readonly Application $app,
         string $basePath = __DIR__
     ) {
         parent::__construct($basePath);
