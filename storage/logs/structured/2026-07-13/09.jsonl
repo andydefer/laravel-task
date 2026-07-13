@@ -1,4 +1,0 @@
-{"time":"2026-07-13T09:17:06+00:00","level":"info","type":"task_debug_cleared","payload":{"alias":"unique@14deefaa-3721-425d-a06d-9cd83979bf00"}}
-{"time":"2026-07-13T09:17:08+00:00","level":"info","type":"task_debug_cleared","payload":{"alias":"unique@71ec8073-b12a-40b3-a374-1878530ecae6"}}
-{"time":"2026-07-13T09:17:11+00:00","level":"info","type":"task_debug_cleared_by_fqcn","payload":{"fqcn":"AndyDefer\\Task\\Tests\\Fixtures\\Tasks\\TestTask"}}
-{"time":"2026-07-13T09:17:11+00:00","level":"info","type":"task_debug_cleared_by_fqcn","payload":{"fqcn":"AndyDefer\\Task\\Tests\\Fixtures\\Tasks\\TestTask"}}

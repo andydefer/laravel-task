@@ -16,7 +16,7 @@ use Illuminate\Foundation\Application;
 class TaskContainer extends Container
 {
     protected function __construct(
-        protected readonly Application $app,
+        protected Application $app,
         string $basePath = __DIR__
     ) {
         parent::__construct($basePath);
@@ -60,5 +60,10 @@ class TaskContainer extends Container
     public function version(): ?string
     {
         return $this->app->version();
+    }
+
+    public function getApp(): Application
+    {
+        return $this->app;
     }
 }

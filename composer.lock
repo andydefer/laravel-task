@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "c5b50aaf96f844e3cc4f30bf2a97d8f3",
+    "content-hash": "525e372c97e60af21f9cc307666df4d7",
     "packages": [
         {
             "name": "andydefer/algo-kit",
@@ -106,23 +106,23 @@
         },
         {
             "name": "andydefer/laravel-directive",
-            "version": "v3.51.2",
+            "version": "v3.51.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-directive.git",
-                "reference": "1a83ecbb146fb950f95b8e625547f6b535fdc21f"
+                "reference": "a7406e7f881875deb905f53eec9a4ef73d602b88"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/1a83ecbb146fb950f95b8e625547f6b535fdc21f",
-                "reference": "1a83ecbb146fb950f95b8e625547f6b535fdc21f",
+                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/a7406e7f881875deb905f53eec9a4ef73d602b88",
+                "reference": "a7406e7f881875deb905f53eec9a4ef73d602b88",
                 "shasum": ""
             },
             "require": {
-                "andydefer/algo-kit": "^0.8.1",
-                "andydefer/laravel-jsonl": "^0.8.2",
-                "andydefer/php-console": "^1.6.1",
-                "andydefer/php-signature-parser": "^0.9.0",
+                "andydefer/algo-kit": "^0.8.2",
+                "andydefer/laravel-jsonl": "^0.8.3",
+                "andydefer/php-console": "^1.6.2",
+                "andydefer/php-signature-parser": "^0.9.1",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "nikic/php-parser": "^5.8",
                 "php": ">=8.1"
@@ -168,9 +168,9 @@
             "description": "A flexible CLI command system for Laravel that breaks free from Artisan's constraints. Directives introduces a clean separation between what your command does (business logic) and how it's presented (output/UI).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-directive/issues",
-                "source": "https://github.com/andydefer/laravel-directive/tree/v3.51.2"
+                "source": "https://github.com/andydefer/laravel-directive/tree/v3.51.3"
             },
-            "time": "2026-07-12T20:12:21+00:00"
+            "time": "2026-07-13T07:40:30+00:00"
         },
         {
             "name": "andydefer/laravel-jsonl",
