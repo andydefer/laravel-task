@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Directives;
 
+use AndyDefer\ConsoleWriter\Console\Components\Logger;
 use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\AbstractDirective;
 use AndyDefer\Directive\Enums\ExitCode;
@@ -21,7 +22,7 @@ use Throwable;
 
 final class TasksWatchDirective extends AbstractDirective
 {
-    private const MIN_INTERVAL_SECONDS = 3;
+    private const MIN_INTERVAL_SECONDS = 2;
 
     private Console $console;
 
@@ -40,7 +41,7 @@ final class TasksWatchDirective extends AbstractDirective
 
     public function getDescription(): string
     {
-        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 3) and duration. Use --parallel=N for parallel execution with N workers.';
+        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 2) and duration. Use --parallel=N for parallel execution with N workers.';
     }
 
     public function getAliases(): StringTypedCollection
@@ -60,15 +61,20 @@ final class TasksWatchDirective extends AbstractDirective
 
             $startedAt = new Iso8601DateTimeVO;
             $hasFailures = false;
+            $cycleNumber = 0;
 
-            while ($this->cycleCalculator->shouldContinue($this->aggregator->getCycleCount(), $this->signalHandler->shouldStop())) {
+            while ($this->cycleCalculator->shouldContinue($cycleNumber, $this->signalHandler->shouldStop())) {
                 $this->signalHandler->dispatch();
 
                 if ($this->signalHandler->shouldStop()) {
                     break;
                 }
 
-                $cycleNumber = $this->aggregator->getCycleCount() + 1;
+                // ✅ Incrémenter manuellement le cycle
+                $cycleNumber++;
+                $this->aggregator->startNewCycle();
+
+                $this->console->line();
                 $this->console->line(sprintf('🔄 Cycle #%d', $cycleNumber));
 
                 $cycleResults = $this->executeCycle();
@@ -77,7 +83,7 @@ final class TasksWatchDirective extends AbstractDirective
                     $this->aggregator->addResults($cycleResults);
                 }
 
-                $this->displayCycleSummary($cycleResults);
+                $this->displayCycleSummary($cycleNumber, $cycleResults);
 
                 $waitTime = $this->cycleCalculator->getNextWaitTime($cycleNumber);
                 if ($waitTime->getValue() > 0 && $this->cycleCalculator->shouldContinue($cycleNumber, $this->signalHandler->shouldStop())) {
@@ -111,7 +117,7 @@ final class TasksWatchDirective extends AbstractDirective
 
     private function boot(): void
     {
-        $app = $this->getContainer();
+        $app = $this->getApplication();
 
         if ($app === null) {
             throw new RuntimeException('Laravel container is not available');
@@ -176,23 +182,34 @@ final class TasksWatchDirective extends AbstractDirective
         return $parallel !== null ? max(1, (int) $parallel) : 1;
     }
 
+    /**
+     * Attend avec précision en utilisant microtime pour un timing exact.
+     *
+     * Contrairement à sleep() qui peut être imprécis, cette méthode utilise
+     * microtime() pour garantir une attente exacte.
+     */
     private function waitWithSignals(DurationVO $waitTime): void
     {
-        $seconds = (int) $waitTime->getValue();
+        $seconds = $waitTime->getValue();
+        $start = microtime(true);
+        $elapsed = 0.0;
 
-        for ($i = 0; $i < $seconds; $i++) {
+        while ($elapsed < $seconds) {
             if ($this->signalHandler->shouldStop()) {
                 break;
             }
 
             $this->signalHandler->dispatch();
 
-            if ($i % 10 === 0 && $i > 0) {
-                $remaining = $seconds - $i;
-                $this->console->logDebug("⏳ Waiting... {$remaining}s remaining");
+            // Calculer le temps restant
+            $remaining = $seconds - $elapsed;
+            $sleepTime = min(0.1, $remaining); // Dormir par petits morceaux de 0.1s
+
+            if ($sleepTime > 0) {
+                usleep((int) ($sleepTime * 1000000));
             }
 
-            sleep(1);
+            $elapsed = microtime(true) - $start;
         }
     }
 
@@ -202,7 +219,14 @@ final class TasksWatchDirective extends AbstractDirective
 
         $duration = $this->getDuration();
         if ($duration !== null) {
-            $this->console->info(sprintf('  Duration: %ds', (int) $duration->getValue()));
+            $totalCycles = $this->cycleCalculator->getTotalCycles();
+            $estimatedDuration = $this->cycleCalculator->getEstimatedDuration();
+
+            $this->console->info(sprintf('  Duration: %ds (estimated: %ds, %d cycles)',
+                (int) $duration->getValue(),
+                (int) $estimatedDuration,
+                $totalCycles
+            ));
         }
 
         $workers = $this->getParallelWorkers();
@@ -234,20 +258,27 @@ final class TasksWatchDirective extends AbstractDirective
         $this->console->line();
     }
 
-    private function displayCycleSummary(array $results): void
+    private function displayCycleSummary(int $cycleNumber, array $results): void
     {
-        $successCount = 0;
-        $failedCount = 0;
+        $success = 0;
+        $failed = 0;
+        $total = 0;
 
         foreach ($results as $result) {
             if ($result instanceof TaskExecutionResultRecord) {
-                $successCount += $result->success->getValue();
-                $failedCount += $result->failed->getValue();
+                $success += $result->success->getValue();
+                $failed += $result->failed->getValue();
+                $total += $result->total->getValue();
             }
         }
 
-        $this->console->info(sprintf('  ✅ Success: %d, ❌ Failed: %d', $successCount, $failedCount));
-        $this->console->line();
+        echo Logger::debug(sprintf(
+            'Cycle #%d | ✅ Success: %d | ❌ Failed: %d | 📦 Total: %d',
+            $cycleNumber,
+            $success,
+            $failed,
+            $total
+        ));
     }
 
     private function displayFinalSummary(Iso8601DateTimeVO $startedAt): void
@@ -263,7 +294,12 @@ final class TasksWatchDirective extends AbstractDirective
         $this->console->info(sprintf('  ✅ Success: %d', $this->aggregator->getTotalSuccess()->getValue()));
         $this->console->info(sprintf('  ❌ Failed: %d', $this->aggregator->getTotalFailed()->getValue()));
         $this->console->info(sprintf('  ⚠️  Errors: %d', $this->aggregator->getTotalErrors()->getValue()));
-        $this->console->info(sprintf('  ⏱️  Duration: %.2fs', $elapsed->seconds));
+
+        $duration = $this->getDuration();
+        if ($duration !== null) {
+            $this->console->info(sprintf('  ⏱️  Planned Duration: %ds', (int) $duration->getValue()));
+        }
+        $this->console->info(sprintf('  ⏱️  Elapsed: %.2fs', $elapsed->getValue()));
 
         if ($this->signalHandler->shouldStop()) {
             $this->console->alert('  🛑 Stopped by signal');

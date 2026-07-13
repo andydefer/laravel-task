@@ -5,31 +5,22 @@ declare(strict_types=1);
 namespace AndyDefer\Task;
 
 use AndyDefer\ConsoleWriter\Console\Console;
+use AndyDefer\Directive\Bootstrap\ApplicationBuilder;
 use AndyDefer\Directive\DirectiveKernel;
-use AndyDefer\Task\Bootstrap\ApplicationFactory;
-use AndyDefer\Task\Container\TaskContainer;
+use AndyDefer\Directive\DirectiveServiceProvider;
+use AndyDefer\Directive\Enums\ApplicationType;
+use AndyDefer\LaravelJsonl\LaravelJsonlServiceProvider;
+use AndyDefer\Logger\LoggerServiceProvider;
 use AndyDefer\Task\Contracts\ApplicationInterface;
+use Illuminate\Database\DatabaseServiceProvider;
+use Illuminate\Events\EventServiceProvider;
+use Illuminate\Foundation\Application;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Facade;
 use Throwable;
 
-/**
- * Task Application - Main entry point for Laravel Task.
- *
- * This class provides a convenient way to run Task directives
- * from within your application or from the command line.
- *
- * @example
- * // From within your application
- * $app = TaskApp::create(__DIR__);
- * $exitCode = $app->runDirective('tasks:process', ['--verbose']);
- *
- * // From CLI
- * $app = TaskApp::create(__DIR__);
- * $exitCode = $app->run($argv);
- */
 class TaskApp implements ApplicationInterface
 {
-    protected TaskContainer $container;
-
     protected DirectiveKernel $kernel;
 
     protected Console $console;
@@ -38,9 +29,58 @@ class TaskApp implements ApplicationInterface
 
     protected function __construct(string $basePath)
     {
-        $this->container = TaskContainer::create(ApplicationFactory::create(), $basePath);
-        $this->kernel = $this->container->make(DirectiveKernel::class);
-        $this->console = $this->container->make(Console::class);
+        // ✅ Créer le dossier database et le fichier SQLite
+        $databaseDir = $basePath.'/database';
+        if (! is_dir($databaseDir)) {
+            mkdir($databaseDir, 0755, true);
+        }
+
+        $databaseFile = $databaseDir.'/database.sqlite';
+        if (! file_exists($databaseFile)) {
+            touch($databaseFile);
+        }
+
+        $app = ApplicationBuilder::init(ApplicationType::INTERNAL)
+            ->withProviders([
+                EventServiceProvider::class,
+                DatabaseServiceProvider::class,
+                LaravelJsonlServiceProvider::class,
+                DirectiveServiceProvider::class,
+                LoggerServiceProvider::class,
+                TaskServiceProvider::class,
+            ])
+            ->withConfig([
+                'database' => [
+                    'default' => 'sqlite',
+                    'connections' => [
+                        'sqlite' => [
+                            'driver' => 'sqlite',
+                            'database' => $databaseFile,
+                            'prefix' => '',
+                            'foreign_key_constraints' => true,
+                        ],
+                    ],
+                    'migrations' => 'migrations',
+                ],
+                'logger' => [
+                    'base_path' => $basePath.'/storage/logs/task',
+                    'buffer_size' => 100,
+                ],
+                'task' => [
+                    'default_interval' => 60,
+                    'default_limit' => 50,
+                ],
+            ])
+            ->build();
+
+        // ✅ Définir le Facade root
+        Facade::setFacadeApplication($app);
+
+        // ✅ Exécuter les migrations
+        $this->runMigrations();
+
+        $this->kernel = $app->make(DirectiveKernel::class);
+        $this->console = $app->make(Console::class);
     }
 
     /**
@@ -62,7 +102,6 @@ class TaskApp implements ApplicationInterface
     public function run(array $argv): int
     {
         try {
-            // Add default sources
             $this->addDefaultSources();
 
             if ($this->verbose) {
@@ -168,11 +207,39 @@ class TaskApp implements ApplicationInterface
     }
 
     /**
-     * Get the underlying container instance.
+     * Get the underlying application instance.
      */
-    public function getContainer(): TaskContainer
+    public function getApplication(): Application
     {
-        return $this->container;
+        return $this->kernel->getApplication();
+    }
+
+    /**
+     * Run migrations for the task package.
+     */
+    private function runMigrations(): void
+    {
+        try {
+            // ✅ Vérifier si les migrations doivent être exécutées
+            $migrationsPath = dirname(__DIR__).'/database/migrations';
+
+            if (! is_dir($migrationsPath)) {
+                return;
+            }
+
+            // ✅ Exécuter les migrations via Artisan
+            Artisan::call('migrate', [
+                '--path' => 'vendor/andydefer/laravel-task/database/migrations',
+                '--force' => true,
+            ]);
+
+            // Ou si les migrations sont dans le dossier du package
+            Artisan::call('migrate', ['--force' => true]);
+
+        } catch (Throwable $e) {
+            // Ignorer l'erreur de migration si elle se produit
+            // Les migrations seront exécutées manuellement par l'utilisateur
+        }
     }
 
     /**
@@ -180,8 +247,6 @@ class TaskApp implements ApplicationInterface
      */
     private function addDefaultSources(): void
     {
-        $basePath = $this->container->basePath();
-
-        $this->kernel->addSource($basePath.'/src/Directives');
+        $this->kernel->addSource(getcwd().'/src/Directives');
     }
 }

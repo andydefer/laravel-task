@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Bootstrap;
 
-use AndyDefer\Directive\Bootstrap\Paths;
 use AndyDefer\Directive\Exceptions\BootstrapException;
+use AndyDefer\Directive\Helpers\Paths;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Contracts\Foundation\Application;
 

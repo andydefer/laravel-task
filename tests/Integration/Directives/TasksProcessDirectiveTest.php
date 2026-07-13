@@ -8,7 +8,6 @@ use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
-use AndyDefer\Task\Bootstrap\ApplicationFactory;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Directives\TasksProcessDirective;
@@ -52,7 +51,6 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app = ApplicationFactory::create();
 
         $frozenNow = Carbon::create(2026, 6, 23, 12, 0, 0);
         Carbon::setTestNow($frozenNow);

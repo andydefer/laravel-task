@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Directives;
 
 use AndyDefer\Directive\Services\DirectiveTestingService;
-use AndyDefer\Task\Bootstrap\ApplicationFactory;
 use AndyDefer\Task\Directives\TasksWatchDirective;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 
@@ -18,7 +17,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         parent::setUp();
 
         $this->testingService = new DirectiveTestingService(
-            ApplicationFactory::create(),
+            $this->app,
         );
     }
 
@@ -67,12 +66,12 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->testingService->runDirective(
             TasksWatchDirective::class,
-            ['3', '6']  // ✅ interval=3s, duration=6s (minimum interval est 3s)
+            ['2', '4', '4']  // ✅ interval=3s, duration=6s (minimum interval est 3s)
         );
 
         $this->assertStringContainsString('Starting task watch', $response->output);
-        $this->assertStringContainsString('Interval: 3s', $response->output);
-        $this->assertStringContainsString('Duration: 6s', $response->output);
+        $this->assertStringContainsString('Interval: 2s', $response->output);
+        $this->assertStringContainsString('Duration: 4s', $response->output);
         $this->assertStringContainsString('Press Ctrl+C to stop', $response->output);
     }
 
@@ -80,11 +79,11 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->testingService->runDirective(
             TasksWatchDirective::class,
-            ['3', '9']  // ✅ interval=3s (minimum), duration=9s
+            ['2', '6']  // ✅ interval=2s (minimum), duration=6s
         );
 
-        $this->assertStringContainsString('Interval: 3s', $response->output);
-        $this->assertStringContainsString('Duration: 9s', $response->output);
+        $this->assertStringContainsString('Interval: 2s', $response->output);
+        $this->assertStringContainsString('Duration: 6s', $response->output);
         $this->assertStringContainsString('Watch Summary', $response->output);
     }
 
@@ -92,7 +91,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->testingService->runDirective(
             TasksWatchDirective::class,
-            ['3', '9', '10']  // ✅ interval=3s, duration=9s, limit=10
+            ['2', '4', '10']  // ✅ interval=2s, duration=4s, limit=10
         );
 
         $this->assertStringContainsString('Limit: 10', $response->output);
@@ -103,7 +102,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->testingService->runDirective(
             TasksWatchDirective::class,
-            ['3', '9', '10', '3']  // ✅ interval=3s, duration=9s, limit=10, workers=3
+            ['2', '4', '10', '3']  // ✅ interval=2s, duration=4s, limit=10, workers=3
         );
 
         $this->assertStringContainsString('Workers: 3', $response->output);
@@ -115,7 +114,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->testingService->runDirective(
             TasksWatchDirective::class,
-            ['3', '6', '10', '1', '--unique-only']  // ✅ interval=3s, duration=6s, limit=10
+            ['2', '4', '10', '1', '--unique-only']  // ✅ interval=2s, duration=4s, limit=10
         );
 
         $this->assertStringContainsString('Options: --unique-only', $response->output);
@@ -126,7 +125,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->testingService->runDirective(
             TasksWatchDirective::class,
-            ['3', '6', '10', '1', '--recurring-only']  // ✅ interval=3s, duration=6s, limit=10
+            ['2', '4', '10', '1', '--recurring-only']  // ✅ interval=2s, duration=4s, limit=10
         );
 
         $this->assertStringContainsString('Options: --recurring-only', $response->output);
@@ -137,7 +136,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         $response = $this->testingService->runDirective(
             TasksWatchDirective::class,
-            ['3', '6', '10', '1', '--verbose']  // ✅ interval=3s, duration=6s, limit=10
+            ['2', '4', '10', '1', '--verbose']  // ✅ interval=2s, duration=4s, limit=10
         );
 
         $this->assertStringContainsString('Options: --verbose', $response->output);

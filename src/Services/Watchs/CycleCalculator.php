@@ -28,15 +28,37 @@ final class CycleCalculator
         return $this->duration;
     }
 
+    /**
+     * Calcule le nombre total de cycles.
+     *
+     * Avec interval=3s, duration=30s :
+     * - Cycle #1 : t=0s
+     * - Cycle #2 : t=3s
+     * - ...
+     * - Cycle #10 : t=27s
+     * - Cycle #11 : t=30s
+     *
+     * Donc total = (duration / interval) + 1
+     */
     public function getTotalCycles(): int
     {
         if ($this->duration === null) {
             return PHP_INT_MAX;
         }
 
-        $total = (int) ceil($this->duration->getValue() / $this->interval->getValue());
+        // ✅ +1 pour compenser le premier cycle à t=0
+        $total = (int) floor($this->duration->getValue() / $this->interval->getValue()) + 1;
 
         return max(1, $total);
+    }
+
+    public function getEstimatedDuration(): float
+    {
+        if ($this->duration === null) {
+            return PHP_FLOAT_MAX;
+        }
+
+        return ($this->getTotalCycles() - 1) * $this->interval->getValue();
     }
 
     public function getRemainingCycles(int $currentCycle): int
@@ -65,7 +87,7 @@ final class CycleCalculator
             return $this->interval;
         }
 
-        // On attend seulement si on n'est pas au dernier cycle
+        // On attend après chaque cycle sauf le dernier
         if ($currentCycle < $this->getTotalCycles()) {
             return $this->interval;
         }

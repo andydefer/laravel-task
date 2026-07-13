@@ -78,6 +78,7 @@ final class ParallelExecutor
         if ($verbose) {
             $argv[] = '--verbose';
         }
+        $argv[] = '--mute';
 
         $this->kernel->getContext()->put('worker_id', $workerId);
 

@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "525e372c97e60af21f9cc307666df4d7",
+    "content-hash": "cd04c9a9dc843c310b87d348cf2309b9",
     "packages": [
         {
             "name": "andydefer/algo-kit",
@@ -106,16 +106,16 @@
         },
         {
             "name": "andydefer/laravel-directive",
-            "version": "v3.51.3",
+            "version": "v3.53.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-directive.git",
-                "reference": "a7406e7f881875deb905f53eec9a4ef73d602b88"
+                "reference": "4f357c2889e0a6652ca2220f2347c16249214e51"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/a7406e7f881875deb905f53eec9a4ef73d602b88",
-                "reference": "a7406e7f881875deb905f53eec9a4ef73d602b88",
+                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/4f357c2889e0a6652ca2220f2347c16249214e51",
+                "reference": "4f357c2889e0a6652ca2220f2347c16249214e51",
                 "shasum": ""
             },
             "require": {
@@ -139,8 +139,7 @@
                 "vimeo/psalm": "^6.14"
             },
             "bin": [
-                "bin/directive",
-                "bin/directive-agno"
+                "bin/directive"
             ],
             "type": "library",
             "extra": {
@@ -168,9 +167,9 @@
             "description": "A flexible CLI command system for Laravel that breaks free from Artisan's constraints. Directives introduces a clean separation between what your command does (business logic) and how it's presented (output/UI).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-directive/issues",
-                "source": "https://github.com/andydefer/laravel-directive/tree/v3.51.3"
+                "source": "https://github.com/andydefer/laravel-directive/tree/v3.53.0"
             },
-            "time": "2026-07-13T07:40:30+00:00"
+            "time": "2026-07-13T15:22:40+00:00"
         },
         {
             "name": "andydefer/laravel-jsonl",

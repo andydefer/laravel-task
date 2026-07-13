@@ -4,6 +4,7 @@ node_modules/
 docs/diffs/
 npm-debug.log
 yarn-error.log
+/.directive/
 
 # Laravel 4 specific
 bootstrap/compiled.php

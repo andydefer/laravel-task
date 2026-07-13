@@ -6,6 +6,7 @@ namespace AndyDefer\Task\Contracts;
 
 use AndyDefer\Directive\Container\Container;
 use AndyDefer\Directive\DirectiveKernel;
+use Illuminate\Foundation\Application;
 
 /**
  * Interface for the Task Application.
@@ -68,5 +69,5 @@ interface ApplicationInterface
     /**
      * Get the underlying container instance.
      */
-    public function getContainer(): Container;
+    public function getApplication(): Application;
 }

@@ -4,62 +4,54 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services\Watchs;
 
-use AndyDefer\Task\Records\LoopResultRecord;
+use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Records\TaskExecutionResultRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 
 final class ResultAggregator
 {
-    private CounterVO $totalSuccess;
+    private int $cycleCount = 0;
 
-    private CounterVO $totalFailed;
+    private int $totalSuccess = 0;
 
-    private CounterVO $totalErrors;
+    private int $totalFailed = 0;
 
-    private int $cycleCount;
+    private int $totalErrors = 0;
 
-    public function __construct()
+    private int $uniqueSuccess = 0;
+
+    private int $uniqueFailed = 0;
+
+    private int $recurringSuccess = 0;
+
+    private int $recurringFailed = 0;
+
+    public function startNewCycle(): void
     {
-        $this->totalSuccess = new CounterVO(0);
-        $this->totalFailed = new CounterVO(0);
-        $this->totalErrors = new CounterVO(0);
-        $this->cycleCount = 0;
-    }
-
-    public function addResult(TaskExecutionResultRecord $result): self
-    {
-        $this->totalSuccess = $this->totalSuccess->add($result->success);
-        $this->totalFailed = $this->totalFailed->add($result->failed);
-        $this->totalErrors = $this->totalErrors->add(new CounterVO($result->errors->count()));
         $this->cycleCount++;
-
-        return $this;
     }
 
-    public function addResults(array $results): self
+    public function addResults(array $results): void
     {
         foreach ($results as $result) {
             if ($result instanceof TaskExecutionResultRecord) {
-                $this->addResult($result);
+                $success = $result->success->getValue();
+                $failed = $result->failed->getValue();
+                $errors = $result->errors->count();
+
+                $this->totalSuccess += $success;
+                $this->totalFailed += $failed;
+                $this->totalErrors += $errors;
+
+                if ($result->type === TaskType::UNIQUE) {
+                    $this->uniqueSuccess += $success;
+                    $this->uniqueFailed += $failed;
+                } elseif ($result->type === TaskType::RECURRING) {
+                    $this->recurringSuccess += $success;
+                    $this->recurringFailed += $failed;
+                }
             }
         }
-
-        return $this;
-    }
-
-    public function getTotalSuccess(): CounterVO
-    {
-        return $this->totalSuccess;
-    }
-
-    public function getTotalFailed(): CounterVO
-    {
-        return $this->totalFailed;
-    }
-
-    public function getTotalErrors(): CounterVO
-    {
-        return $this->totalErrors;
     }
 
     public function getCycleCount(): int
@@ -67,30 +59,43 @@ final class ResultAggregator
         return $this->cycleCount;
     }
 
+    public function getTotalSuccess(): CounterVO
+    {
+        return new CounterVO($this->totalSuccess);
+    }
+
+    public function getTotalFailed(): CounterVO
+    {
+        return new CounterVO($this->totalFailed);
+    }
+
+    public function getTotalErrors(): CounterVO
+    {
+        return new CounterVO($this->totalErrors);
+    }
+
+    public function getUniqueSuccess(): CounterVO
+    {
+        return new CounterVO($this->uniqueSuccess);
+    }
+
+    public function getUniqueFailed(): CounterVO
+    {
+        return new CounterVO($this->uniqueFailed);
+    }
+
+    public function getRecurringSuccess(): CounterVO
+    {
+        return new CounterVO($this->recurringSuccess);
+    }
+
+    public function getRecurringFailed(): CounterVO
+    {
+        return new CounterVO($this->recurringFailed);
+    }
+
     public function hasFailures(): bool
     {
-        return $this->totalFailed->isPositive() || $this->totalErrors->isPositive();
-    }
-
-    public function reset(): self
-    {
-        $this->totalSuccess = new CounterVO(0);
-        $this->totalFailed = new CounterVO(0);
-        $this->totalErrors = new CounterVO(0);
-        $this->cycleCount = 0;
-
-        return $this;
-    }
-
-    public function toLoopResultRecord(): LoopResultRecord
-    {
-        return LoopResultRecord::from([
-            'cycle_count' => new CounterVO($this->cycleCount),
-            'total_success' => $this->totalSuccess,
-            'total_failed' => $this->totalFailed,
-            'total_errors' => $this->totalErrors,
-            'has_errors' => $this->hasFailures(),
-            'last_exception' => null,
-        ]);
+        return $this->totalFailed > 0;
     }
 }

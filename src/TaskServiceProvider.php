@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace AndyDefer\Task;
 
 use AndyDefer\ConsoleWriter\Console\Console;
-use AndyDefer\Directive\Container\LaravelContainerAdapter;
 use AndyDefer\Directive\DirectiveKernel;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\LaravelJsonl\Contexts\JsonlContext;
@@ -15,7 +14,6 @@ use AndyDefer\Logger\Configs\LoggerConfig;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\LoggerService;
 use AndyDefer\PhpServices\Services\FileSystemService;
-use AndyDefer\Task\Bootstrap\ApplicationFactory;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
@@ -44,6 +42,7 @@ use AndyDefer\Task\Services\TaskExecutionDebugService;
 use AndyDefer\Task\Services\UniqueTaskService;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
+use Illuminate\Config\Repository;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
@@ -58,6 +57,10 @@ final class TaskServiceProvider extends ServiceProvider
 
     public function register(): void
     {
+
+        $this->app->singleton(ConfigRepository::class, function () {
+            return new Repository([]);
+        });
 
         $this->registerLogger();
 
@@ -265,9 +268,7 @@ final class TaskServiceProvider extends ServiceProvider
         $this->app->singleton(
             abstract: DirectiveKernel::class,
             concrete: function () {
-                $container = new LaravelContainerAdapter(ApplicationFactory::create());
-
-                return DirectiveKernel::init($container);
+                return DirectiveKernel::init($this->app);
             }
         );
     }

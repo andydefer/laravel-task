@@ -2,8 +2,8 @@
 
 namespace AndyDefer\Task\Bootstrap;
 
-use AndyDefer\Directive\Bootstrap\Paths;
 use AndyDefer\Directive\DirectiveServiceProvider;
+use AndyDefer\Directive\Helpers\Paths;
 use AndyDefer\Repository\RepositoryServiceProvider;
 use AndyDefer\Task\Enums\ConnectionType;
 use AndyDefer\Task\TaskServiceProvider;

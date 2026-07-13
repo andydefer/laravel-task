@@ -29,13 +29,15 @@ final class TasksProcessDirective extends AbstractDirective
 
     private bool $isVerbose;
 
+    private bool $isMuted;
+
     private ?int $limit;
 
     private string $executionId;
 
     public function getSignature(): string
     {
-        return 'tasks:process {limit=infinite} {--unique-only} {--recurring-only} {--verbose}';
+        return 'tasks:process {limit=infinite} {--unique-only} {--recurring-only} {--verbose} {--mute}';
     }
 
     public function getDescription(): string
@@ -51,22 +53,27 @@ final class TasksProcessDirective extends AbstractDirective
     public function execute(): ExitCode
     {
         try {
-            $app = $this->getContainer();
+            $app = $this->getApplication();
 
             if ($app === null) {
-                $this->console?->error('Laravel container is not available');
+                if (! $this->isMuted()) {
+                    $this->console?->error('Laravel container is not available');
+                }
 
                 return ExitCode::RUNTIME_ERROR;
             }
 
             $this->console = $app->make(Console::class);
             $this->isVerbose = $this->isFlagActive('verbose');
+            $this->isMuted = $this->isFlagActive('mute');
 
             // Validation centralisée du limit
             try {
                 $this->limit = $this->validateAndGetLimit();
             } catch (InvalidArgumentException $e) {
-                $this->console->error($e->getMessage());
+                if (! $this->isMuted()) {
+                    $this->console->error($e->getMessage());
+                }
 
                 return ExitCode::INVALID_ARGUMENT;
             }
@@ -82,7 +89,9 @@ final class TasksProcessDirective extends AbstractDirective
             $uniqueOnly = $this->isFlagActive('unique-only');
             $recurringOnly = $this->isFlagActive('recurring-only');
 
-            $this->renderStart();
+            if (! $this->isMuted()) {
+                $this->renderStart();
+            }
 
             $hasFailures = match (true) {
                 $uniqueOnly => $this->processTasks(TaskType::UNIQUE),
@@ -93,7 +102,7 @@ final class TasksProcessDirective extends AbstractDirective
             return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
 
         } catch (Throwable $e) {
-            if (isset($this->console)) {
+            if (! $this->isMuted() && isset($this->console)) {
                 $this->console->error('❌ Error processing tasks: '.$e->getMessage());
             }
 
@@ -112,8 +121,11 @@ final class TasksProcessDirective extends AbstractDirective
 
         $label = $this->getTaskTypeLabel($type);
 
-        $this->renderResult($result, $label);
-        $this->renderErrors($result->errors, $label);
+        if (! $this->isMuted()) {
+            $this->renderResult($result, $label);
+            $this->renderErrors($result->errors, $label);
+        }
+
         $this->storeResult($this->executionId, $result, $type);
 
         return $result->failed->isPositive();
@@ -121,16 +133,25 @@ final class TasksProcessDirective extends AbstractDirective
 
     private function processBothTypes(): bool
     {
-        $this->console->info('Processing Unique tasks...');
+        if (! $this->isMuted()) {
+            $this->console->info('Processing Unique tasks...');
+        }
+
         $uniqueResult = $this->processTasksWithoutRendering(TaskType::UNIQUE);
 
-        $this->console->info('Processing Recurring tasks...');
+        if (! $this->isMuted()) {
+            $this->console->info('Processing Recurring tasks...');
+        }
+
         $recurringResult = $this->processTasksWithoutRendering(TaskType::RECURRING);
 
         $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
 
-        $this->renderCombinedResults($uniqueResult, $recurringResult);
-        $this->renderErrorsFromMultiple($uniqueResult->errors, $recurringResult->errors);
+        if (! $this->isMuted()) {
+            $this->renderCombinedResults($uniqueResult, $recurringResult);
+            $this->renderErrorsFromMultiple($uniqueResult->errors, $recurringResult->errors);
+        }
+
         $this->storeFullResult($this->executionId, $uniqueResult, $recurringResult);
 
         return $hasFailures;
@@ -147,7 +168,7 @@ final class TasksProcessDirective extends AbstractDirective
 
     private function getService(TaskType $type): UniqueTaskServiceInterface|RecurringTaskServiceInterface
     {
-        $container = $this->getContainer();
+        $container = $this->getApplication();
 
         if ($container === null) {
             throw new RuntimeException('Laravel container is not available. Task processing requires Laravel.');
@@ -175,7 +196,9 @@ final class TasksProcessDirective extends AbstractDirective
         $recurringOnly = $this->isFlagActive('recurring-only');
 
         if ($uniqueOnly && $recurringOnly) {
-            $this->console->error('Cannot use both --unique-only and --recurring-only');
+            if (! $this->isMuted()) {
+                $this->console->error('Cannot use both --unique-only and --recurring-only');
+            }
 
             return ExitCode::INVALID_ARGUMENT;
         }
@@ -197,6 +220,11 @@ final class TasksProcessDirective extends AbstractDirective
         }
 
         return $limit;
+    }
+
+    private function isMuted(): bool
+    {
+        return $this->isMuted ?? false;
     }
 
     // ==================== RENDERING ====================

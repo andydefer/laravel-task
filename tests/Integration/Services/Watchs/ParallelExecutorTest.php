@@ -6,7 +6,6 @@ namespace AndyDefer\Task\Tests\Integration\Services\Watchs;
 
 use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\DirectiveKernel;
-use AndyDefer\Task\Bootstrap\TaskDirectiveKernelFactory;
 use AndyDefer\Task\Records\TaskExecutionResultRecord;
 use AndyDefer\Task\Services\Watchs\ParallelExecutor;
 use AndyDefer\Task\Tests\IntegrationTestCase;
@@ -26,7 +25,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
         ob_start();
 
         $this->console = new Console;
-        $this->kernel = TaskDirectiveKernelFactory::create();
+        $this->kernel = DirectiveKernel::init($this->app);
         $this->executor = new ParallelExecutor(2, $this->console, $this->kernel);
     }
 

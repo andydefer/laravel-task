@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Bootstrap;
 
-use AndyDefer\Directive\Bootstrap\Paths;
-use AndyDefer\Task\Enums\ApplicationType;
+use AndyDefer\Directive\Enums\ApplicationType;
+use AndyDefer\Directive\Helpers\Paths;
 
 final class EnvironmentDetector
 {
