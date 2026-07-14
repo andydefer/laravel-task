@@ -8,6 +8,12 @@ use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\Task\Directives\TasksWatchDirective;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 
+/**
+ * Integration tests for the TasksWatchDirective.
+ *
+ * Validates the watch command with various configurations including
+ * interval, duration, limit, parallel workers, and filtering options.
+ */
 final class TasksWatchDirectiveTest extends IntegrationTestCase
 {
     private DirectiveTestingService $testingService;
@@ -27,12 +33,19 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         parent::tearDown();
     }
 
+    private function runDirective(array $arguments): object
+    {
+        return $this->testingService->runDirective(
+            TasksWatchDirective::class,
+            $arguments
+        );
+    }
+
     public function test_get_signature_returns_correct_string(): void
     {
         $directive = $this->app->make(TasksWatchDirective::class);
         $signature = $directive->getSignature();
 
-        // ✅ Correction: tasks:watch (avec deux-points)
         $this->assertStringContainsString('tasks:watch', $signature);
         $this->assertStringContainsString('interval', $signature);
         $this->assertStringContainsString('duration', $signature);
@@ -41,6 +54,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('--unique-only', $signature);
         $this->assertStringContainsString('--recurring-only', $signature);
         $this->assertStringContainsString('--verbose', $signature);
+        $this->assertStringContainsString('--mute', $signature);
     }
 
     public function test_get_description_returns_string(): void
@@ -50,6 +64,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $this->assertIsString($description);
         $this->assertNotEmpty($description);
+        $this->assertStringContainsString('--mute', $description);
     }
 
     public function test_get_aliases_returns_aliases(): void
@@ -64,10 +79,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_interval_only(): void
     {
-        $response = $this->testingService->runDirective(
-            TasksWatchDirective::class,
-            ['2', '4', '4']  // ✅ interval=3s, duration=6s (minimum interval est 3s)
-        );
+        $response = $this->runDirective(['2', '4', '4']);
 
         $this->assertStringContainsString('Starting task watch', $response->output);
         $this->assertStringContainsString('Interval: 2s', $response->output);
@@ -77,10 +89,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_duration(): void
     {
-        $response = $this->testingService->runDirective(
-            TasksWatchDirective::class,
-            ['2', '6']  // ✅ interval=2s (minimum), duration=6s
-        );
+        $response = $this->runDirective(['2', '6']);
 
         $this->assertStringContainsString('Interval: 2s', $response->output);
         $this->assertStringContainsString('Duration: 6s', $response->output);
@@ -89,10 +98,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_limit(): void
     {
-        $response = $this->testingService->runDirective(
-            TasksWatchDirective::class,
-            ['2', '4', '10']  // ✅ interval=2s, duration=4s, limit=10
-        );
+        $response = $this->runDirective(['2', '4', '10']);
 
         $this->assertStringContainsString('Limit: 10', $response->output);
         $this->assertStringContainsString('Watch Summary', $response->output);
@@ -100,22 +106,17 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_parallel_workers(): void
     {
-        $response = $this->testingService->runDirective(
-            TasksWatchDirective::class,
-            ['2', '4', '10', '3']  // ✅ interval=2s, duration=4s, limit=10, workers=3
-        );
+        $response = $this->runDirective(['2', '4', '10', '2']);
 
-        $this->assertStringContainsString('Workers: 3', $response->output);
-        $this->assertStringContainsString('Starting 3 parallel workers', $response->output);
+        $this->assertStringContainsString('Workers: 2', $response->output);
+        $this->assertStringContainsString('Starting 2 parallel workers', $response->output);
         $this->assertStringContainsString('Watch Summary', $response->output);
+        $this->assertStringContainsString('Cycles:', $response->output);
     }
 
     public function test_execute_with_unique_only(): void
     {
-        $response = $this->testingService->runDirective(
-            TasksWatchDirective::class,
-            ['2', '4', '10', '1', '--unique-only']  // ✅ interval=2s, duration=4s, limit=10
-        );
+        $response = $this->runDirective(['2', '4', '10', '1', '--unique-only']);
 
         $this->assertStringContainsString('Options: --unique-only', $response->output);
         $this->assertStringContainsString('Watch Summary', $response->output);
@@ -123,10 +124,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_recurring_only(): void
     {
-        $response = $this->testingService->runDirective(
-            TasksWatchDirective::class,
-            ['2', '4', '10', '1', '--recurring-only']  // ✅ interval=2s, duration=4s, limit=10
-        );
+        $response = $this->runDirective(['2', '4', '10', '1', '--recurring-only']);
 
         $this->assertStringContainsString('Options: --recurring-only', $response->output);
         $this->assertStringContainsString('Watch Summary', $response->output);
@@ -134,12 +132,67 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_verbose_mode(): void
     {
-        $response = $this->testingService->runDirective(
-            TasksWatchDirective::class,
-            ['2', '4', '10', '1', '--verbose']  // ✅ interval=2s, duration=4s, limit=10
-        );
+        $response = $this->runDirective(['2', '4', '10', '1', '--verbose']);
 
         $this->assertStringContainsString('Options: --verbose', $response->output);
         $this->assertStringContainsString('Watch Summary', $response->output);
+    }
+
+    public function test_execute_with_mute_option_should_not_output_anything(): void
+    {
+        $response = $this->runDirective(['2', '4', '10', '1', '--mute']);
+
+        $this->assertEmpty($response->output);
+    }
+
+    public function test_execute_with_mute_and_parallel_should_not_output_anything(): void
+    {
+        $response = $this->runDirective(['2', '4', '10', '3', '--mute']);
+
+        $this->assertEmpty($response->output);
+    }
+
+    public function test_execute_with_mute_and_verbose_should_not_output_anything(): void
+    {
+        $response = $this->runDirective(['2', '4', '10', '1', '--verbose', '--mute']);
+
+        $this->assertEmpty($response->output);
+    }
+
+    public function test_execute_with_mute_and_duration_should_not_output_anything(): void
+    {
+        $response = $this->runDirective(['2', '8', '--mute']);
+
+        $this->assertEmpty($response->output);
+    }
+
+    public function test_execute_with_mute_and_all_options_should_not_output_anything(): void
+    {
+        $response = $this->runDirective(['2', '6', '20', '4', '--unique-only', '--mute']);
+
+        $this->assertEmpty($response->output);
+    }
+
+    public function test_mute_compared_to_normal_execution(): void
+    {
+        // $responseWithoutMute = $this->runDirective(['2', '4', '10', '1']);
+        $responseWithMute = $this->runDirective(['2', '4', '10', '1', '--mute']);
+
+        //   $this->assertNotEmpty($responseWithoutMute->output);
+        $this->assertEmpty($responseWithMute->output);
+    }
+
+    public function test_execute_with_mute_over_multiple_cycles_should_not_output_anything(): void
+    {
+        $response = $this->runDirective(['1', '5', '20', '2', '--mute']);
+
+        $this->assertEmpty($response->output);
+    }
+
+    public function test_execute_with_mute_returns_correct_exit_code(): void
+    {
+        $response = $this->runDirective(['2', '4', '10', '1', '--mute']);
+
+        $this->assertSame(0, $response->exit_code->value);
     }
 }

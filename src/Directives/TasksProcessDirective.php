@@ -57,7 +57,7 @@ final class TasksProcessDirective extends AbstractDirective
 
             if ($app === null) {
                 if (! $this->isMuted()) {
-                    $this->console?->error('Laravel container is not available');
+                    $this->console->error('Laravel container is not available');
                 }
 
                 return ExitCode::RUNTIME_ERROR;

@@ -20,16 +20,16 @@ final class MillisecondsVO extends AbstractValueObject
     /**
      * The duration value in milliseconds.
      */
-    public readonly int $value;
+    public readonly float $value;
 
     /**
      * Create a new MillisecondsVO instance.
      *
-     * @param  int  $milliseconds  The duration in milliseconds (must be >= 0)
+     * @param  float  $milliseconds  The duration in milliseconds (must be >= 0)
      *
      * @throws InvalidArgumentException If milliseconds is negative
      */
-    public function __construct(int $milliseconds = 1)
+    public function __construct(float $milliseconds = 1)
     {
         if ($milliseconds < 0) {
             throw new InvalidArgumentException(sprintf(

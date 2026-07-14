@@ -58,7 +58,8 @@ final class SignalHandler implements SignalHandlerInterface
 
     private function renderInterruptSignal(SignalName $signal): void
     {
-        $this->console->alertWarning(sprintf(
+        $this->console->newLine();
+        $this->console->logInfo(sprintf(
             '🛑 Received %s signal, stopping gracefully...',
             $signal->value
         ));

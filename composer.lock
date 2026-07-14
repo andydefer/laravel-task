@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "cd04c9a9dc843c310b87d348cf2309b9",
+    "content-hash": "dca3cf1b54dcc02d5204c53b9e451191",
     "packages": [
         {
             "name": "andydefer/algo-kit",
@@ -106,23 +106,23 @@
         },
         {
             "name": "andydefer/laravel-directive",
-            "version": "v3.53.0",
+            "version": "v3.55.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/laravel-directive.git",
-                "reference": "4f357c2889e0a6652ca2220f2347c16249214e51"
+                "reference": "a341294b96a949a0f91960ecd6c47df63e6e648d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/4f357c2889e0a6652ca2220f2347c16249214e51",
-                "reference": "4f357c2889e0a6652ca2220f2347c16249214e51",
+                "url": "https://api.github.com/repos/andydefer/laravel-directive/zipball/a341294b96a949a0f91960ecd6c47df63e6e648d",
+                "reference": "a341294b96a949a0f91960ecd6c47df63e6e648d",
                 "shasum": ""
             },
             "require": {
                 "andydefer/algo-kit": "^0.8.2",
                 "andydefer/laravel-jsonl": "^0.8.3",
                 "andydefer/php-console": "^1.6.2",
-                "andydefer/php-signature-parser": "^0.9.1",
+                "andydefer/php-signature-parser": "^0.10.0",
                 "laravel/framework": "^12.0|^13.0|^14.0|^15.0",
                 "nikic/php-parser": "^5.8",
                 "php": ">=8.1"
@@ -167,9 +167,9 @@
             "description": "A flexible CLI command system for Laravel that breaks free from Artisan's constraints. Directives introduces a clean separation between what your command does (business logic) and how it's presented (output/UI).",
             "support": {
                 "issues": "https://github.com/andydefer/laravel-directive/issues",
-                "source": "https://github.com/andydefer/laravel-directive/tree/v3.53.0"
+                "source": "https://github.com/andydefer/laravel-directive/tree/v3.55.0"
             },
-            "time": "2026-07-13T15:22:40+00:00"
+            "time": "2026-07-14T10:09:54+00:00"
         },
         {
             "name": "andydefer/laravel-jsonl",
@@ -491,20 +491,20 @@
         },
         {
             "name": "andydefer/php-signature-parser",
-            "version": "v0.9.1",
+            "version": "v0.10.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/andydefer/php-signature-parser.git",
-                "reference": "9319a54adb1bc3619804d0430e4a8bfceebb5e70"
+                "reference": "8c14fafd63b9c0c03869e5c247d135f36630e60d"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/andydefer/php-signature-parser/zipball/9319a54adb1bc3619804d0430e4a8bfceebb5e70",
-                "reference": "9319a54adb1bc3619804d0430e4a8bfceebb5e70",
+                "url": "https://api.github.com/repos/andydefer/php-signature-parser/zipball/8c14fafd63b9c0c03869e5c247d135f36630e60d",
+                "reference": "8c14fafd63b9c0c03869e5c247d135f36630e60d",
                 "shasum": ""
             },
             "require": {
-                "andydefer/domain-structures": "^1.21.2",
+                "andydefer/domain-structures": "^1.21.3",
                 "php": "^8.1"
             },
             "require-dev": {
@@ -532,9 +532,9 @@
             "description": "A flexible signature parser for CLI commands",
             "support": {
                 "issues": "https://github.com/andydefer/php-signature-parser/issues",
-                "source": "https://github.com/andydefer/php-signature-parser/tree/v0.9.1"
+                "source": "https://github.com/andydefer/php-signature-parser/tree/v0.10.0"
             },
-            "time": "2026-07-12T12:03:59+00:00"
+            "time": "2026-07-14T10:07:41+00:00"
         },
         {
             "name": "andydefer/php-vo",

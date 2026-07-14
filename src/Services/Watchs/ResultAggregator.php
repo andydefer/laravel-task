@@ -94,8 +94,42 @@ final class ResultAggregator
         return new CounterVO($this->recurringFailed);
     }
 
+    public function getCycleSuccess(int $cycleNumber): CounterVO
+    {
+        // Pour un cycle spécifique, on pourrait stocker l'historique
+        // Pour l'instant, on retourne le total
+        return $this->getTotalSuccess();
+    }
+
+    public function getCycleFailed(int $cycleNumber): CounterVO
+    {
+        return $this->getTotalFailed();
+    }
+
     public function hasFailures(): bool
     {
         return $this->totalFailed > 0 || $this->totalErrors > 0;
+    }
+
+    /**
+     * Get detailed summary with breakdown by task type.
+     */
+    public function getDetailedSummary(): array
+    {
+        return [
+            'total' => [
+                'success' => $this->totalSuccess,
+                'failed' => $this->totalFailed,
+                'errors' => $this->totalErrors,
+            ],
+            'unique' => [
+                'success' => $this->uniqueSuccess,
+                'failed' => $this->uniqueFailed,
+            ],
+            'recurring' => [
+                'success' => $this->recurringSuccess,
+                'failed' => $this->recurringFailed,
+            ],
+        ];
     }
 }

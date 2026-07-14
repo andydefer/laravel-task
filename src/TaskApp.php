@@ -12,8 +12,6 @@ use AndyDefer\Directive\Enums\ApplicationType;
 use AndyDefer\LaravelJsonl\LaravelJsonlServiceProvider;
 use AndyDefer\Logger\LoggerServiceProvider;
 use AndyDefer\Task\Contracts\ApplicationInterface;
-use Illuminate\Database\DatabaseServiceProvider;
-use Illuminate\Events\EventServiceProvider;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Facade;
@@ -29,39 +27,18 @@ class TaskApp implements ApplicationInterface
 
     protected function __construct(string $basePath)
     {
-        // ✅ Créer le dossier database et le fichier SQLite
-        $databaseDir = $basePath.'/database';
-        if (! is_dir($databaseDir)) {
-            mkdir($databaseDir, 0755, true);
-        }
-
-        $databaseFile = $databaseDir.'/database.sqlite';
-        if (! file_exists($databaseFile)) {
-            touch($databaseFile);
-        }
+        $databaseFile = $basePath.'/database/database.sqlite';
 
         $app = ApplicationBuilder::init(ApplicationType::INTERNAL)
             ->withProviders([
-                EventServiceProvider::class,
-                DatabaseServiceProvider::class,
                 LaravelJsonlServiceProvider::class,
                 DirectiveServiceProvider::class,
                 LoggerServiceProvider::class,
                 TaskServiceProvider::class,
             ])
+            // ✅ Utiliser la nouvelle méthode withSqlite()
+            ->withSqlite($databaseFile, foreignKeyConstraints: true)
             ->withConfig([
-                'database' => [
-                    'default' => 'sqlite',
-                    'connections' => [
-                        'sqlite' => [
-                            'driver' => 'sqlite',
-                            'database' => $databaseFile,
-                            'prefix' => '',
-                            'foreign_key_constraints' => true,
-                        ],
-                    ],
-                    'migrations' => 'migrations',
-                ],
                 'logger' => [
                     'base_path' => $basePath.'/storage/logs/task',
                     'buffer_size' => 100,
@@ -227,13 +204,7 @@ class TaskApp implements ApplicationInterface
                 return;
             }
 
-            // ✅ Exécuter les migrations via Artisan
-            Artisan::call('migrate', [
-                '--path' => 'vendor/andydefer/laravel-task/database/migrations',
-                '--force' => true,
-            ]);
-
-            // Ou si les migrations sont dans le dossier du package
+            // ✅ Exécuter les migrations
             Artisan::call('migrate', ['--force' => true]);
 
         } catch (Throwable $e) {
@@ -247,6 +218,9 @@ class TaskApp implements ApplicationInterface
      */
     private function addDefaultSources(): void
     {
-        $this->kernel->addSource(getcwd().'/src/Directives');
+        $this->kernel->addSources([
+            getcwd().'/src/Directives',
+            getcwd().'/tests/Fixtures/Directives',
+        ]);
     }
 }

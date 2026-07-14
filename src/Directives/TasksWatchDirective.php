@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Directives;
 
-use AndyDefer\ConsoleWriter\Console\Components\Logger;
 use AndyDefer\ConsoleWriter\Console\Console;
 use AndyDefer\Directive\AbstractDirective;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
+use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Handlers\SignalHandler;
 use AndyDefer\Task\Records\TaskExecutionResultRecord;
 use AndyDefer\Task\Services\Watchs\CycleCalculator;
@@ -24,7 +25,7 @@ final class TasksWatchDirective extends AbstractDirective
 {
     private const MIN_INTERVAL_SECONDS = 2;
 
-    private Console $console;
+    private OutputHandler $output;
 
     private SignalHandler $signalHandler;
 
@@ -36,12 +37,12 @@ final class TasksWatchDirective extends AbstractDirective
 
     public function getSignature(): string
     {
-        return 'tasks:watch {interval=60} {duration=?} {limit=?} {parallel=?} {--unique-only} {--recurring-only} {--verbose}';
+        return 'tasks:watch {interval=60} {duration=?} {limit=100} {parallel=?} {--unique-only} {--recurring-only} {--verbose} {--mute}';
     }
 
     public function getDescription(): string
     {
-        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 2) and duration. Use --parallel=N for parallel execution with N workers.';
+        return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 2) and duration. Use --parallel=N for parallel execution with N workers. Use --mute to suppress all console output.';
     }
 
     public function getAliases(): StringTypedCollection
@@ -54,7 +55,7 @@ final class TasksWatchDirective extends AbstractDirective
         try {
             $this->boot();
 
-            $this->console->info('👀 Starting task watch...');
+            $this->output->info('👀 Starting task watch...');
             $this->displayStartMessage();
 
             $this->signalHandler->install();
@@ -70,12 +71,14 @@ final class TasksWatchDirective extends AbstractDirective
                     break;
                 }
 
-                // ✅ Incrémenter manuellement le cycle
                 $cycleNumber++;
                 $this->aggregator->startNewCycle();
 
-                $this->console->line();
-                $this->console->line(sprintf('🔄 Cycle #%d', $cycleNumber));
+                // ✅ Enregistrer le début du cycle
+                $cycleStartTime = microtime(true);
+
+                $this->output->line();
+                $this->output->line(sprintf('🔄 Cycle #%d', $cycleNumber));
 
                 $cycleResults = $this->executeCycle();
 
@@ -83,11 +86,15 @@ final class TasksWatchDirective extends AbstractDirective
                     $this->aggregator->addResults($cycleResults);
                 }
 
-                $this->displayCycleSummary($cycleNumber, $cycleResults);
+                $this->displayCycleSummaryDetailed($cycleNumber, $cycleResults);
 
-                $waitTime = $this->cycleCalculator->getNextWaitTime($cycleNumber);
-                if ($waitTime->getValue() > 0 && $this->cycleCalculator->shouldContinue($cycleNumber, $this->signalHandler->shouldStop())) {
-                    $this->waitWithSignals($waitTime);
+                // ✅ Calculer le temps d'attente réel
+                $elapsedTime = microtime(true) - $cycleStartTime;
+                $intervalSeconds = $this->getInterval()->getValue();
+                $waitTime = max(0, $intervalSeconds - $elapsedTime);
+
+                if ($waitTime > 0 && $this->cycleCalculator->shouldContinue($cycleNumber, $this->signalHandler->shouldStop())) {
+                    $this->waitWithSignals(new DurationVO($waitTime));
                 }
 
                 if ($this->aggregator->hasFailures()) {
@@ -107,8 +114,8 @@ final class TasksWatchDirective extends AbstractDirective
                 ['exception' => get_class($e)]
             );
 
-            if (isset($this->console)) {
-                $this->console->error('❌ Error: '.$e->getMessage());
+            if (isset($this->output)) {
+                $this->output->error('❌ Error: '.$e->getMessage());
             }
 
             return ExitCode::RUNTIME_ERROR;
@@ -123,7 +130,13 @@ final class TasksWatchDirective extends AbstractDirective
             throw new RuntimeException('Laravel container is not available');
         }
 
-        $this->console = $app->make(Console::class);
+        $console = $app->make(Console::class);
+        $logger = $app->make(LoggerInterface::class);
+
+        $isMuted = $this->isFlagActive('mute');
+        $isVerbose = $this->isFlagActive('verbose');
+
+        $this->output = new OutputHandler($console, $logger, $isMuted, $isVerbose);
 
         $interval = $this->getInterval();
         $duration = $this->getDuration();
@@ -133,9 +146,24 @@ final class TasksWatchDirective extends AbstractDirective
             throw new RuntimeException('Kernel is not available');
         }
 
-        $this->signalHandler = new SignalHandler($this->console);
+        if ($duration !== null && $interval->getValue() >= $duration->getValue()) {
+            throw new RuntimeException(
+                sprintf(
+                    'Interval (%ds) must be less than duration (%ds)',
+                    (int) $interval->getValue(),
+                    (int) $duration->getValue()
+                )
+            );
+        }
+
+        $this->signalHandler = new SignalHandler($console);
         $this->cycleCalculator = new CycleCalculator($interval, $duration);
-        $this->parallelExecutor = new ParallelExecutor($this->getParallelWorkers(), $this->console, $kernel);
+        $this->parallelExecutor = new ParallelExecutor(
+            $this->getParallelWorkers(),
+            $console,
+            $kernel,
+            $this->output
+        );
         $this->aggregator = new ResultAggregator;
     }
 
@@ -150,7 +178,54 @@ final class TasksWatchDirective extends AbstractDirective
             uniqueOnly: $uniqueOnly,
             recurringOnly: $recurringOnly,
             limit: $limit,
-            verbose: $verbose
+            verbose: $verbose,
+            muted: $this->output->isMuted()
+        );
+    }
+
+    private function displayCycleSummaryDetailed(int $cycleNumber, array $results): void
+    {
+        if ($this->output->isMuted()) {
+            return;
+        }
+
+        $totalSuccess = 0;
+        $totalFailed = 0;
+        $totalErrors = 0;
+        $uniqueSuccess = 0;
+        $uniqueFailed = 0;
+        $recurringSuccess = 0;
+        $recurringFailed = 0;
+
+        foreach ($results as $result) {
+            if ($result instanceof TaskExecutionResultRecord) {
+                $success = $result->success->getValue();
+                $failed = $result->failed->getValue();
+                $errors = $result->errors->count();
+
+                $totalSuccess += $success;
+                $totalFailed += $failed;
+                $totalErrors += $errors;
+
+                if ($result->type->value === 'unique') {
+                    $uniqueSuccess += $success;
+                    $uniqueFailed += $failed;
+                } elseif ($result->type->value === 'recurring') {
+                    $recurringSuccess += $success;
+                    $recurringFailed += $failed;
+                }
+            }
+        }
+
+        $this->output->cycleSummaryDetailed(
+            $cycleNumber,
+            $totalSuccess,
+            $totalFailed,
+            $totalErrors,
+            $uniqueSuccess,
+            $uniqueFailed,
+            $recurringSuccess,
+            $recurringFailed
         );
     }
 
@@ -182,12 +257,6 @@ final class TasksWatchDirective extends AbstractDirective
         return $parallel !== null ? max(1, (int) $parallel) : 1;
     }
 
-    /**
-     * Attend avec précision en utilisant microtime pour un timing exact.
-     *
-     * Contrairement à sleep() qui peut être imprécis, cette méthode utilise
-     * microtime() pour garantir une attente exacte.
-     */
     private function waitWithSignals(DurationVO $waitTime): void
     {
         $seconds = $waitTime->getValue();
@@ -201,9 +270,8 @@ final class TasksWatchDirective extends AbstractDirective
 
             $this->signalHandler->dispatch();
 
-            // Calculer le temps restant
             $remaining = $seconds - $elapsed;
-            $sleepTime = min(0.1, $remaining); // Dormir par petits morceaux de 0.1s
+            $sleepTime = min(0.1, $remaining);
 
             if ($sleepTime > 0) {
                 usleep((int) ($sleepTime * 1000000));
@@ -215,14 +283,19 @@ final class TasksWatchDirective extends AbstractDirective
 
     private function displayStartMessage(): void
     {
-        $this->console->info(sprintf('  Interval: %ds', (int) $this->getInterval()->getValue()));
+        if ($this->output->isMuted()) {
+            return;
+        }
+
+        $this->output->line(sprintf('  Interval: %ds', (int) $this->getInterval()->getValue()));
 
         $duration = $this->getDuration();
         if ($duration !== null) {
             $totalCycles = $this->cycleCalculator->getTotalCycles();
             $estimatedDuration = $this->cycleCalculator->getEstimatedDuration();
 
-            $this->console->info(sprintf('  Duration: %ds (estimated: %ds, %d cycles)',
+            $this->output->line(sprintf(
+                '  Duration: %ds (estimated: %ds, %d cycles)',
                 (int) $duration->getValue(),
                 (int) $estimatedDuration,
                 $totalCycles
@@ -231,12 +304,12 @@ final class TasksWatchDirective extends AbstractDirective
 
         $workers = $this->getParallelWorkers();
         if ($workers > 1) {
-            $this->console->info(sprintf('  Workers: %d', $workers));
+            $this->output->line(sprintf('  Workers: %d', $workers));
         }
 
         $limit = $this->getLimit();
         if ($limit !== null) {
-            $this->console->info(sprintf('  Limit: %d', $limit->getValue()));
+            $this->output->line(sprintf('  Limit: %d', $limit->getValue()));
         }
 
         $options = [];
@@ -251,60 +324,35 @@ final class TasksWatchDirective extends AbstractDirective
         }
 
         if (! empty($options)) {
-            $this->console->info('  Options: '.implode(' ', $options));
+            $this->output->line('  Options: '.implode(' ', $options));
         }
 
-        $this->console->line('Press Ctrl+C to stop');
-        $this->console->line();
-    }
-
-    private function displayCycleSummary(int $cycleNumber, array $results): void
-    {
-        $success = 0;
-        $failed = 0;
-        $total = 0;
-
-        foreach ($results as $result) {
-            if ($result instanceof TaskExecutionResultRecord) {
-                $success += $result->success->getValue();
-                $failed += $result->failed->getValue();
-                $total += $result->total->getValue();
-            }
-        }
-
-        echo Logger::debug(sprintf(
-            'Cycle #%d | ✅ Success: %d | ❌ Failed: %d | 📦 Total: %d',
-            $cycleNumber,
-            $success,
-            $failed,
-            $total
-        ));
+        $this->output->line('Press Ctrl+C to stop');
+        $this->output->line();
     }
 
     private function displayFinalSummary(Iso8601DateTimeVO $startedAt): void
     {
+        if ($this->output->isMuted()) {
+            return;
+        }
+
         $elapsed = $startedAt->elapsed();
-        $totalCycles = $this->aggregator->getCycleCount();
-
-        $this->console->line();
-        $this->console->title('📊 Watch Summary');
-        $this->console->line();
-
-        $this->console->info(sprintf('  🔄 Cycles: %d', $totalCycles));
-        $this->console->info(sprintf('  ✅ Success: %d', $this->aggregator->getTotalSuccess()->getValue()));
-        $this->console->info(sprintf('  ❌ Failed: %d', $this->aggregator->getTotalFailed()->getValue()));
-        $this->console->info(sprintf('  ⚠️  Errors: %d', $this->aggregator->getTotalErrors()->getValue()));
-
         $duration = $this->getDuration();
-        if ($duration !== null) {
-            $this->console->info(sprintf('  ⏱️  Planned Duration: %ds', (int) $duration->getValue()));
-        }
-        $this->console->info(sprintf('  ⏱️  Elapsed: %.2fs', $elapsed->getValue()));
 
-        if ($this->signalHandler->shouldStop()) {
-            $this->console->alert('  🛑 Stopped by signal');
-        }
-
-        $this->console->line();
+        $this->output->finalSummary(
+            totalCycles: $this->aggregator->getCycleCount(),
+            totalSuccess: $this->aggregator->getTotalSuccess()->getValue(),
+            totalFailed: $this->aggregator->getTotalFailed()->getValue(),
+            totalErrors: $this->aggregator->getTotalErrors()->getValue(),
+            uniqueSuccess: $this->aggregator->getUniqueSuccess()->getValue(),
+            uniqueFailed: $this->aggregator->getUniqueFailed()->getValue(),
+            recurringSuccess: $this->aggregator->getRecurringSuccess()->getValue(),
+            recurringFailed: $this->aggregator->getRecurringFailed()->getValue(),
+            elapsedSeconds: $elapsed->getValue(),
+            plannedDuration: $duration !== null ? (int) $duration->getValue() : null,
+            stoppedBySignal: $this->signalHandler->shouldStop(),
+            workers: $this->getParallelWorkers()
+        );
     }
 }

@@ -54,11 +54,11 @@ final class DurationVO extends AbstractValueObject
     /**
      * Convert the duration to milliseconds.
      *
-     * @return int The duration in milliseconds
+     * @return float The duration in milliseconds
      */
-    public function toMilliseconds(): int
+    public function toMilliseconds(): float
     {
-        return (int) ($this->seconds * 1000);
+        return (float) ($this->seconds * 1000);
     }
 
     /**
@@ -135,21 +135,6 @@ final class DurationVO extends AbstractValueObject
         }
 
         return implode(' ', $parts);
-    }
-
-    /**
-     * Format a float value removing unnecessary decimal zeros.
-     *
-     * @param  float  $value  The value to format
-     * @return string Formatted value
-     */
-    private function formatFloat(float $value): string
-    {
-        if ($value === (float) (int) $value) {
-            return (string) (int) $value;
-        }
-
-        return number_format($value, 2, '.', '');
     }
 
     /**
