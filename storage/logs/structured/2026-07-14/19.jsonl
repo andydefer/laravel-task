@@ -1,0 +1,854 @@
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@c1aab633-cf3c-4677-a82f-7d8d1574c748","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@c1aab633-cf3c-4677-a82f-7d8d1574c748","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@c1aab633-cf3c-4677-a82f-7d8d1574c748","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@c1aab633-cf3c-4677-a82f-7d8d1574c748","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@7b13b824-3308-4e7a-960a-ebe941240dd4","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@7b13b824-3308-4e7a-960a-ebe941240dd4","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@7b13b824-3308-4e7a-960a-ebe941240dd4","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@7b13b824-3308-4e7a-960a-ebe941240dd4","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@c1aab633-cf3c-4677-a82f-7d8d1574c748","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@c1aab633-cf3c-4677-a82f-7d8d1574c748","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27143563-c4c7-4315-8243-44d058a4c43e","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27143563-c4c7-4315-8243-44d058a4c43e","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@387b5813-5824-4ac0-b62f-f0f9ca25edd9","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@387b5813-5824-4ac0-b62f-f0f9ca25edd9","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@19e40367-a4ff-45d5-906d-3f6e15e15ac7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@19e40367-a4ff-45d5-906d-3f6e15e15ac7","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@af188c38-96d2-459c-935c-c4b27d2023ed","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@af188c38-96d2-459c-935c-c4b27d2023ed","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@7b13b824-3308-4e7a-960a-ebe941240dd4","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@7b13b824-3308-4e7a-960a-ebe941240dd4","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27143563-c4c7-4315-8243-44d058a4c43e","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27143563-c4c7-4315-8243-44d058a4c43e","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@387b5813-5824-4ac0-b62f-f0f9ca25edd9","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@387b5813-5824-4ac0-b62f-f0f9ca25edd9","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@19e40367-a4ff-45d5-906d-3f6e15e15ac7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@19e40367-a4ff-45d5-906d-3f6e15e15ac7","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27143563-c4c7-4315-8243-44d058a4c43e","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27143563-c4c7-4315-8243-44d058a4c43e","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@387b5813-5824-4ac0-b62f-f0f9ca25edd9","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@387b5813-5824-4ac0-b62f-f0f9ca25edd9","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@19e40367-a4ff-45d5-906d-3f6e15e15ac7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@19e40367-a4ff-45d5-906d-3f6e15e15ac7","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@af188c38-96d2-459c-935c-c4b27d2023ed","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@af188c38-96d2-459c-935c-c4b27d2023ed","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@af188c38-96d2-459c-935c-c4b27d2023ed","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@af188c38-96d2-459c-935c-c4b27d2023ed","status":"success"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":18,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":18,\"failed\":0}}"}}
+{"time":"2026-07-14T19:18:39+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":18,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":18,"failed":0}}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:18:48+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:18:48+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:18:48+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":18,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":18,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:18:48+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":18,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":18,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:37:48+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:37:48+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:37:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@9a4cb09b-f4aa-45bc-a1f8-23c360d3ac85","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@9a4cb09b-f4aa-45bc-a1f8-23c360d3ac85","status":"success"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@9a4cb09b-f4aa-45bc-a1f8-23c360d3ac85","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@9a4cb09b-f4aa-45bc-a1f8-23c360d3ac85","status":"success"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@9a4cb09b-f4aa-45bc-a1f8-23c360d3ac85","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@9a4cb09b-f4aa-45bc-a1f8-23c360d3ac85","status":"success"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:37:49+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:37:57+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:37:57+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:37:57+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:37:57+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:37:57+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"023033a2-c885-4a94-a43c-8c1153f13dbc","alias":"unique@023033a2-c885-4a94-a43c-8c1153f13dbc","scheduled_at":"2026-07-14T19:37:51+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"023033a2-c885-4a94-a43c-8c1153f13dbc","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"023033a2-c885-4a94-a43c-8c1153f13dbc","alias":"unique@023033a2-c885-4a94-a43c-8c1153f13dbc","scheduled_at":"2026-07-14T19:37:51+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"023033a2-c885-4a94-a43c-8c1153f13dbc","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"da7a24b4-2b90-48f6-a92b-6acefb755f93","alias":"unique@da7a24b4-2b90-48f6-a92b-6acefb755f93","scheduled_at":"2026-07-14T19:37:51+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"da7a24b4-2b90-48f6-a92b-6acefb755f93","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"658d6b92-1658-47d8-b4cc-203fbb7fbd00","alias":"unique@658d6b92-1658-47d8-b4cc-203fbb7fbd00","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"658d6b92-1658-47d8-b4cc-203fbb7fbd00","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"f47ae351-8366-4566-82f0-c474211375da","alias":"unique@f47ae351-8366-4566-82f0-c474211375da","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"f47ae351-8366-4566-82f0-c474211375da","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"59be09fc-62f1-4761-9f52-956caa4f39fa","alias":"unique@59be09fc-62f1-4761-9f52-956caa4f39fa","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"59be09fc-62f1-4761-9f52-956caa4f39fa","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"59be09fc-62f1-4761-9f52-956caa4f39fa","alias":"unique@59be09fc-62f1-4761-9f52-956caa4f39fa","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"59be09fc-62f1-4761-9f52-956caa4f39fa","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"59be09fc-62f1-4761-9f52-956caa4f39fa"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"16929053-460d-4050-9e1f-c307bb748558","alias":"unique@16929053-460d-4050-9e1f-c307bb748558","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"16929053-460d-4050-9e1f-c307bb748558","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"16929053-460d-4050-9e1f-c307bb748558","alias":"unique@16929053-460d-4050-9e1f-c307bb748558","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"16929053-460d-4050-9e1f-c307bb748558","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"023033a2-c885-4a94-a43c-8c1153f13dbc"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"16929053-460d-4050-9e1f-c307bb748558"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"5bbc7f79-ea4e-44b1-b724-97c6f81fb9a8","alias":"unique@5bbc7f79-ea4e-44b1-b724-97c6f81fb9a8","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"5bbc7f79-ea4e-44b1-b724-97c6f81fb9a8","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"ba9c6d5c-d894-48d3-9f40-3ba1df084c80","alias":"unique@ba9c6d5c-d894-48d3-9f40-3ba1df084c80","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"ba9c6d5c-d894-48d3-9f40-3ba1df084c80","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"efdc0265-e3d9-4e72-887b-df80525e978b","alias":"unique@efdc0265-e3d9-4e72-887b-df80525e978b","scheduled_at":"2026-07-14T19:37:52+00:00"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"efdc0265-e3d9-4e72-887b-df80525e978b","status":"success"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 1"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 1"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":9,\"failed\":0,\"errors\":0},\"unique\":{\"success\":9,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":9,"failed":0,"errors":0},"unique":{"success":9,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":9,\"failed\":0,\"errors\":0},\"unique\":{\"success\":9,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":10,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:37:58+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":9,"failed":0,"errors":0},"unique":{"success":9,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":10,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"ceeb0a94-bc87-43bb-9019-768e6d536553","alias":"unique@ceeb0a94-bc87-43bb-9019-768e6d536553","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"ceeb0a94-bc87-43bb-9019-768e6d536553","alias":"unique@ceeb0a94-bc87-43bb-9019-768e6d536553","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"ceeb0a94-bc87-43bb-9019-768e6d536553","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"ceeb0a94-bc87-43bb-9019-768e6d536553","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"c1d37ecb-33a9-4459-bc4f-0a6368bf3df8","alias":"unique@c1d37ecb-33a9-4459-bc4f-0a6368bf3df8","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"c1d37ecb-33a9-4459-bc4f-0a6368bf3df8","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"ff840b74-c17c-454d-8c5e-b9e82eb74cff","alias":"unique@ff840b74-c17c-454d-8c5e-b9e82eb74cff","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"ff840b74-c17c-454d-8c5e-b9e82eb74cff","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"f6db3f36-425e-4bd6-9f0a-4a8ca1d35066","alias":"unique@f6db3f36-425e-4bd6-9f0a-4a8ca1d35066","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"f6db3f36-425e-4bd6-9f0a-4a8ca1d35066","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"2eaaef5e-ad29-4957-bd4c-27c0b9573a15","alias":"unique@2eaaef5e-ad29-4957-bd4c-27c0b9573a15","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"2eaaef5e-ad29-4957-bd4c-27c0b9573a15","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"de46999e-1ae3-4f6a-b2db-c3969c00c21b","alias":"unique@de46999e-1ae3-4f6a-b2db-c3969c00c21b","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"de46999e-1ae3-4f6a-b2db-c3969c00c21b","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@002a23e3-ebe8-4735-a6b1-a5c4d69699b4","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@002a23e3-ebe8-4735-a6b1-a5c4d69699b4","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@364929be-f385-41e8-b628-1504a47ca330","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@364929be-f385-41e8-b628-1504a47ca330","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"ceeb0a94-bc87-43bb-9019-768e6d536553"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@c399b592-5b17-4065-bcd2-9590b2b1914e","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@c399b592-5b17-4065-bcd2-9590b2b1914e","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@5791778c-dccb-49cc-917c-ad194fd5effa","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@5791778c-dccb-49cc-917c-ad194fd5effa","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@3d08ccae-06b8-4cf3-af5d-2a9533d0e439","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@3d08ccae-06b8-4cf3-af5d-2a9533d0e439","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ceee244b-59c0-4399-ae1c-1c4271ac4617","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ceee244b-59c0-4399-ae1c-1c4271ac4617","status":"success"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 1"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 1"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":6,\"failed\":0,\"errors\":0},\"unique\":{\"success\":6,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:38:48+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":6,"failed":0,"errors":0},"unique":{"success":6,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"399250b7-8d15-46cb-ba5c-735bd049ce23","alias":"unique@399250b7-8d15-46cb-ba5c-735bd049ce23","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"399250b7-8d15-46cb-ba5c-735bd049ce23","status":"success"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"399250b7-8d15-46cb-ba5c-735bd049ce23","alias":"unique@399250b7-8d15-46cb-ba5c-735bd049ce23","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"399250b7-8d15-46cb-ba5c-735bd049ce23","alias":"unique@399250b7-8d15-46cb-ba5c-735bd049ce23","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"399250b7-8d15-46cb-ba5c-735bd049ce23","status":"success"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"399250b7-8d15-46cb-ba5c-735bd049ce23","status":"success"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"399250b7-8d15-46cb-ba5c-735bd049ce23"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"2d8fa707-14a7-4175-95f0-2680c9757708","alias":"unique@2d8fa707-14a7-4175-95f0-2680c9757708","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"2d8fa707-14a7-4175-95f0-2680c9757708","status":"success"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"2d8fa707-14a7-4175-95f0-2680c9757708","alias":"unique@2d8fa707-14a7-4175-95f0-2680c9757708","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"2d8fa707-14a7-4175-95f0-2680c9757708","status":"success"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"399250b7-8d15-46cb-ba5c-735bd049ce23"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"2d8fa707-14a7-4175-95f0-2680c9757708","alias":"unique@2d8fa707-14a7-4175-95f0-2680c9757708","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"2d8fa707-14a7-4175-95f0-2680c9757708","status":"success"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"5891c929-8c2a-4cc0-be86-61882e52db7d","alias":"unique@5891c929-8c2a-4cc0-be86-61882e52db7d","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"5891c929-8c2a-4cc0-be86-61882e52db7d","status":"success"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"2d8fa707-14a7-4175-95f0-2680c9757708"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"f2f446c9-9ffe-41df-b495-de019851ce98","alias":"unique@f2f446c9-9ffe-41df-b495-de019851ce98","scheduled_at":"2026-07-14T19:38:25+00:00"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"f2f446c9-9ffe-41df-b495-de019851ce98","status":"success"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"2d8fa707-14a7-4175-95f0-2680c9757708"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 1"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 1"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":4,\"failed\":0,\"errors\":0},\"unique\":{\"success\":4,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":4,"failed":0,"errors":0},"unique":{"success":4,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":10,\"failed\":0,\"errors\":0},\"unique\":{\"success\":10,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:38:57+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":10,"failed":0,"errors":0},"unique":{"success":10,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@002a23e3-ebe8-4735-a6b1-a5c4d69699b4","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@002a23e3-ebe8-4735-a6b1-a5c4d69699b4","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@002a23e3-ebe8-4735-a6b1-a5c4d69699b4","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@002a23e3-ebe8-4735-a6b1-a5c4d69699b4","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@364929be-f385-41e8-b628-1504a47ca330","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@364929be-f385-41e8-b628-1504a47ca330","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@002a23e3-ebe8-4735-a6b1-a5c4d69699b4","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@002a23e3-ebe8-4735-a6b1-a5c4d69699b4","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@c399b592-5b17-4065-bcd2-9590b2b1914e","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@c399b592-5b17-4065-bcd2-9590b2b1914e","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@5791778c-dccb-49cc-917c-ad194fd5effa","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@5791778c-dccb-49cc-917c-ad194fd5effa","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@3d08ccae-06b8-4cf3-af5d-2a9533d0e439","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@3d08ccae-06b8-4cf3-af5d-2a9533d0e439","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ceee244b-59c0-4399-ae1c-1c4271ac4617","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ceee244b-59c0-4399-ae1c-1c4271ac4617","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@364929be-f385-41e8-b628-1504a47ca330","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@364929be-f385-41e8-b628-1504a47ca330","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@c399b592-5b17-4065-bcd2-9590b2b1914e","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@c399b592-5b17-4065-bcd2-9590b2b1914e","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@5791778c-dccb-49cc-917c-ad194fd5effa","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@5791778c-dccb-49cc-917c-ad194fd5effa","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@3d08ccae-06b8-4cf3-af5d-2a9533d0e439","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@3d08ccae-06b8-4cf3-af5d-2a9533d0e439","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ceee244b-59c0-4399-ae1c-1c4271ac4617","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ceee244b-59c0-4399-ae1c-1c4271ac4617","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@364929be-f385-41e8-b628-1504a47ca330","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@364929be-f385-41e8-b628-1504a47ca330","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@c399b592-5b17-4065-bcd2-9590b2b1914e","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@c399b592-5b17-4065-bcd2-9590b2b1914e","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@5791778c-dccb-49cc-917c-ad194fd5effa","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@5791778c-dccb-49cc-917c-ad194fd5effa","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@3d08ccae-06b8-4cf3-af5d-2a9533d0e439","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@3d08ccae-06b8-4cf3-af5d-2a9533d0e439","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ceee244b-59c0-4399-ae1c-1c4271ac4617","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ceee244b-59c0-4399-ae1c-1c4271ac4617","status":"success"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":10,\"failed\":0,\"errors\":0},\"unique\":{\"success\":10,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:39:31+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":10,"failed":0,"errors":0},"unique":{"success":10,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:39:40+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:39:40+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:39:40+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":10,\"failed\":0,\"errors\":0},\"unique\":{\"success\":10,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:39:40+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":10,"failed":0,"errors":0},"unique":{"success":10,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","status":"success"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:43:01+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:43:10+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:43:10+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:43:10+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:43:10+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@6c514c95-69ef-4acd-b1b4-35c235c6d556","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@dbee0c23-a42d-49fe-9d8d-b83018f2421f","status":"success"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:16+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@346289ef-f543-4fc5-9bc7-69fa99c09819","status":"success"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@1ccbe793-f167-47da-8b69-f573f6e52a79","status":"success"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@394d2546-e075-405f-97f6-031f8779a817","status":"success"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ade7cd9c-6fd7-4752-9f3c-33b8aa5ed986","status":"success"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:43:17+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:43:25+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:43:25+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:43:25+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:43:25+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:43:45+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:43:45+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:43:45+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:43:45+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:45+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:45+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","status":"success"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:43:46+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:43:54+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:43:54+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:43:54+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:43:54+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:43:54+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:43:55+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:55+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:55+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:43:55+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:43:55+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:43:55+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:43:55+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":10,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:43:55+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":10,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@83689664-5c50-42ec-b206-537663555c61","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@f9d628bb-6c6c-4554-b3ad-6115cf541e04","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ef2d958b-853d-4c2f-bc0a-1195de7bb4db","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@27587a2b-c160-492a-b023-c4304a8f1578","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@434f84a4-94af-4583-aad2-e15c96b8e7d5","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_started","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","interval_seconds":10,"next_run_at":null}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task_output","payload":{"event":"info","message":"Hello World, I am a recurring task"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"info","type":"recurring_task","payload":{"event":"task_completed","alias":"recurring@ffb55e0f-c2ab-434d-9e09-3a1a9673c0f7","status":"success"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":18,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":18,\"failed\":0}}"}}
+{"time":"2026-07-14T19:46:47+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":18,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":18,"failed":0}}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:46:56+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:46:56+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:46:56+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":18,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":18,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:46:56+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":18,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":18,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:53:12+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:53:12+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"e75c44ba-357c-4e4e-ac41-1656781d8c41","alias":"unique@e75c44ba-357c-4e4e-ac41-1656781d8c41","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"e75c44ba-357c-4e4e-ac41-1656781d8c41","alias":"unique@e75c44ba-357c-4e4e-ac41-1656781d8c41","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"e75c44ba-357c-4e4e-ac41-1656781d8c41","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"e75c44ba-357c-4e4e-ac41-1656781d8c41","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"e75c44ba-357c-4e4e-ac41-1656781d8c41"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"362e2b9d-c972-49d3-a104-0748da6683ac","alias":"unique@362e2b9d-c972-49d3-a104-0748da6683ac","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"362e2b9d-c972-49d3-a104-0748da6683ac","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"362e2b9d-c972-49d3-a104-0748da6683ac","alias":"unique@362e2b9d-c972-49d3-a104-0748da6683ac","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"362e2b9d-c972-49d3-a104-0748da6683ac","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"10bf373d-23f8-4f4e-b790-668a97eb997f","alias":"unique@10bf373d-23f8-4f4e-b790-668a97eb997f","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"10bf373d-23f8-4f4e-b790-668a97eb997f","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"10bf373d-23f8-4f4e-b790-668a97eb997f","alias":"unique@10bf373d-23f8-4f4e-b790-668a97eb997f","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"10bf373d-23f8-4f4e-b790-668a97eb997f","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"2bb0cf0b-7dfa-400b-9896-152dd2eecefb","alias":"unique@2bb0cf0b-7dfa-400b-9896-152dd2eecefb","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"2bb0cf0b-7dfa-400b-9896-152dd2eecefb","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"10bf373d-23f8-4f4e-b790-668a97eb997f"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"362e2b9d-c972-49d3-a104-0748da6683ac"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"ae2fe1c0-2686-477f-92e3-0ab5129186f5","alias":"unique@ae2fe1c0-2686-477f-92e3-0ab5129186f5","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"ae2fe1c0-2686-477f-92e3-0ab5129186f5","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"ae2fe1c0-2686-477f-92e3-0ab5129186f5","alias":"unique@ae2fe1c0-2686-477f-92e3-0ab5129186f5","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"ae2fe1c0-2686-477f-92e3-0ab5129186f5","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"ae2fe1c0-2686-477f-92e3-0ab5129186f5"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"e97f53ea-b1f6-4c19-bd95-b2c02583541d","alias":"unique@e97f53ea-b1f6-4c19-bd95-b2c02583541d","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"e97f53ea-b1f6-4c19-bd95-b2c02583541d","status":"success"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 1"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 1"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 1"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:53:21+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"4800e099-ce8a-4667-b1b4-000c80370afd","alias":"unique@4800e099-ce8a-4667-b1b4-000c80370afd","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"4800e099-ce8a-4667-b1b4-000c80370afd","status":"success"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"4800e099-ce8a-4667-b1b4-000c80370afd","alias":"unique@4800e099-ce8a-4667-b1b4-000c80370afd","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"4800e099-ce8a-4667-b1b4-000c80370afd","status":"success"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"4800e099-ce8a-4667-b1b4-000c80370afd"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"e05c3951-4ad3-4268-b98d-d779a20fb57b","alias":"unique@e05c3951-4ad3-4268-b98d-d779a20fb57b","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"e05c3951-4ad3-4268-b98d-d779a20fb57b","status":"success"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"e05c3951-4ad3-4268-b98d-d779a20fb57b","alias":"unique@e05c3951-4ad3-4268-b98d-d779a20fb57b","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"e05c3951-4ad3-4268-b98d-d779a20fb57b","status":"success"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"ca36aece-a5e4-4be3-886c-5d5d6c5584af","alias":"unique@ca36aece-a5e4-4be3-886c-5d5d6c5584af","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"ca36aece-a5e4-4be3-886c-5d5d6c5584af","status":"success"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_started","task_id":"63565195-8a1a-4ca7-a80e-40565498ef2d","alias":"unique@63565195-8a1a-4ca7-a80e-40565498ef2d","scheduled_at":"2026-07-14T19:53:14+00:00"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task_output","payload":{"event":"info","message":"Hello World, I am a unique task"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"info","type":"unique_task","payload":{"event":"task_completed","task_id":"63565195-8a1a-4ca7-a80e-40565498ef2d","status":"success"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"error","type":"unique_task_move_to_completed_not_found_or_already_completed","payload":{"task_id":"e05c3951-4ad3-4268-b98d-d779a20fb57b"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 1"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 1"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:53:50+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:53:59+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:53:59+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:53:59+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:53:59+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:54:18+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:54:18+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:54:27+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:54:27+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:54:27+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:54:27+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}
+{"time":"2026-07-14T19:55:19+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 9s"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"  Duration: 10s (estimated: 9s, 2 cycles)"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"  Workers: 3"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 6"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"  Options: --verbose"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":1,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:55:19+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":1,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #2"}}
+{"time":"2026-07-14T19:55:28+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 3 parallel workers..."}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 2 starting..."}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 3 starting..."}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 2 completed with exit code: 0"}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 3 completed with exit code: 0"}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"cycle\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0}}"}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"Cycle summary","cycle":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0}}}
+{"time":"2026-07-14T19:55:28+00:00","level":"info","type":"task","payload":{"message":"Watch Summary"}}
+{"time":"2026-07-14T19:55:28+00:00","level":"debug","type":"task","payload":{"message":"JSON: {\"summary\":{\"cycles\":2,\"total\":{\"success\":0,\"failed\":0,\"errors\":0},\"unique\":{\"success\":0,\"failed\":0},\"recurring\":{\"success\":0,\"failed\":0},\"duration\":{\"elapsed\":9,\"planned\":10},\"workers\":3,\"stopped_by_signal\":false}}"}}
+{"time":"2026-07-14T19:55:28+00:00","level":"info","type":"task","payload":{"message":"Final summary","summary":{"cycles":2,"total":{"success":0,"failed":0,"errors":0},"unique":{"success":0,"failed":0},"recurring":{"success":0,"failed":0},"duration":{"elapsed":9,"planned":10},"workers":3,"stopped_by_signal":false}}}

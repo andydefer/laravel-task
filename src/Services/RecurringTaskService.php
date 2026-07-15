@@ -127,10 +127,13 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
 
         $task = $this->instantiateTask($record->fqcn, $record);
+        $success = false;
+        $error = null;
 
         try {
             $task->execute($record->payload);
             $this->repository->updateAfterRun($record, true);
+            $success = true;
 
             return TaskRunResultRecord::from([
                 'alias' => $alias,
@@ -138,12 +141,15 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                 'execution_time_ms' => $startTime->elapsedInMilliseconds(),
             ]);
         } catch (\Throwable $e) {
-            $this->repository->updateAfterRun($record, false, new DescriptionVO($e->getMessage()));
+            $error = $e->getMessage();
+            $this->repository->updateAfterRun($record, false, new DescriptionVO($error));
+
+            // ✅ Stocker le résultat dans JSONL (ÉCHEC)
 
             return TaskRunResultRecord::from([
                 'alias' => $alias,
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error' => $error,
                 'execution_time_ms' => $startTime->elapsedInMilliseconds(),
             ]);
         }

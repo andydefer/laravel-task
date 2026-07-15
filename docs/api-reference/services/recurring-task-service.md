@@ -2,76 +2,108 @@
 
 ## Description
 
-Service central de gestion des tâches récurrentes. Il orchestre l'enregistrement, l'exécution, la transition d'états et le traitement par lots des tâches récurrentes.
+Le `RecurringTaskService` est le service métier central pour la gestion des tâches récurrentes. Il orchestre l'enregistrement, l'exécution, le cycle de vie et les transitions d'état des tâches qui s'exécutent à intervalles réguliers.
 
 ## Hiérarchie / Implémentations
 
 ```
-RecurringTaskServiceInterface
-    └── RecurringTaskService
+RecurringTaskService (final)
+    └── RecurringTaskServiceInterface
 ```
+
+**Interfaces implémentées :**
+- `RecurringTaskServiceInterface` - Contrat définissant toutes les opérations métier
 
 ## Rôle principal
 
-Fournir une API complète pour la gestion du cycle de vie des tâches récurrentes :
-- Enregistrement de nouvelles tâches
-- Exécution individuelle ou par lots
-- Gestion des états (WAITING → PLAYING → PAUSED → FINISHED → CANCELED)
-- Modification des paramètres (intervalle, date de début/fin)
-- Recherche et comptage des tâches
+Ce service agit comme la couche de orchestration métier pour les tâches récurrentes :
+
+1. **Enregistrement** des nouvelles tâches récurrentes
+2. **Exécution** des tâches avec gestion des tentatives et des erreurs
+3. **Gestion du cycle de vie** : pause, reprise, fin, annulation
+4. **Modification des paramètres** : intervalle, dates de début/fin
+5. **Recherche et comptage** des tâches par statut
+6. **Journalisation** des événements et des erreurs
 
 ## API / Méthodes publiques
 
 ### `register(RecurringTaskFqcnVO $fqcn, StrictDataObject $payload, RecurringTaskConfigRecord $config): TaskAliasVO`
 
-Enregistre une nouvelle tâche récurrente.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$fqcn` | `RecurringTaskFqcnVO` | Nom complet de la classe de la tâche |
-| `$payload` | `StrictDataObject` | Données d'entrée de la tâche |
+| `$payload` | `StrictDataObject` | Données à transmettre à la tâche |
 | `$config` | `RecurringTaskConfigRecord` | Configuration (intervalle, dates, tentatives) |
 
-**Retourne :** `TaskAliasVO` - Alias unique de la tâche créée
+**Retourne :** `TaskAliasVO` - Alias unique généré pour la tâche
 
-**Exceptions :** `InvalidArgumentException` - Si la classe n'existe pas ou n'hérite pas de `AbstractRecurringTask`
+**Exceptions :** 
+- `InvalidArgumentException` si la classe n'existe pas
+- `InvalidArgumentException` si la classe n'étend pas `AbstractRecurringTask`
 
 **Exemple :**
 ```php
-$config = RecurringTaskConfigRecord::from([
-    'interval_seconds' => 3600,
-    'start_at' => '2026-01-01T00:00:00+00:00',
-    'end_at' => '2026-12-31T23:59:59+00:00',
-    'max_attempts' => 3,
+<?php
+
+declare(strict_types=1);
+
+use AndyDefer\Task\Services\RecurringTaskService;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
+use AndyDefer\Task\Records\RecurringTaskConfigRecord;
+use AndyDefer\Task\ValueObjects\DurationVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
+
+$service = app(RecurringTaskService::class);
+
+$fqcn = new RecurringTaskFqcnVO(EmailNotificationTask::class);
+$payload = StrictDataObject::from([
+    'recipient' => 'user@example.com',
+    'subject' => 'Daily Report',
 ]);
 
-$alias = $service->register(
-    new RecurringTaskFqcnVO(MyRecurringTask::class),
-    StrictDataObject::from(['key' => 'value']),
-    $config
-);
+$config = RecurringTaskConfigRecord::from([
+    'interval_seconds' => new DurationVO(3600), // Toutes les heures
+    'start_at' => new Iso8601DateTimeVO('2026-01-01 09:00:00'),
+    'end_at' => new Iso8601DateTimeVO('2026-12-31 18:00:00'),
+    'max_attempts' => new MaxFailedAttemptsVO(3),
+]);
+
+$alias = $service->register($fqcn, $payload, $config);
+echo "✅ Tâche enregistrée : " . $alias->getValue() . "\n";
 ```
 
 ---
 
 ### `run(TaskAliasVO $alias): TaskRunResultRecord`
 
-Exécute une tâche récurrente spécifique par son alias.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche à exécuter |
 
-**Retourne :** `TaskRunResultRecord` - Résultat de l'exécution (succès/échec, temps, erreur)
+**Retourne :** `TaskRunResultRecord` - Résultat de l'exécution
+
+**Comportement :**
+1. Vérifie que la tâche existe
+2. Vérifie que le statut est `PLAYING`
+3. Vérifie que la tâche n'a pas expiré (`end_at` dépassé)
+4. Instancie la tâche et exécute sa méthode `execute()`
+5. Met à jour `last_run_at` via `updateAfterRun()`
+6. Réinitialise ou incrémente `failed_attempts` selon le résultat
 
 **Exemple :**
 ```php
+<?php
+
+$alias = new TaskAliasVO('recurring@550e8400-e29b-41d4-a716-446655440000');
 $result = $service->run($alias);
 
 if ($result->success) {
-    echo "Tâche exécutée avec succès en {$result->execution_time_ms}ms";
+    echo "✅ Tâche exécutée avec succès\n";
+    echo "Temps : " . $result->execution_time_ms->getValue() . "ms\n";
 } else {
-    echo "Échec : {$result->error}";
+    echo "❌ Échec : " . $result->error . "\n";
 }
 ```
 
@@ -79,320 +111,440 @@ if ($result->success) {
 
 ### `process(LimitVO $limit = new LimitVO): ProcessResultRecord`
 
-Traite un lot de tâches récurrentes prêtes à être exécutées.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$limit` | `LimitVO` | Nombre maximum de tâches à traiter |
 
-**Retourne :** `ProcessResultRecord` - Résumé du traitement (succès, échecs, finis)
+**Retourne :** `ProcessResultRecord` - Bilan du traitement
+
+**Comportement :**
+1. Récupère les tâches prêtes via `findReadyToRun()`
+2. Enregistre les transitions d'état (WAITING→PLAYING, PLAYING→FINISHED)
+3. Exécute chaque tâche récupérée
+4. Agrège les résultats (succès, échecs, terminées)
+5. Collecte les erreurs dans une collection
 
 **Exemple :**
 ```php
-$result = $service->process(new LimitVO(50));
+<?php
 
-echo "Succès : {$result->success->getValue()}\n";
-echo "Échecs : {$result->failed->getValue()}\n";
-echo "Finis : {$result->finished->getValue()}\n";
+$limit = new LimitVO(50);
+$result = $service->process($limit);
+
+echo "📊 Bilan :\n";
+echo "   ✅ Succès : " . $result->success->getValue() . "\n";
+echo "   ❌ Échecs : " . $result->failed->getValue() . "\n";
+echo "   🏁 Terminées : " . $result->finished->getValue() . "\n";
+echo "   ⚠️ Erreurs : " . $result->errors->count() . "\n";
 ```
 
 ---
 
 ### `pause(TaskAliasVO $alias): bool`
 
-Met en pause une tâche récurrente.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche à mettre en pause |
 
-**Retourne :** `bool` - `true` si la pause a réussi, `false` sinon
+**Retourne :** `bool` - `true` si l'opération a réussi
 
-**Exemple :**
-```php
-if ($service->pause($alias)) {
-    echo "Tâche mise en pause";
-}
-```
+**Condition :** La tâche doit être en statut `PLAYING`
+
+**Transition :** `PLAYING` → `PAUSED`
 
 ---
 
 ### `resume(TaskAliasVO $alias): bool`
 
-Reprend l'exécution d'une tâche récurrente en pause.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche à reprendre |
 
-**Retourne :** `bool` - `true` si la reprise a réussi, `false` sinon
+**Retourne :** `bool` - `true` si l'opération a réussi
+
+**Condition :** La tâche doit être en statut `PAUSED`
+
+**Transition :** `PAUSED` → `PLAYING`
 
 ---
 
 ### `finish(TaskAliasVO $alias): bool`
 
-Marque une tâche comme terminée.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche à terminer |
 
-**Retourne :** `bool` - `true` si la tâche a été marquée comme terminée, `false` sinon
+**Retourne :** `bool` - `true` si l'opération a réussi
+
+**Condition :** La tâche ne doit pas être en statut `CANCELED`
+
+**Transition :** `PLAYING`/`WAITING`/`PAUSED` → `FINISHED`
 
 ---
 
 ### `cancel(TaskAliasVO $alias, ?DescriptionVO $reason = null): bool`
 
-Annule une tâche récurrente.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche à annuler |
-| `$reason` | `DescriptionVO|null` | Raison de l'annulation (optionnelle) |
+| `$reason` | `DescriptionVO|null` | Raison de l'annulation |
 
-**Retourne :** `bool` - `true` si l'annulation a réussi, `false` sinon
+**Retourne :** `bool` - `true` si l'opération a réussi
+
+**Comportement :**
+1. Marque la tâche comme `CANCELED`
+2. Journalise l'annulation avec la raison
+
+**Transition :** → `CANCELED`
 
 ---
 
 ### `advanceStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool`
-
-Avance la date de début d'une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche |
 | `$newStartAt` | `Iso8601DateTimeVO` | Nouvelle date de début |
 
-**Retourne :** `bool` - `true` si la mise à jour a réussi, `false` sinon
+**Retourne :** `bool` - `true` si l'opération a réussi
+
+**Condition :** La tâche ne doit pas être en statut `CANCELED`
 
 ---
 
 ### `postponeStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool`
 
-Reporte la date de début d'une tâche (alias de `advanceStartAt`).
+**Alias de `advanceStartAt()`** - Même comportement.
 
 ---
 
 ### `changeInterval(TaskAliasVO $alias, DurationVO $intervalSeconds): bool`
-
-Modifie l'intervalle d'exécution d'une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche |
 | `$intervalSeconds` | `DurationVO` | Nouvel intervalle en secondes |
 
-**Retourne :** `bool` - `true` si la modification a réussi, `false` sinon
+**Retourne :** `bool` - `true` si l'opération a réussi
+
+**Condition :** La tâche ne doit pas être en statut `CANCELED`
 
 ---
 
 ### `extendEndAt(TaskAliasVO $alias, Iso8601DateTimeVO $newEndAt): bool`
-
-Prolonge la date de fin d'une tâche.
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche |
 | `$newEndAt` | `Iso8601DateTimeVO` | Nouvelle date de fin |
 
-**Retourne :** `bool` - `true` si la prolongation a réussi, `false` sinon
+**Retourne :** `bool` - `true` si l'opération a réussi
+
+**Condition :** La tâche ne doit pas être en statut `CANCELED`
 
 ---
 
 ### `find(TaskAliasVO $alias): ?RecurringTaskRecord`
 
-Recherche une tâche par son alias.
-
 | Paramètre | Type | Description |
 |-----------|------|-------------|
 | `$alias` | `TaskAliasVO` | Alias de la tâche |
 
-**Retourne :** `RecurringTaskRecord|null` - Le record de la tâche ou `null` si non trouvée
+**Retourne :** `RecurringTaskRecord|null` - Enregistrement de la tâche ou null
 
 ---
 
 ### `findWaiting(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection`
-
-Retourne les tâches en attente (statut WAITING).
-
----
-
 ### `findPlaying(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection`
-
-Retourne les tâches en cours d'exécution (statut PLAYING).
-
----
-
 ### `findPaused(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection`
-
-Retourne les tâches en pause (statut PAUSED).
-
----
-
 ### `findFinished(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection`
-
-Retourne les tâches terminées (statut FINISHED).
-
----
-
 ### `findCanceled(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection`
 
-Retourne les tâches annulées (statut CANCELED).
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$limit` | `LimitVO` | Nombre maximum de tâches à retourner |
+
+**Retourne :** `RecurringTaskRecordCollection` - Collection d'enregistrements filtrés par statut
 
 ---
 
 ### `exists(TaskAliasVO $alias): bool`
 
-Vérifie si une tâche existe.
+**Retourne :** `bool` - `true` si la tâche existe
 
 ---
 
 ### `delete(TaskAliasVO $alias): bool`
 
-Supprime une tâche.
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$alias` | `TaskAliasVO` | Alias de la tâche à supprimer |
+
+**Retourne :** `bool` - `true` si la suppression a réussi
 
 ---
 
 ### `count(): CounterVO`
+### `countWaiting(): CounterVO`
+### `countPlaying(): CounterVO`
+### `countPaused(): CounterVO`
+### `countFinished(): CounterVO`
+### `countCanceled(): CounterVO`
 
-Compte toutes les tâches.
+**Retourne :** `CounterVO` - Nombre total de tâches ou par statut
 
 ---
-
-### `countWaiting(): CounterVO`, `countPlaying(): CounterVO`, etc.
-
-Compteurs par statut.
-
-## Cycle de vie des états
-
-```
-WAITING ──(start_at atteint)──▶ PLAYING
-                                  │
-                      ┌───────────┼───────────┐
-                      │           │           │
-                      ▼           ▼           ▼
-                   PAUSED     FINISHED    CANCELED
-                      │           │           │
-                      └───────────┘           │
-                                  │           │
-                                  ▼           ▼
-                              (terminal)  (terminal)
-```
 
 ## Cas d'utilisation
 
-### Cas 1 : Enregistrement d'une tâche récurrente
-
-**Problème :** Créer une tâche qui s'exécute toutes les heures.
+### Cas 1 : Enregistrement et exécution automatique d'une tâche récurrente
 
 ```php
-$config = RecurringTaskConfigRecord::from([
-    'interval_seconds' => 3600,
-    'start_at' => Carbon::now()->addMinutes(5)->toIso8601String(),
-    'max_attempts' => 3,
+<?php
+
+declare(strict_types=1);
+
+use AndyDefer\Task\Services\RecurringTaskService;
+use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
+use AndyDefer\Task\Records\RecurringTaskConfigRecord;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
+
+$service = app(RecurringTaskService::class);
+
+// 1. Enregistrer une tâche de nettoyage toutes les 30 minutes
+$fqcn = new RecurringTaskFqcnVO(CleanupTask::class);
+$payload = StrictDataObject::from([
+    'max_age_hours' => 24,
+    'batch_size' => 100,
 ]);
 
-$alias = $service->register(
-    new RecurringTaskFqcnVO(CleanupTask::class),
-    StrictDataObject::from(['max_items' => 100]),
-    $config
-);
+$config = RecurringTaskConfigRecord::from([
+    'interval_seconds' => new DurationVO(1800), // 30 min
+    'start_at' => new Iso8601DateTimeVO('2026-01-15 10:00:00'),
+    'max_attempts' => new MaxFailedAttemptsVO(5),
+]);
+
+$alias = $service->register($fqcn, $payload, $config);
+echo "📝 Tâche enregistrée : " . $alias->getValue() . "\n";
+
+// 2. Exécuter le traitement des tâches prêtes (à mettre dans un cron ou worker)
+$result = $service->process(new LimitVO(10));
+
+echo "📊 Résultat du traitement :\n";
+echo "  ✅ Succès : " . $result->success->getValue() . "\n";
+echo "  ❌ Échecs : " . $result->failed->getValue() . "\n";
+echo "  🏁 Terminées : " . $result->finished->getValue() . "\n";
 ```
 
----
-
-### Cas 2 : Traitement par lots
-
-**Problème :** Traiter toutes les tâches récurrentes prêtes.
+### Cas 2 : Gestion du cycle de vie (pause/reprise/annulation)
 
 ```php
-$result = $service->process(new LimitVO(100));
+<?php
 
-if ($result->failed->isPositive()) {
-    foreach ($result->errors as $error) {
-        echo "Erreur : {$error->description}\n";
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+
+$alias = new TaskAliasVO('recurring@550e8400-e29b-41d4-a716-446655440000');
+
+// ✅ Mettre en pause pendant la maintenance
+if ($service->pause($alias)) {
+    echo "⏸️ Tâche mise en pause\n";
+}
+
+// ✅ Reprendre après la maintenance
+if ($service->resume($alias)) {
+    echo "▶️ Tâche reprise\n";
+}
+
+// ✅ Terminer la tâche prématurément
+if ($service->finish($alias)) {
+    echo "🏁 Tâche terminée\n";
+}
+
+// ✅ Annuler avec une raison
+$reason = new DescriptionVO('Service désactivé pour la saison');
+if ($service->cancel($alias, $reason)) {
+    echo "🚫 Tâche annulée\n";
+}
+```
+
+### Cas 3 : Modification des paramètres d'une tâche existante
+
+```php
+<?php
+
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+
+$alias = new TaskAliasVO('recurring@550e8400-e29b-41d4-a716-446655440000');
+
+// ✅ Modifier l'intervalle (toutes les heures → toutes les 2 heures)
+$service->changeInterval($alias, new DurationVO(7200));
+
+// ✅ Reporter le début à plus tard
+$service->postponeStartAt($alias, new Iso8601DateTimeVO('2026-02-01 00:00:00'));
+
+// ✅ Prolonger la date de fin
+$service->extendEndAt($alias, new Iso8601DateTimeVO('2026-12-31 23:59:59'));
+
+echo "✅ Paramètres mis à jour\n";
+```
+
+### Cas 4 : Supervision et monitoring des tâches
+
+```php
+<?php
+
+use AndyDefer\Task\ValueObjects\LimitVO;
+
+// 📊 Statistiques globales
+echo "📊 Statistiques des tâches récurrentes :\n";
+echo "   📦 Total : " . $service->count()->getValue() . "\n";
+echo "   ⏳ En attente : " . $service->countWaiting()->getValue() . "\n";
+echo "   ▶️  En cours : " . $service->countPlaying()->getValue() . "\n";
+echo "   ⏸️  En pause : " . $service->countPaused()->getValue() . "\n";
+echo "   🏁 Terminées : " . $service->countFinished()->getValue() . "\n";
+echo "   🚫 Annulées : " . $service->countCanceled()->getValue() . "\n";
+
+// 📋 Liste des tâches en cours avec détails
+$playingTasks = $service->findPlaying(new LimitVO(20));
+foreach ($playingTasks as $task) {
+    echo sprintf(
+        "   - %s (intervalle: %ds, début: %s)\n",
+        $task->alias->getValue(),
+        $task->interval_seconds->getValue(),
+        $task->start_at->getValue()
+    );
+}
+```
+
+### Cas 5 : Gestion des erreurs avec récupération
+
+```php
+<?php
+
+use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\LimitVO;
+
+$alias = new TaskAliasVO('recurring@550e8400-e29b-41d4-a716-446655440000');
+
+try {
+    // Tenter d'exécuter la tâche
+    $result = $service->run($alias);
+    
+    if (!$result->success) {
+        // La tâche a échoué, vérifier le statut
+        $task = $service->find($alias);
+        if ($task && $task->status === RecurringTaskStatus::CANCELED) {
+            echo "⚠️ Tâche annulée suite à trop d'échecs\n";
+            
+            // Réactiver avec de nouveaux paramètres
+            $service->changeInterval($alias, new DurationVO(300)); // 5 min
+            // Note: Le service n'a pas de méthode directe pour réactiver
+            // Il faudrait repasser en PLAYING via le repository
+        }
+    }
+} catch (Throwable $e) {
+    echo "💥 Erreur critique : " . $e->getMessage() . "\n";
+}
+
+// Traitement en lot avec limite
+$processResult = $service->process(new LimitVO(25));
+if ($processResult->failed->getValue() > 0) {
+    // Journaliser les erreurs pour investigation
+    foreach ($processResult->errors as $error) {
+        echo "❌ " . $error->alias->getValue() . ": " . $error->description->getValue() . "\n";
     }
 }
 ```
 
----
+## Flux d'exécution de `process()`
 
-### Cas 3 : Mise en pause et reprise
-
-**Problème :** Mettre en pause une tâche pendant la maintenance.
-
-```php
-// Pause
-if ($service->pause($alias)) {
-    echo "Tâche mise en pause\n";
-}
-
-// ... maintenance ...
-
-// Reprise
-if ($service->resume($alias)) {
-    echo "Tâche reprise\n";
-}
 ```
-
----
-
-### Cas 4 : Modification de l'intervalle
-
-**Problème :** Une tâche doit passer de toutes les heures à toutes les 30 minutes.
-
-```php
-$service->changeInterval($alias, new DurationVO(1800));
-```
-
----
-
-### Cas 5 : Annulation avec notification
-
-**Problème :** Annuler une tâche et enregistrer la raison.
-
-```php
-$reason = new DescriptionVO('Projet terminé');
-$service->cancel($alias, $reason);
+┌─────────────────────────────────────────────────────────────────────┐
+│                    RecurringTaskService::process()                  │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  1. repository->findReadyToRun($now, $limit)                        │
+│     - Applique freshState() (transitions automatiques)              │
+│     - Retourne les tâches PLAYING avec lockForUpdate()              │
+│     - Retourne aussi le résultat des transitions                    │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  2. Enregistrer les transitions d'état                              │
+│     - fresh_state->playing_to_finished → $finished                  │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  3. Pour chaque tâche dans $result->tasks                           │
+│     - Vérifier si la tâche doit s'exécuter (shouldRunAgain)         │
+│       * Statut PLAYING                                              │
+│       * last_run_at null OU intervalle écoulé                       │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  4. Pour chaque tâche valide                                        │
+│     - $this->run($alias)                                            │
+│     - Agrège succès/échecs                                          │
+│     - Collecte les erreurs                                          │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │
+                         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  5. Retourner ProcessResultRecord                                   │
+│     - success, failed, finished, errors                             │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Gestion des erreurs
 
-| Situation | Exception/Retour | Message |
-|-----------|------------------|---------|
-| Classe de tâche inexistante | `InvalidArgumentException` | `Task class "X" does not exist.` |
-| Classe non valide | `InvalidArgumentException` | `Class "X" must extend AbstractRecurringTask` |
-| Tâche non trouvée | `false` / `null` | - |
-| Statut invalide pour l'opération | `false` | - |
-| Échec d'exécution | `TaskRunResultRecord` avec `success = false` | Message d'erreur de l'exception |
+| Situation | Comportement | Message/Code |
+|-----------|--------------|--------------|
+| Tâche non trouvée (`run`) | Retourne erreur | `'Task not found'` |
+| Statut non `PLAYING` (`run`) | Retourne erreur | `'Task is not in PLAYING state (current: X)'` |
+| Tâche expirée (`run`) | MoveToFinished | `'Task has expired (end_at reached)'` |
+| Exception dans l'exécution | `updateAfterRun(false)` | Message d'erreur original |
+| Pause sur statut non `PLAYING` | Retourne `false` | - |
+| Reprise sur statut non `PAUSED` | Retourne `false` | - |
+| Annulation | Journalise `recurring_task_cancelled` | - |
 
-## Intégration
-
-### Dépendances
-
-- `RecurringTaskRepositoryInterface` : Accès aux données
-- `LoggerInterface` : Logging
-- `HydrationService` : Hydratation des objets
-- `Application` : Conteneur Laravel
-
-### Points d'extension
-
-- Le repository peut être remplacé pour utiliser un stockage différent
-- Les loggers peuvent être personnalisés
+**Exceptions propagées :**
+- `InvalidArgumentException` lors de l'enregistrement si la classe est invalide
+- Les autres erreurs sont capturées et retournées via les codes de retour
 
 ## Performance
 
-- **Recherches** : Indexées sur `alias` et `status`
-- **Traitement par lots** : Utilise des requêtes optimisées
-- **Transactions** : Les transitions d'état sont atomiques
-- **Recommandation** : Utiliser `LimitVO` pour les gros volumes
+| Opération | Complexité | Description |
+|-----------|-----------|-------------|
+| `register()` | O(1) | Insertion d'une seule tâche |
+| `run()` | O(1) + exécution tâche | Récupération + exécution |
+| `process()` | O(n) | n = nombre de tâches traitées (limit) |
+| `find*()` | O(n) | n = limit ou nombre de résultats |
+| `count*()` | O(1) | COUNT query |
+
+**Recommandations :**
+- Utiliser `process()` avec un `limit` raisonnable (10-100) pour éviter les batchs trop gros
+- Les `find*()` avec de grands `limit` peuvent impacter la mémoire
+- Les `count*()` sont légers et peuvent être utilisés fréquemment
 
 ## Compatibilité
 
-| Version PHP | Support |
-|-------------|---------|
-| PHP 8.2+ | ✅ Complet |
-| PHP 8.1 | ✅ Complet |
+| Version | Support |
+|---------|---------|
+| PHP 8.1+ | ✅ Complet |
+| PHP 8.0 | ✅ Complet |
+| Laravel 10+ | ✅ Complet |
+| Laravel 9 | ✅ Complet |
 
 ## Exemple complet
 
@@ -404,43 +556,128 @@ declare(strict_types=1);
 use AndyDefer\Task\Services\RecurringTaskService;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\DurationVO;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
+use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+use AndyDefer\Task\Records\RecurringTaskConfigRecord;
+use AndyDefer\DomainStructures\Utils\StrictDataObject;
 
-/** @var RecurringTaskService $service */
 $service = app(RecurringTaskService::class);
 
-// Enregistrement
-$config = RecurringTaskConfigRecord::from([
-    'interval_seconds' => 3600,
-    'max_attempts' => 3,
+// ============================================================
+// 1. ENREGISTREMENT D'UNE TÂCHE
+// ============================================================
+echo "📝 Enregistrement d'une tâche de nettoyage...\n";
+
+$fqcn = new RecurringTaskFqcnVO(CleanupTask::class);
+$payload = StrictDataObject::from([
+    'max_age' => 30,
+    'unit' => 'days',
 ]);
 
-$alias = $service->register(
-    new RecurringTaskFqcnVO(BackupTask::class),
-    StrictDataObject::from(['path' => '/backup']),
-    $config
-);
+$config = RecurringTaskConfigRecord::from([
+    'interval_seconds' => new DurationVO(3600), // 1 heure
+    'start_at' => new Iso8601DateTimeVO('2026-01-15 08:00:00'),
+    'end_at' => new Iso8601DateTimeVO('2026-12-31 23:59:59'),
+    'max_attempts' => new MaxFailedAttemptsVO(5),
+]);
 
-// Vérification
-if ($service->exists($alias)) {
-    echo "Tâche créée : {$alias->getValue()}\n";
+$alias = $service->register($fqcn, $payload, $config);
+echo "✅ Alias : " . $alias->getValue() . "\n\n";
+
+// ============================================================
+// 2. PROCESSUS PRINCIPAL (TRAITEMENT DES TÂCHES PRÊTES)
+// ============================================================
+echo "🔄 Traitement des tâches prêtes...\n";
+
+$limit = new LimitVO(20);
+$result = $service->process($limit);
+
+echo "📊 Résultats :\n";
+echo "   ✅ Succès : " . $result->success->getValue() . "\n";
+echo "   ❌ Échecs : " . $result->failed->getValue() . "\n";
+echo "   🏁 Terminées : " . $result->finished->getValue() . "\n";
+echo "   ⚠️  Erreurs : " . $result->errors->count() . "\n\n";
+
+if ($result->errors->count() > 0) {
+    echo "Détail des erreurs :\n";
+    foreach ($result->errors as $error) {
+        echo "   ❌ " . $error->alias->getValue() . "\n";
+        echo "      " . $error->description->getValue() . "\n";
+    }
+    echo "\n";
 }
 
-// Traitement
-$result = $service->process(new LimitVO(10));
-echo "Traitement : {$result->success->getValue()} succès, {$result->failed->getValue()} échecs\n";
+// ============================================================
+// 3. GESTION DU CYCLE DE VIE
+// ============================================================
+echo "⏯️  Gestion du cycle de vie...\n";
 
-// Modification de l'intervalle
-$service->changeInterval($alias, new DurationVO(7200));
+// Mettre en pause
+if ($service->pause($alias)) {
+    echo "⏸️ Tâche mise en pause\n";
+    sleep(1);
+}
 
-// Annulation
-$service->cancel($alias, new DescriptionVO('Maintenance planifiée'));
+// Reprendre
+if ($service->resume($alias)) {
+    echo "▶️ Tâche reprise\n\n";
+}
+
+// ============================================================
+// 4. MODIFICATION DES PARAMÈTRES
+// ============================================================
+echo "⚙️ Modification des paramètres...\n";
+
+// Changer l'intervalle
+$service->changeInterval($alias, new DurationVO(1800)); // 30 min
+echo "   ✅ Intervalle modifié : 30 minutes\n";
+
+// Prolonger la date de fin
+$service->extendEndAt($alias, new Iso8601DateTimeVO('2027-12-31 23:59:59'));
+echo "   ✅ Date de fin prolongée jusqu'au 31/12/2027\n\n";
+
+// ============================================================
+// 5. SUPERVISION
+// ============================================================
+echo "📊 Supervision :\n";
+echo "   📦 Total : " . $service->count()->getValue() . "\n";
+echo "   ⏳ En attente : " . $service->countWaiting()->getValue() . "\n";
+echo "   ▶️  En cours : " . $service->countPlaying()->getValue() . "\n";
+echo "   🏁 Terminées : " . $service->countFinished()->getValue() . "\n";
+echo "   🚫 Annulées : " . $service->countCanceled()->getValue() . "\n";
+
+// ============================================================
+// 6. RÉCUPÉRATION D'UNE TÂCHE SPÉCIFIQUE
+// ============================================================
+$task = $service->find($alias);
+if ($task !== null) {
+    echo "\n📋 Détail de la tâche :\n";
+    echo "   Alias : " . $task->alias->getValue() . "\n";
+    echo "   FQCN : " . $task->fqcn->getValue() . "\n";
+    echo "   Statut : " . $task->status->value . "\n";
+    echo "   Intervalle : " . $task->interval_seconds->getValue() . "s\n";
+    echo "   Début : " . $task->start_at->getValue() . "\n";
+    echo "   Fin : " . ($task->end_at?->getValue() ?? 'Aucune') . "\n";
+    echo "   Tentatives échouées : " . $task->failed_attempts->getValue() . "\n";
+}
+
+// ============================================================
+// 7. ANNULATION
+// ============================================================
+$reason = new DescriptionVO('Migration vers le nouveau système');
+if ($service->cancel($alias, $reason)) {
+    echo "\n🚫 Tâche annulée avec raison : " . $reason->getValue() . "\n";
+}
 ```
 
 ## Voir aussi
-
-- `UniqueTaskService` - Service de tâches uniques
-- `RecurringTaskRepositoryInterface` - Repository des tâches récurrentes
-- `RecurringTaskRecord` - Structure de données
-- `RecurringTaskStatus` - États des tâches
----
+- `RecurringTaskRepository` - Dépôt utilisé pour les opérations de base de données
+- `RecurringTaskServiceInterface` - Interface du service
+- `AbstractRecurringTask` - Classe abstraite à étendre pour les tâches récurrentes
+- `RecurringTaskRecord` - Data Transfer Object
+- `TaskRunResultRecord` - Résultat d'exécution
+- `ProcessResultRecord` - Résultat du traitement en lot
+- `UniqueTaskService` - Service similaire pour les tâches uniques

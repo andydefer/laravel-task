@@ -8,6 +8,7 @@ enum UniqueTaskStatus: string
 {
     case PENDING = 'pending';
     case COMPLETED = 'completed';
+    case IN_PROGRESS = 'in_progress';
     case FAILED = 'failed';
     case CANCELED = 'canceled';
 

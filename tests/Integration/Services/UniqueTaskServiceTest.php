@@ -195,22 +195,24 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $result = $this->service->run($alias);
 
         $this->assertTrue($result->success);
+        $this->assertFalse($result->skipped);
 
         $task = $this->findTaskByAlias($alias);
         $this->assertEquals(UniqueTaskStatus::COMPLETED, $task->getStatus());
         $this->assertNotNull($task->getFinishedAt());
     }
 
-    public function test_run_returns_false_for_non_existing_task(): void
+    public function test_run_returns_skipped_for_non_existing_task(): void
     {
         $alias = $this->generateAliasFromName('non-existent');
         $result = $this->service->run($alias);
 
         $this->assertFalse($result->success);
+        $this->assertFalse($result->skipped ?? false);
         $this->assertEquals('Task not found', $result->error);
     }
 
-    public function test_run_returns_false_for_completed_task(): void
+    public function test_run_returns_skipped_for_completed_task(): void
     {
         $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
         $config = $this->createConfig();
@@ -220,8 +222,10 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $result = $this->service->run($alias);
 
-        $this->assertFalse($result->success);
-        $this->assertStringContainsString('not in PENDING state', $result->error->getValue());
+        // ✅ Maintenant, la tâche est skipped, pas en erreur
+        $this->assertTrue($result->success);
+        $this->assertTrue($result->skipped);
+        $this->assertStringContainsString('skipped', $result->message ?? '');
     }
 
     public function test_run_handles_task_failure(): void
@@ -238,6 +242,7 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $result = $this->service->run($alias);
 
         $this->assertFalse($result->success);
+        $this->assertFalse($result->skipped ?? false);
 
         $task = $this->findTaskByAlias($alias);
         $this->assertEquals(UniqueTaskStatus::FAILED, $task->getStatus());
@@ -583,8 +588,13 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $this->updateTaskAttempts($alias, 3);
 
         $result = $this->service->run($alias);
-        $this->assertFalse($result->success);
 
+        // ✅ La tâche est skipped car max attempts atteint
+        // Mais elle est bien marquée FAILED
+        $this->assertTrue($result->success);
+        $this->assertTrue($result->skipped);
+
+        // ✅ Vérifier que le compteur failed est bien à 1
         $this->assertEquals(1, $this->service->countFailed()->getValue());
     }
 

@@ -14,6 +14,7 @@ use AndyDefer\Task\Collections\UniqueTaskRecordCollection;
 use AndyDefer\Task\Contexts\UniqueTaskContext;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
+use AndyDefer\Task\Enums\ExecutionStatus;
 use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask as ModelsUniqueTask;
@@ -118,14 +119,29 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         }
 
         $task = $this->instantiateTask($taskRecord->fqcn, $taskRecord);
+        $success = false;
+        $error = null;
+        $debugStatus = ExecutionStatus::FAILED;
 
         try {
             $task->execute($taskRecord->payload);
             $this->repository->moveToCompleted($taskRecord);
+            $success = true;
+            $debugStatus = ExecutionStatus::SUCCEEDED;
 
             return $this->createSuccessResult($alias, $startTime);
         } catch (Throwable $e) {
+            $error = $e->getMessage();
+            $debugStatus = ExecutionStatus::FAILED;
+
             return $this->handleExecutionFailure($taskRecord, $alias, $e, $startTime);
+        } finally {
+            // ✅ Ajout du debug avec le bon type
+            $this->repository->addDebug(
+                $taskRecord,
+                $debugStatus,
+                new DescriptionVO($success ? 'Task executed successfully' : ($error ?? 'Unknown error'))
+            );
         }
     }
 
@@ -137,6 +153,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
         $failed = 0;
+        $skipped = 0;
         $errors = new TaskErrorRecordCollection;
 
         $now = new Iso8601DateTimeVO;
@@ -148,6 +165,14 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
             try {
                 $result = $this->run($record->alias);
+
+                // ✅ Si la tâche a été skip (déjà traitée par un autre worker)
+                if ($result->skipped ?? false) {
+                    $skipped++;
+
+                    continue;
+                }
+
                 if ($result->success) {
                     $success++;
                 } else {
@@ -187,6 +212,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             'ended_at' => new Iso8601DateTimeVO,
             'success' => new CounterVO($success),
             'failed' => new CounterVO($failed),
+            'skipped' => new CounterVO($skipped),
             'finished' => new CounterVO(0),
             'errors' => $errors,
         ]);
@@ -436,6 +462,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             'alias' => $alias,
             'success' => false,
             'error' => 'Task not found',
+            'skipped' => false,
         ]);
     }
 
@@ -451,6 +478,8 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         return TaskRunResultRecord::from([
             'alias' => $alias,
             'success' => true,
+            'error' => null,
+            'skipped' => false,
             'execution_time_ms' => $startTime->elapsedInMilliseconds(),
         ]);
     }
@@ -469,6 +498,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             'alias' => $alias,
             'success' => false,
             'error' => $error,
+            'skipped' => false,
         ];
 
         if ($startTime !== null) {
@@ -476,6 +506,25 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         }
 
         return TaskRunResultRecord::from($data);
+    }
+
+    /**
+     * Creates a skipped result.
+     *
+     * @param  TaskAliasVO  $alias  The task alias
+     * @param  string  $message  The skip message
+     * @return TaskRunResultRecord The skipped result
+     */
+    private function createSkippedResult(TaskAliasVO $alias, string $message): TaskRunResultRecord
+    {
+        return TaskRunResultRecord::from([
+            'alias' => $alias,
+            'success' => true,
+            'error' => null,
+            'skipped' => true,
+            'message' => $message,
+            'execution_time_ms' => 0,
+        ]);
     }
 
     /**
@@ -487,11 +536,17 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
      */
     private function performPreExecutionChecks(UniqueTaskRecord $taskRecord, TaskAliasVO $alias): ?TaskRunResultRecord
     {
-        if ($taskRecord->status !== UniqueTaskStatus::PENDING) {
-            return $this->createErrorResult(
+        // ✅ Accepter PENDING et IN_PROGRESS
+        // IN_PROGRESS signifie que ce worker a déjà verrouillé la tâche
+        if ($taskRecord->status === UniqueTaskStatus::IN_PROGRESS) {
+            // Continue l'exécution, la tâche est déjà verrouillée par ce worker
+            // Ne rien faire, passer à la suite
+        } elseif ($taskRecord->status !== UniqueTaskStatus::PENDING) {
+            // ✅ Si la tâche n'est pas PENDING ou IN_PROGRESS, on la SKIP
+            return $this->createSkippedResult(
                 $alias,
                 sprintf(
-                    'Task is not in PENDING state (current: %s)',
+                    'Task is not in PENDING or IN_PROGRESS state (current: %s) - skipped',
                     $taskRecord->status->value
                 )
             );
@@ -500,14 +555,26 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         $now = new Iso8601DateTimeVO;
         $scheduledAt = $taskRecord->scheduled_at;
 
+        // ✅ Si la tâche est programmée dans le futur, on la SKIP
         if ($scheduledAt->isAfter($now)) {
-            return $this->createErrorResult($alias, 'Task is scheduled in the future');
+            return $this->createSkippedResult(
+                $alias,
+                'Task is scheduled in the future - skipped'
+            );
         }
 
+        // ✅ Si le nombre max de tentatives est atteint, on la SKIP
         if ($taskRecord->attempts->getValue() >= $taskRecord->max_attempts->getValue()) {
             $this->repository->moveToFailed($taskRecord);
 
-            return $this->createErrorResult($alias, 'Maximum attempts reached');
+            return $this->createSkippedResult(
+                $alias,
+                sprintf(
+                    'Maximum attempts reached (%d/%d) - skipped',
+                    $taskRecord->attempts->getValue(),
+                    $taskRecord->max_attempts->getValue()
+                )
+            );
         }
 
         return null;

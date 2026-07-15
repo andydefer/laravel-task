@@ -11,13 +11,15 @@ use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Handlers\SignalHandler;
-use AndyDefer\Task\Records\TaskExecutionResultRecord;
+use AndyDefer\Task\Helpers\JsonlResultHelper;
+use AndyDefer\Task\Helpers\SessionHelper;
 use AndyDefer\Task\Services\Watchs\CycleCalculator;
 use AndyDefer\Task\Services\Watchs\ParallelExecutor;
 use AndyDefer\Task\Services\Watchs\ResultAggregator;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
 
@@ -37,7 +39,15 @@ final class TasksWatchDirective extends AbstractDirective
 
     public function getSignature(): string
     {
-        return 'tasks:watch {interval=60} {duration=?} {limit=100} {parallel=?} {--unique-only} {--recurring-only} {--verbose} {--mute}';
+        return 'tasks:watch 
+                    {interval=60}#"Interval between cycles in seconds (minimum 2s)" 
+                    {duration=?}#"Total execution duration in seconds (unlimited if omitted)" 
+                    {limit=100}#"Maximum tasks to process per cycle" 
+                    {parallel=?}#"Number of parallel workers (1 by default)" 
+                    {--unique-only}#"Process only unique tasks" 
+                    {--recurring-only}#"Process only recurring tasks" 
+                    {--verbose}#"Show detailed execution logs" 
+                    {--mute}#"Suppress all console output"';
     }
 
     public function getDescription(): string
@@ -52,10 +62,14 @@ final class TasksWatchDirective extends AbstractDirective
 
     protected function execute(): ExitCode
     {
+        $sessionId = SessionHelper::generate();
+        JsonlResultHelper::init($sessionId);
+
         try {
             $this->boot();
 
             $this->output->info('👀 Starting task watch...');
+            $this->output->debug("Session ID: {$sessionId}");
             $this->displayStartMessage();
 
             $this->signalHandler->install();
@@ -74,7 +88,6 @@ final class TasksWatchDirective extends AbstractDirective
                 $cycleNumber++;
                 $this->aggregator->startNewCycle();
 
-                // ✅ Enregistrer le début du cycle
                 $cycleStartTime = microtime(true);
 
                 $this->output->line();
@@ -86,9 +99,9 @@ final class TasksWatchDirective extends AbstractDirective
                     $this->aggregator->addResults($cycleResults);
                 }
 
-                $this->displayCycleSummaryDetailed($cycleNumber, $cycleResults);
+                // ✅ Afficher ce qui RESTE à faire
+                $this->displayRemainingTasks();
 
-                // ✅ Calculer le temps d'attente réel
                 $elapsedTime = microtime(true) - $cycleStartTime;
                 $intervalSeconds = $this->getInterval()->getValue();
                 $waitTime = max(0, $intervalSeconds - $elapsedTime);
@@ -102,11 +115,13 @@ final class TasksWatchDirective extends AbstractDirective
                 }
             }
 
-            $this->displayFinalSummary($startedAt);
+            // ✅ Afficher le résumé final : ce qui RESTE
+            $this->displayFinalRemaining();
 
             return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
 
         } catch (Throwable $e) {
+
             $this->getKernel()->addProblem(
                 'tasks_watch_error',
                 'Failed to watch tasks',
@@ -119,6 +134,10 @@ final class TasksWatchDirective extends AbstractDirective
             }
 
             return ExitCode::RUNTIME_ERROR;
+        } finally {
+
+            SessionHelper::delete();
+
         }
     }
 
@@ -160,7 +179,6 @@ final class TasksWatchDirective extends AbstractDirective
         $this->cycleCalculator = new CycleCalculator($interval, $duration);
         $this->parallelExecutor = new ParallelExecutor(
             $this->getParallelWorkers(),
-            $console,
             $kernel,
             $this->output
         );
@@ -183,50 +201,95 @@ final class TasksWatchDirective extends AbstractDirective
         );
     }
 
-    private function displayCycleSummaryDetailed(int $cycleNumber, array $results): void
+    /**
+     * Affiche les tâches restantes à exécuter.
+     */
+    private function displayRemainingTasks(): void
     {
         if ($this->output->isMuted()) {
             return;
         }
 
-        $totalSuccess = 0;
-        $totalFailed = 0;
-        $totalErrors = 0;
-        $uniqueSuccess = 0;
-        $uniqueFailed = 0;
-        $recurringSuccess = 0;
-        $recurringFailed = 0;
+        $now = new Iso8601DateTimeVO;
 
-        foreach ($results as $result) {
-            if ($result instanceof TaskExecutionResultRecord) {
-                $success = $result->success->getValue();
-                $failed = $result->failed->getValue();
-                $errors = $result->errors->count();
+        // ✅ Compter les tâches uniques PENDING prêtes
+        $uniquePending = DB::table('unique_tasks')
+            ->where('status', 'pending')
+            ->where('scheduled_at', '<=', $now->forDatabase())
+            ->count();
 
-                $totalSuccess += $success;
-                $totalFailed += $failed;
-                $totalErrors += $errors;
+        // ✅ Compter les tâches récurrentes PLAYING
+        $recurringPlaying = DB::table('recurring_tasks')
+            ->where('status', 'playing')
+            ->count();
 
-                if ($result->type->value === 'unique') {
-                    $uniqueSuccess += $success;
-                    $uniqueFailed += $failed;
-                } elseif ($result->type->value === 'recurring') {
-                    $recurringSuccess += $success;
-                    $recurringFailed += $failed;
-                }
-            }
+        // ✅ Compter les tâches récurrentes WAITING
+        $recurringWaiting = DB::table('recurring_tasks')
+            ->where('status', 'waiting')
+            ->count();
+
+        $this->output->remainingTasks($uniquePending, $recurringPlaying, $recurringWaiting);
+    }
+
+    /**
+     * Affiche le résumé final : ce qui RESTE.
+     */
+    private function displayFinalRemaining(): void
+    {
+        if ($this->output->isMuted()) {
+            return;
         }
 
-        $this->output->cycleSummaryDetailed(
-            $cycleNumber,
-            $totalSuccess,
-            $totalFailed,
-            $totalErrors,
-            $uniqueSuccess,
-            $uniqueFailed,
-            $recurringSuccess,
-            $recurringFailed
-        );
+        $now = new Iso8601DateTimeVO;
+
+        // ✅ Compter les tâches restantes
+        $uniquePending = DB::table('unique_tasks')
+            ->where('status', 'pending')
+            ->where('scheduled_at', '<=', $now->forDatabase())
+            ->count();
+
+        $recurringPlaying = DB::table('recurring_tasks')
+            ->where('status', 'playing')
+            ->count();
+
+        $recurringWaiting = DB::table('recurring_tasks')
+            ->where('status', 'waiting')
+            ->count();
+
+        $uniqueTotal = DB::table('unique_tasks')->count();
+        $recurringTotal = DB::table('recurring_tasks')->count();
+
+        $uniqueCompleted = DB::table('unique_tasks')
+            ->where('status', 'completed')
+            ->count();
+
+        $recurringFinished = DB::table('recurring_tasks')
+            ->where('status', 'finished')
+            ->count();
+
+        $this->output->line();
+        $this->output->title('📊 Final Status');
+        $this->output->line();
+
+        $this->output->line('📌 Unique tasks:');
+        $this->output->line(sprintf('   Total      : %d', $uniqueTotal));
+        $this->output->line(sprintf('   ✅ Completed: %d', $uniqueCompleted));
+        $this->output->line(sprintf('   ⏳ Pending  : %d', $uniquePending));
+        $this->output->line();
+
+        $this->output->line('🔄 Recurring tasks:');
+        $this->output->line(sprintf('   Total      : %d', $recurringTotal));
+        $this->output->line(sprintf('   ✅ Finished : %d', $recurringFinished));
+        $this->output->line(sprintf('   ▶️  Playing  : %d', $recurringPlaying));
+        $this->output->line(sprintf('   ⏳ Waiting  : %d', $recurringWaiting));
+        $this->output->line();
+
+        $totalRemaining = $uniquePending + $recurringPlaying + $recurringWaiting;
+        $this->output->line(sprintf('📦 Total remaining: %d', $totalRemaining));
+        $this->output->line();
+
+        $this->output->info('💡 Tip: Use --verbose to see detailed execution logs');
+        $this->output->line();
     }
 
     private function getInterval(): DurationVO
@@ -329,30 +392,5 @@ final class TasksWatchDirective extends AbstractDirective
 
         $this->output->line('Press Ctrl+C to stop');
         $this->output->line();
-    }
-
-    private function displayFinalSummary(Iso8601DateTimeVO $startedAt): void
-    {
-        if ($this->output->isMuted()) {
-            return;
-        }
-
-        $elapsed = $startedAt->elapsed();
-        $duration = $this->getDuration();
-
-        $this->output->finalSummary(
-            totalCycles: $this->aggregator->getCycleCount(),
-            totalSuccess: $this->aggregator->getTotalSuccess()->getValue(),
-            totalFailed: $this->aggregator->getTotalFailed()->getValue(),
-            totalErrors: $this->aggregator->getTotalErrors()->getValue(),
-            uniqueSuccess: $this->aggregator->getUniqueSuccess()->getValue(),
-            uniqueFailed: $this->aggregator->getUniqueFailed()->getValue(),
-            recurringSuccess: $this->aggregator->getRecurringSuccess()->getValue(),
-            recurringFailed: $this->aggregator->getRecurringFailed()->getValue(),
-            elapsedSeconds: $elapsed->getValue(),
-            plannedDuration: $duration !== null ? (int) $duration->getValue() : null,
-            stoppedBySignal: $this->signalHandler->shouldStop(),
-            workers: $this->getParallelWorkers()
-        );
     }
 }

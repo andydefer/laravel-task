@@ -16,5 +16,7 @@ final class TaskRunResultRecord extends AbstractRecord
         public readonly bool $success,
         public readonly ?DescriptionVO $error = null,
         public readonly ?MillisecondsVO $execution_time_ms = null,
+        public readonly bool $skipped = false,  // ✅ Ajouté
+        public readonly ?string $message = null,  // ✅ Ajouté pour le message de skip
     ) {}
 }

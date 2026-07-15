@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Tests\Integration\Directives;
 use AndyDefer\Directive\Services\DirectiveTestingService;
 use AndyDefer\Task\Directives\TasksWatchDirective;
 use AndyDefer\Task\Tests\IntegrationTestCase;
+use Illuminate\Foundation\Testing\DatabaseMigrations;
 
 /**
  * Integration tests for the TasksWatchDirective.
@@ -16,11 +17,16 @@ use AndyDefer\Task\Tests\IntegrationTestCase;
  */
 final class TasksWatchDirectiveTest extends IntegrationTestCase
 {
+    use DatabaseMigrations;
+
     private DirectiveTestingService $testingService;
 
     protected function setUp(): void
     {
         parent::setUp();
+
+        // ✅ Forcer l'exécution des migrations
+        $this->runDatabaseMigrations();
 
         $this->testingService = new DirectiveTestingService(
             $this->app,
@@ -93,7 +99,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $this->assertStringContainsString('Interval: 2s', $response->output);
         $this->assertStringContainsString('Duration: 6s', $response->output);
-        $this->assertStringContainsString('Watch Summary', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
     }
 
     public function test_execute_with_limit(): void
@@ -101,7 +107,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $response = $this->runDirective(['2', '4', '10']);
 
         $this->assertStringContainsString('Limit: 10', $response->output);
-        $this->assertStringContainsString('Watch Summary', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
     }
 
     public function test_execute_with_parallel_workers(): void
@@ -110,8 +116,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
         $this->assertStringContainsString('Workers: 2', $response->output);
         $this->assertStringContainsString('Starting 2 parallel workers', $response->output);
-        $this->assertStringContainsString('Watch Summary', $response->output);
-        $this->assertStringContainsString('Cycles:', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
     }
 
     public function test_execute_with_unique_only(): void
@@ -119,7 +124,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $response = $this->runDirective(['2', '4', '10', '1', '--unique-only']);
 
         $this->assertStringContainsString('Options: --unique-only', $response->output);
-        $this->assertStringContainsString('Watch Summary', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
     }
 
     public function test_execute_with_recurring_only(): void
@@ -127,7 +132,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $response = $this->runDirective(['2', '4', '10', '1', '--recurring-only']);
 
         $this->assertStringContainsString('Options: --recurring-only', $response->output);
-        $this->assertStringContainsString('Watch Summary', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
     }
 
     public function test_execute_with_verbose_mode(): void
@@ -135,7 +140,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $response = $this->runDirective(['2', '4', '10', '1', '--verbose']);
 
         $this->assertStringContainsString('Options: --verbose', $response->output);
-        $this->assertStringContainsString('Watch Summary', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
     }
 
     public function test_execute_with_mute_option_should_not_output_anything(): void
@@ -175,10 +180,8 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_mute_compared_to_normal_execution(): void
     {
-        // $responseWithoutMute = $this->runDirective(['2', '4', '10', '1']);
         $responseWithMute = $this->runDirective(['2', '4', '10', '1', '--mute']);
 
-        //   $this->assertNotEmpty($responseWithoutMute->output);
         $this->assertEmpty($responseWithMute->output);
     }
 

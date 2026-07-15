@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services\Watchs;
 
-use AndyDefer\ConsoleWriter\Console\Contracts\ConsoleInterface;
 use AndyDefer\Directive\DirectiveKernel;
 use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Records\TaskExecutionResultRecord;
@@ -15,20 +14,16 @@ final class ParallelExecutor
 {
     private int $maxWorkers;
 
-    private ConsoleInterface $console;
-
     private DirectiveKernel $kernel;
 
     private OutputHandler $output;
 
     public function __construct(
         int $maxWorkers,
-        ConsoleInterface $console,
         DirectiveKernel $kernel,
         OutputHandler $output
     ) {
         $this->maxWorkers = max(1, $maxWorkers);
-        $this->console = $console;
         $this->kernel = $kernel;
         $this->output = $output;
     }

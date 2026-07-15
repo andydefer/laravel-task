@@ -51,7 +51,6 @@ final class ParallelExecutorTest extends IntegrationTestCase
         $this->kernel = DirectiveKernel::init($this->app);
         $this->executor = new ParallelExecutor(
             2,
-            $this->console,
             $this->kernel,
             $this->outputHandler
         );
@@ -76,7 +75,6 @@ final class ParallelExecutorTest extends IntegrationTestCase
 
         return new ParallelExecutor(
             $workers,
-            $console,
             $kernel,
             $outputHandler
         );
@@ -101,7 +99,6 @@ final class ParallelExecutorTest extends IntegrationTestCase
 
         return new ParallelExecutor(
             $workers,
-            $console,
             $kernel,
             $outputHandler
         );
@@ -227,7 +224,6 @@ final class ParallelExecutorTest extends IntegrationTestCase
     {
         $executor = new ParallelExecutor(
             0,
-            $this->console,
             $this->kernel,
             $this->outputHandler
         );

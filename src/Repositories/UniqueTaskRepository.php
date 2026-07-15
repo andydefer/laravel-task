@@ -190,19 +190,26 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
      */
     public function findReadyToRun(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection
     {
+        $limit = $limit ?? new LimitVO;
         $formattedNow = $now->forDatabase();
 
         return DB::transaction(function () use ($formattedNow, $limit) {
-            $query = $this->model->newQuery()
+            $tasks = $this->model->newQuery()
                 ->where('status', UniqueTaskStatus::PENDING->value)
                 ->where('scheduled_at', '<=', $formattedNow)
-                ->lockForUpdate();
+                ->lockForUpdate()
+                ->limit($limit->getValue() ?? PHP_INT_MAX)
+                ->get();
 
-            if ($limit !== null) {
-                $query->limit($limit->getValue());
+            // ✅ UPDATE en lot (une seule requête pour toutes les tâches)
+            if ($tasks->isNotEmpty()) {
+                $taskIds = $tasks->pluck('id')->toArray();
+                $this->model->newQuery()
+                    ->whereIn('id', $taskIds)
+                    ->update(['status' => UniqueTaskStatus::IN_PROGRESS->value]);
             }
 
-            return $query->get();
+            return $tasks;
         });
     }
 

@@ -161,6 +161,26 @@ final class OutputHandler
     }
 
     /**
+     * Display remaining tasks count.
+     */
+    public function remainingTasks(int $uniquePending, int $recurringPlaying, int $recurringWaiting): self
+    {
+        if ($this->isMuted) {
+            return $this;
+        }
+
+        $this->line();
+        $this->line('📊 Remaining tasks:');
+        $this->line(sprintf('   🔵 Unique pending   : %d', $uniquePending));
+        $this->line(sprintf('   ▶️  Recurring playing: %d', $recurringPlaying));
+        $this->line(sprintf('   ⏳ Recurring waiting: %d', $recurringWaiting));
+        $this->line(sprintf('   📦 Total remaining  : %d', $uniquePending + $recurringPlaying + $recurringWaiting));
+        $this->line();
+
+        return $this;
+    }
+
+    /**
      * Log a cycle summary with success/failed/total counts.
      */
     public function cycleSummary(int $cycleNumber, int $success, int $failed, int $total): self

@@ -37,7 +37,12 @@ final class TasksProcessDirective extends AbstractDirective
 
     public function getSignature(): string
     {
-        return 'tasks:process {limit=infinite} {--unique-only} {--recurring-only} {--verbose} {--mute}';
+        return 'tasks:process 
+                    {limit=infinite}#"Maximum number of tasks to process (infinite for no limit)" 
+                    {--unique-only}#"Process only unique tasks" 
+                    {--recurring-only}#"Process only recurring tasks" 
+                    {--verbose}#"Show detailed output including errors" 
+                    {--mute}#"Suppress all console output"';
     }
 
     public function getDescription(): string
@@ -52,6 +57,7 @@ final class TasksProcessDirective extends AbstractDirective
 
     public function execute(): ExitCode
     {
+
         try {
             $app = $this->getApplication();
 

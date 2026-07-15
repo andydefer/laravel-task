@@ -52,6 +52,7 @@ abstract class AbstractUniqueTask implements TaskInterface
         $this->context = $context;
         $this->logger = $logger;
         $this->hydration = $hydration;
+
     }
 
     /**

@@ -1,0 +1,26 @@
+{"time":"2026-07-15T08:32:17+00:00","level":"info","type":"task","payload":{"message":"👀 Starting task watch..."}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"Session ID: session_6a574591c285f5.78520799_1784104337"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"  Interval: 60s"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"  Limit: 100"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"Press Ctrl+C to stop"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"🔄 Cycle #1"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"info","type":"task","payload":{"message":"🚀 Starting 1 parallel workers..."}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"🔧 Worker 1 starting..."}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"✅ Worker 1 completed with exit code: 0"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"📊 Remaining tasks:"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"   🔵 Unique pending   : 0"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"   ▶️  Recurring playing: 0"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"   ⏳ Recurring waiting: 0"}}
+{"time":"2026-07-15T08:32:17+00:00","level":"debug","type":"task","payload":{"message":"   📦 Total remaining  : 0"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"info","type":"task","payload":{"message":"📊 Final Status"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"📌 Unique tasks:"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"   Total      : 1000"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"   ✅ Completed: 0"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"   ⏳ Pending  : 0"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"🔄 Recurring tasks:"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"   Total      : 1000"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"   ✅ Finished : 1000"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"   ▶️  Playing  : 0"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"   ⏳ Waiting  : 0"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"debug","type":"task","payload":{"message":"📦 Total remaining: 0"}}
+{"time":"2026-07-15T08:32:23+00:00","level":"info","type":"task","payload":{"message":"💡 Tip: Use --verbose to see detailed execution logs"}}

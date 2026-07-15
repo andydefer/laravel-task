@@ -28,6 +28,7 @@ use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Throwable;
 
 /**
@@ -144,11 +145,13 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         try {
             $formattedNow = $now->forDatabase();
 
+            // ✅ WAITING → PLAYING
             $waitingToPlaying = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::WAITING->value)
                 ->where('start_at', '<=', $formattedNow)
                 ->update(['status' => RecurringTaskStatus::PLAYING->value]);
 
+            // ✅ PLAYING → FINISHED
             $playingToFinished = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::PLAYING->value)
                 ->where('end_at', '<=', $formattedNow)
@@ -157,6 +160,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                     'finished_at' => $formattedNow,
                 ]);
 
+            // ✅ PLAYING → CANCELED (max attempts reached)
             $playingToCanceled = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::PLAYING->value)
                 ->whereRaw('failed_attempts >= max_failed_attempts')
@@ -341,21 +345,34 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
 
     /**
      * {@inheritDoc}
+     *
+     * Uses lockForUpdate() to prevent concurrency issues and ensure
+     * each task is executed only once.
      */
     public function findReadyToRun(?Iso8601DateTimeVO $now = null, ?LimitVO $limit = null): RecurringTaskReadyToRunResultRecord
     {
         try {
             $freshStateResult = $this->freshState($now);
 
-            $query = $this->model->newQuery();
-            $query->where('status', RecurringTaskStatus::PLAYING->value);
+            $now = $now ?? new Iso8601DateTimeVO;
 
-            if ($limit !== null) {
-                $query->limit($limit->getValue());
-            }
+            // ✅ Utiliser une transaction avec lockForUpdate()
+            $models = DB::transaction(function () use ($limit) {
+                $query = $this->model->newQuery()
+                    ->where('status', RecurringTaskStatus::PLAYING->value)
+                    ->where(function ($q) {
+                        $q->whereNull('last_run_at')
+                            ->orWhereRaw('(strftime("%s", "now") - strftime("%s", last_run_at)) >= interval_seconds');
+                    })
+                    ->lockForUpdate();
 
-            /** @var Collection<int, RecurringTask> $models */
-            $models = $query->get();
+                if ($limit !== null) {
+                    $query->limit($limit->getValue());
+                }
+
+                /** @var Collection<int, RecurringTask> $models */
+                return $query->get();
+            });
 
             $records = new RecurringTaskRecordCollection;
             foreach ($models as $model) {
