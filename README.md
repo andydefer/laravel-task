@@ -1,8 +1,3 @@
-Je comprends, je vais corriger le README pour utiliser les **signatures exactes** des services avec les **records** appropriés (`UniqueTaskConfigRecord` et `RecurringTaskConfigRecord`), et non des tableaux PHP.
-
-Voici la version corrigée :
-
----
 
 # Laravel Task
 
