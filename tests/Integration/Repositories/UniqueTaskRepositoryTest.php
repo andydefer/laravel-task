@@ -559,10 +559,10 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
     // ==================== TESTS UPDATE ATTEMPTS ====================
 
-    public function test_update_attempts_updates_attempts(): void
+    public function test_update_attempts_updates_attempts_when_in_progress(): void
     {
         $id = $this->generateUuid();
-        $taskModel = $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
+        $taskModel = $this->createAndSaveTask(null, $id, UniqueTaskStatus::IN_PROGRESS);
 
         $taskRecord = UniqueTaskRecord::from([
             'id' => new UuidVO($id),
@@ -575,6 +575,26 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $found = $this->repository->findById(new UuidVO($id));
         $this->assertNotNull($found);
         $this->assertEquals(2, $found->getAttempts()->getValue());
+        $this->assertEquals(UniqueTaskStatus::PENDING, $found->getStatus());
+    }
+
+    public function test_update_attempts_does_not_update_when_pending(): void
+    {
+        $id = $this->generateUuid();
+        $taskModel = $this->createAndSaveTask(null, $id, UniqueTaskStatus::PENDING);
+
+        $taskRecord = UniqueTaskRecord::from([
+            'id' => new UuidVO($id),
+            'alias' => $taskModel->getAlias(),
+        ]);
+
+        $result = $this->repository->updateAttempts($taskRecord, new CounterVO(2));
+        $this->assertFalse($result);
+
+        $found = $this->repository->findById(new UuidVO($id));
+        $this->assertNotNull($found);
+        $this->assertEquals(0, $found->getAttempts()->getValue());
+        $this->assertEquals(UniqueTaskStatus::PENDING, $found->getStatus());
     }
 
     public function test_update_attempts_returns_false_when_task_not_found(): void

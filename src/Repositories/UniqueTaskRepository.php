@@ -275,12 +275,19 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
     /**
      * {@inheritDoc}
      */
+    /**
+     * {@inheritDoc}
+     */
     public function updateAttempts(UniqueTaskRecord $task, CounterVO $newAttempts): bool
     {
         try {
             $updated = $this->model->newQuery()
                 ->where('id', $task->id->getValue())
-                ->update(['attempts' => $newAttempts->getValue()]);
+                ->where('status', '=', UniqueTaskStatus::IN_PROGRESS->value)
+                ->update([
+                    'attempts' => $newAttempts->getValue(),
+                    'status' => UniqueTaskStatus::PENDING->value,
+                ]);
 
             if ($updated === 0) {
                 $this->logger->error(LogDataRecord::from([
