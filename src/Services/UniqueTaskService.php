@@ -183,7 +183,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                         $result->error->getValue() ?? 'Task execution failed',
                         sprintf(
                             'attempts: %d/%d',
-                            $record->attempts->getValue(),
+                            $record->attempts->getValue() + 1,
                             $record->max_attempts->getValue()
                         )
                     ));
