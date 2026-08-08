@@ -221,8 +221,13 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
         $formattedNow = $now->forDatabase();
 
         $query = $this->model->newQuery()
-            ->where('status', UniqueTaskStatus::PENDING->value)
-            ->whereRaw('UNIX_TIMESTAMP(scheduled_at) + grace_period_seconds < UNIX_TIMESTAMP(?)', [$formattedNow]);
+            ->where('status', UniqueTaskStatus::PENDING->value);
+
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $query->whereRaw("datetime(scheduled_at, '+' || grace_period_seconds || ' seconds') < datetime(?)", [$formattedNow]);
+        } else {
+            $query->whereRaw('UNIX_TIMESTAMP(scheduled_at) + grace_period_seconds < UNIX_TIMESTAMP(?)', [$formattedNow]);
+        }
 
         if ($limit !== null) {
             $query->limit($limit->getValue());

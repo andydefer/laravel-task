@@ -334,7 +334,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                     }
 
                     $lastRunCarbon = $lastRun->toCarbon();
-                    $diffInSeconds = $nowCarbon->diffInSeconds($lastRunCarbon);
+                    $diffInSeconds = abs($nowCarbon->diffInSeconds($lastRunCarbon));
 
                     return $diffInSeconds >= $task->getIntervalSeconds()->getValue();
                 });
