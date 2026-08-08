@@ -35,6 +35,7 @@ class TaskApp implements ApplicationInterface
                 DirectiveServiceProvider::class,
                 LoggerServiceProvider::class,
                 TaskServiceProvider::class,
+
             ])
             // ✅ Utiliser la nouvelle méthode withSqlite()
             ->withSqlite($databaseFile, foreignKeyConstraints: true)

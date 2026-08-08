@@ -28,30 +28,14 @@ use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
-/**
- * Repository for recurring task management.
- *
- * Handles storage, retrieval, and state transitions for recurring tasks.
- * Provides methods for finding tasks by status, updating states, and
- * processing ready-to-run tasks with automatic state transitions.
- *
- * @extends AbstractRepository<RecurringTask, RecurringTaskRecord>
- */
 final class RecurringTaskRepository extends AbstractRepository implements RecurringTaskRepositoryInterface
 {
     private readonly TaskExecutionDebugRepositoryInterface $debugRepository;
 
     private readonly LoggerInterface $logger;
 
-    /**
-     * Constructor for the recurring task repository.
-     *
-     * @param  TaskExecutionDebugRepositoryInterface  $debugRepository  The debug repository
-     * @param  LoggerInterface  $logger  The logger instance
-     */
     public function __construct(
         TaskExecutionDebugRepositoryInterface $debugRepository,
         LoggerInterface $logger,
@@ -61,9 +45,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         $this->logger = $logger;
     }
 
-    /**
-     * {@inheritDoc}
-     */
     protected function applyFilters(Builder $query, AbstractRecord $filters): void
     {
         if (! $filters instanceof RecurringTaskFiltersRecord) {
@@ -127,46 +108,55 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * Updates the state of tasks based on current time.
-     *
-     * Performs automatic state transitions:
-     * - WAITING → PLAYING when start_at is reached
-     * - PLAYING → FINISHED when end_at is reached
-     * - PLAYING → CANCELED when failed_attempts >= max_failed_attempts
-     *
-     * @param  Iso8601DateTimeVO|null  $now  The current time (uses now if null)
-     * @return FreshStateResultRecord The result of state transitions
-     */
     private function freshState(?Iso8601DateTimeVO $now = null): FreshStateResultRecord
     {
         $now = $now ?? new Iso8601DateTimeVO;
+        $nowCarbon = $now->toCarbon();
 
         try {
-            $formattedNow = $now->forDatabase();
-
-            // ✅ WAITING → PLAYING
             $waitingToPlaying = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::WAITING->value)
-                ->where('start_at', '<=', $formattedNow)
-                ->update(['status' => RecurringTaskStatus::PLAYING->value]);
+                ->whereNotNull('start_at')
+                ->get()
+                ->filter(function ($task) use ($nowCarbon) {
+                    $startAt = $task->getStartAt();
+                    if ($startAt === null) {
+                        return false;
+                    }
 
-            // ✅ PLAYING → FINISHED
+                    return $nowCarbon->greaterThanOrEqualTo($startAt->toCarbon());
+                })
+                ->each(function ($task) {
+                    $task->status = RecurringTaskStatus::PLAYING->value;
+                    $task->save();
+                })
+                ->count();
+
             $playingToFinished = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::PLAYING->value)
-                ->where('end_at', '<=', $formattedNow)
-                ->update([
-                    'status' => RecurringTaskStatus::FINISHED->value,
-                    'finished_at' => $formattedNow,
-                ]);
+                ->whereNotNull('end_at')
+                ->get()
+                ->filter(function ($task) use ($nowCarbon) {
+                    $endAt = $task->getEndAt();
+                    if ($endAt === null) {
+                        return false;
+                    }
 
-            // ✅ PLAYING → CANCELED (max attempts reached)
+                    return $nowCarbon->greaterThanOrEqualTo($endAt->toCarbon());
+                })
+                ->each(function ($task) {
+                    $task->status = RecurringTaskStatus::FINISHED->value;
+                    $task->finished_at = $task->freshTimestamp();
+                    $task->save();
+                })
+                ->count();
+
             $playingToCanceled = $this->model->newQuery()
                 ->where('status', RecurringTaskStatus::PLAYING->value)
                 ->whereRaw('failed_attempts >= max_failed_attempts')
                 ->update([
                     'status' => RecurringTaskStatus::CANCELED->value,
-                    'cancelled_at' => $formattedNow,
+                    'cancelled_at' => $now->forDatabase(),
                 ]);
 
             return FreshStateResultRecord::from([
@@ -191,11 +181,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    // ==================== FINDERS ====================
-
-    /**
-     * {@inheritDoc}
-     */
     public function findWaiting(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -223,9 +208,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function findPlaying(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -253,9 +235,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function findPaused(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -283,9 +262,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function findFinished(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -313,9 +289,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function findCanceled(LimitVO $limit = new LimitVO): Collection
     {
         try {
@@ -343,36 +316,32 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * Uses lockForUpdate() to prevent concurrency issues and ensure
-     * each task is executed only once.
-     */
     public function findReadyToRun(?Iso8601DateTimeVO $now = null, ?LimitVO $limit = null): RecurringTaskReadyToRunResultRecord
     {
         try {
             $freshStateResult = $this->freshState($now);
-
             $now = $now ?? new Iso8601DateTimeVO;
+            $nowCarbon = $now->toCarbon();
 
-            // ✅ Utiliser une transaction avec lockForUpdate()
-            $models = DB::transaction(function () use ($limit) {
-                $query = $this->model->newQuery()
-                    ->where('status', RecurringTaskStatus::PLAYING->value)
-                    ->where(function ($q) {
-                        $q->whereNull('last_run_at')
-                            ->orWhereRaw('(strftime("%s", "now") - strftime("%s", last_run_at)) >= interval_seconds');
-                    })
-                    ->lockForUpdate();
+            $models = $this->model->newQuery()
+                ->where('status', RecurringTaskStatus::PLAYING->value)
+                ->get()
+                ->filter(function ($task) use ($nowCarbon) {
+                    $lastRun = $task->getLastRunAt();
 
-                if ($limit !== null) {
-                    $query->limit($limit->getValue());
-                }
+                    if ($lastRun === null) {
+                        return true;
+                    }
 
-                /** @var Collection<int, RecurringTask> $models */
-                return $query->get();
-            });
+                    $lastRunCarbon = $lastRun->toCarbon();
+                    $diffInSeconds = $nowCarbon->diffInSeconds($lastRunCarbon);
+
+                    return $diffInSeconds >= $task->getIntervalSeconds()->getValue();
+                });
+
+            if ($limit !== null) {
+                $models = $models->take($limit->getValue());
+            }
 
             $records = new RecurringTaskRecordCollection;
             foreach ($models as $model) {
@@ -404,9 +373,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function findByAlias(TaskAliasVO $alias): ?RecurringTask
     {
         try {
@@ -432,11 +398,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    // ==================== MOVES ====================
-
-    /**
-     * {@inheritDoc}
-     */
     public function moveToPlaying(RecurringTaskRecord $task): bool
     {
         try {
@@ -472,9 +433,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function moveToPaused(RecurringTaskRecord $task): bool
     {
         try {
@@ -510,9 +468,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function moveToWaiting(RecurringTaskRecord $task): bool
     {
         try {
@@ -548,9 +503,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function moveToFinished(RecurringTaskRecord $task): bool
     {
         try {
@@ -589,9 +541,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function moveToCanceled(RecurringTaskRecord $task): bool
     {
         try {
@@ -631,11 +580,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    // ==================== UPDATE ====================
-
-    /**
-     * {@inheritDoc}
-     */
     public function updateAfterRun(RecurringTaskRecord $task, bool $success, ?DescriptionVO $error = null): bool
     {
         try {
@@ -697,11 +641,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    // ==================== COUNTS ====================
-
-    /**
-     * {@inheritDoc}
-     */
     public function countWaiting(): CounterVO
     {
         try {
@@ -721,9 +660,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function countPlaying(): CounterVO
     {
         try {
@@ -743,9 +679,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function countPaused(): CounterVO
     {
         try {
@@ -765,9 +698,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function countFinished(): CounterVO
     {
         try {
@@ -787,9 +717,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function countCanceled(): CounterVO
     {
         try {
@@ -809,14 +736,6 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    // ==================== PRIVATE METHODS ====================
-
-    /**
-     * Converts an Eloquent model to a record object.
-     *
-     * @param  RecurringTask  $model  The model to convert
-     * @return RecurringTaskRecord The converted record
-     */
     private function modelToRecord(RecurringTask $model): RecurringTaskRecord
     {
         return RecurringTaskRecord::from([

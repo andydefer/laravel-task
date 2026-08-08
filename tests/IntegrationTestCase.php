@@ -168,6 +168,31 @@ abstract class IntegrationTestCase extends Orchestra
         $app['config']->set('task.storage_path', sys_get_temp_dir().'/task_tests_'.uniqid());
     }
 
+    /* protected function getEnvironmentSetUp($app): void
+    {
+
+        $app['config']->set('database.default', 'mysql');
+        $app['config']->set('database.connections.mysql', [
+            'driver' => 'mysql',
+            'host' => '127.0.0.1',
+            'port' => '3306',
+            'database' => 'laravel_task_test',
+            'username' => 'test',
+            'password' => 'Test@2026#Secure',
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+        ]);
+
+        $app['config']->set('cache.default', 'array');
+        $app['config']->set('session.driver', 'array');
+        $app['config']->set('queue.default', 'sync');
+
+        $app['config']->set('task.storage_path', sys_get_temp_dir().'/task_tests_'.uniqid());
+    } */
+
     protected function getPackageProviders($app): array
     {
         return [

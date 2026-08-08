@@ -218,28 +218,17 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
      */
     public function findExpired(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection
     {
-        $nowTimestamp = $now->getTimestamp();
+        $formattedNow = $now->forDatabase();
 
         $query = $this->model->newQuery()
-            ->where('status', UniqueTaskStatus::PENDING->value);
+            ->where('status', UniqueTaskStatus::PENDING->value)
+            ->whereRaw('UNIX_TIMESTAMP(scheduled_at) + grace_period_seconds < UNIX_TIMESTAMP(?)', [$formattedNow]);
 
         if ($limit !== null) {
             $query->limit($limit->getValue());
         }
 
-        $tasks = $query->get();
-        $expired = [];
-
-        foreach ($tasks as $task) {
-            $scheduledAt = $task->getScheduledAt()->getTimestamp();
-            $graceEnd = $scheduledAt + $task->getGracePeriodSeconds();
-
-            if ($nowTimestamp > $graceEnd) {
-                $expired[] = $task;
-            }
-        }
-
-        return new Collection($expired);
+        return $query->get();
     }
 
     /**

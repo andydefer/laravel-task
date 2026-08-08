@@ -13,13 +13,14 @@ use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Handlers\SignalHandler;
 use AndyDefer\Task\Helpers\JsonlResultHelper;
 use AndyDefer\Task\Helpers\SessionHelper;
+use AndyDefer\Task\Models\RecurringTask;
+use AndyDefer\Task\Models\UniqueTask;
 use AndyDefer\Task\Services\Watchs\CycleCalculator;
 use AndyDefer\Task\Services\Watchs\ParallelExecutor;
 use AndyDefer\Task\Services\Watchs\ResultAggregator;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
-use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Throwable;
 
@@ -99,7 +100,6 @@ final class TasksWatchDirective extends AbstractDirective
                     $this->aggregator->addResults($cycleResults);
                 }
 
-                // ✅ Afficher ce qui RESTE à faire
                 $this->displayRemainingTasks();
 
                 $elapsedTime = microtime(true) - $cycleStartTime;
@@ -115,7 +115,6 @@ final class TasksWatchDirective extends AbstractDirective
                 }
             }
 
-            // ✅ Afficher le résumé final : ce qui RESTE
             $this->displayFinalRemaining();
 
             return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
@@ -201,9 +200,6 @@ final class TasksWatchDirective extends AbstractDirective
         );
     }
 
-    /**
-     * Affiche les tâches restantes à exécuter.
-     */
     private function displayRemainingTasks(): void
     {
         if ($this->output->isMuted()) {
@@ -211,29 +207,18 @@ final class TasksWatchDirective extends AbstractDirective
         }
 
         $now = new Iso8601DateTimeVO;
+        $nowCarbon = $now->toCarbon();
 
-        // ✅ Compter les tâches uniques PENDING prêtes
-        $uniquePending = DB::table('unique_tasks')
-            ->where('status', 'pending')
-            ->where('scheduled_at', '<=', $now->forDatabase())
+        $uniquePending = UniqueTask::where('status', 'pending')
+            ->where('scheduled_at', '<=', $nowCarbon)
             ->count();
 
-        // ✅ Compter les tâches récurrentes PLAYING
-        $recurringPlaying = DB::table('recurring_tasks')
-            ->where('status', 'playing')
-            ->count();
-
-        // ✅ Compter les tâches récurrentes WAITING
-        $recurringWaiting = DB::table('recurring_tasks')
-            ->where('status', 'waiting')
-            ->count();
+        $recurringPlaying = RecurringTask::where('status', 'playing')->count();
+        $recurringWaiting = RecurringTask::where('status', 'waiting')->count();
 
         $this->output->remainingTasks($uniquePending, $recurringPlaying, $recurringWaiting);
     }
 
-    /**
-     * Affiche le résumé final : ce qui RESTE.
-     */
     private function displayFinalRemaining(): void
     {
         if ($this->output->isMuted()) {
@@ -241,31 +226,20 @@ final class TasksWatchDirective extends AbstractDirective
         }
 
         $now = new Iso8601DateTimeVO;
+        $nowCarbon = $now->toCarbon();
 
-        // ✅ Compter les tâches restantes
-        $uniquePending = DB::table('unique_tasks')
-            ->where('status', 'pending')
-            ->where('scheduled_at', '<=', $now->forDatabase())
+        $uniquePending = UniqueTask::where('status', 'pending')
+            ->where('scheduled_at', '<=', $nowCarbon)
             ->count();
 
-        $recurringPlaying = DB::table('recurring_tasks')
-            ->where('status', 'playing')
-            ->count();
+        $recurringPlaying = RecurringTask::where('status', 'playing')->count();
+        $recurringWaiting = RecurringTask::where('status', 'waiting')->count();
 
-        $recurringWaiting = DB::table('recurring_tasks')
-            ->where('status', 'waiting')
-            ->count();
+        $uniqueTotal = UniqueTask::count();
+        $recurringTotal = RecurringTask::count();
 
-        $uniqueTotal = DB::table('unique_tasks')->count();
-        $recurringTotal = DB::table('recurring_tasks')->count();
-
-        $uniqueCompleted = DB::table('unique_tasks')
-            ->where('status', 'completed')
-            ->count();
-
-        $recurringFinished = DB::table('recurring_tasks')
-            ->where('status', 'finished')
-            ->count();
+        $uniqueCompleted = UniqueTask::where('status', 'completed')->count();
+        $recurringFinished = RecurringTask::where('status', 'finished')->count();
 
         $this->output->line();
         $this->output->title('📊 Final Status');
