@@ -21,6 +21,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use Illuminate\Contracts\Foundation\Application;
 use Throwable;
+use ZaberDev\Lock\Facades\Lock;
 
 /**
  * Runner for recurring tasks.
@@ -93,21 +94,44 @@ final class RecurringTaskRunner implements RecurringTaskRunnerInterface
      */
     private function executeTask(RecurringTaskRecord $record, Iso8601DateTimeVO $startTime): ExecutionResultRecord
     {
-        $this->logger->logStart($record);
+        // 🔥 Verrou PAR TÂCHE - pas global !
+        $taskLock = Lock::for('recurring_task_execution', $record->alias->getValue())
+            ->ttl(15)
+            ->using('cache');
 
-        $task = $this->instantiateTask($record);
+        // Si le verrou est déjà pris, une autre instance exécute cette tâche
+        if (! $taskLock->acquire()) {
+            $this->logger->logStart($record);
+            $this->logger->logFailure($record, new DescriptionVO('Task already running in another process'));
+
+            return $this->createSkippedResult();
+        }
+
         $error = null;
         $success = false;
 
         try {
+            $this->logger->logStart($record);
+
+            $task = $this->instantiateTask($record);
             $task->execute($record->payload);
             $success = true;
 
             $duration = $startTime->elapsed();
             $this->logger->logSuccess($record, new MillisecondsVO((int) $duration->toMilliseconds()));
+
         } catch (Throwable $e) {
             $error = $e->getMessage();
+            $success = false;
             $this->logger->logFailure($record, new DescriptionVO($error));
+
+        } finally {
+            // ✅ Libérer le verrou APRÈS l'exécution
+            try {
+                $taskLock->release();
+            } catch (Throwable $e) {
+                // Log l'erreur de libération
+            }
         }
 
         $this->repository->updateAfterRun($record, $success, $error !== null ? new DescriptionVO($error) : null);

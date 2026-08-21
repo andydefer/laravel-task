@@ -22,6 +22,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use Illuminate\Contracts\Foundation\Application;
 use Throwable;
+use ZaberDev\Lock\Facades\Lock;
 
 /**
  * Runner for unique tasks.
@@ -90,27 +91,47 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
      */
     private function executeTask(UniqueTaskRecord $record, Iso8601DateTimeVO $startTime): ExecutionResultRecord
     {
-        $this->logger->logStart($record);
+        // 🔥 Verrou PAR TÂCHE - pas global !
+        $taskLock = Lock::for('unique_task_execution', $record->id->getValue())
+            ->ttl(30)
+            ->using('cache');
 
-        $task = $this->instantiateTask($record);
-        $error = null;
-        $success = false;
+        // Si le verrou est déjà pris, une autre instance exécute cette tâche
+        if (! $taskLock->acquire()) {
+            $this->logger->logStart($record);
+            $this->logger->logFailure($record, new DescriptionVO('Task already running in another process'));
+
+            return $this->createSkippedResult($record);
+        }
 
         try {
+            $this->logger->logStart($record);
+
+            $task = $this->instantiateTask($record);
             $task->execute($record->payload);
             $success = true;
 
             $duration = $startTime->elapsed();
             $this->logger->logSuccess($record, new MillisecondsVO((int) $duration->toMilliseconds()));
+
         } catch (Throwable $e) {
             $error = $e->getMessage();
+            $success = false;
             $this->logger->logFailure($record, new DescriptionVO($error));
+
+        } finally {
+            // ✅ Libérer le verrou APRÈS l'exécution
+            try {
+                $taskLock->release();
+            } catch (Throwable $e) {
+                // Log l'erreur de libération
+            }
         }
 
-        $this->updateTaskState($record, $success, $error);
-        $this->addDebugInfo($record, $success, $error);
+        $this->updateTaskState($record, $success, $error ?? null);
+        $this->addDebugInfo($record, $success, $error ?? null);
 
-        return $this->createExecutionResult($record, $success, $error, $startTime);
+        return $this->createExecutionResult($record, $success, $error ?? null, $startTime);
     }
 
     /**
@@ -182,6 +203,21 @@ final class UniqueTaskRunner implements UniqueTaskRunnerInterface
                 'fqcn' => $record->fqcn->getValue(),
                 'description' => 'Validation failed: '.$errorMessage,
             ]),
+            'execution_time' => new DurationVO(0.0),
+        ]);
+    }
+
+    /**
+     * Creates a skipped result.
+     *
+     * @param  UniqueTaskRecord  $record  The task record
+     * @return ExecutionResultRecord The skipped result
+     */
+    private function createSkippedResult(UniqueTaskRecord $record): ExecutionResultRecord
+    {
+        return ExecutionResultRecord::from([
+            'success' => true,
+            'error' => null,
             'execution_time' => new DurationVO(0.0),
         ]);
     }

@@ -14,10 +14,11 @@ use AndyDefer\Task\ValueObjects\TaskAliasVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use ZaberDev\Lock\HasLocks;
 
 final class RecurringTask extends Model
 {
-    use SoftDeletes;
+    use HasLocks, SoftDeletes;
 
     public $incrementing = false;
 

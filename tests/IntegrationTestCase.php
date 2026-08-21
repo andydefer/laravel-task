@@ -13,6 +13,7 @@ use AndyDefer\Logger\LoggerServiceProvider;
 use AndyDefer\Task\TaskServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 use PHPUnit\Framework\MockObject\Stub;
+use ZaberDev\Lock\LockServiceProvider;
 
 /**
  * Base test case for integration tests that need Laravel.
@@ -200,6 +201,7 @@ abstract class IntegrationTestCase extends Orchestra
             LaravelJsonlServiceProvider::class,
             DirectiveServiceProvider::class,
             LoggerServiceProvider::class,
+            LockServiceProvider::class,
             TaskServiceProvider::class,
         ];
     }

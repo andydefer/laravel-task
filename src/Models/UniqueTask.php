@@ -13,10 +13,11 @@ use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use ZaberDev\Lock\HasLocks;
 
 final class UniqueTask extends Model
 {
-    use SoftDeletes;
+    use HasLocks, SoftDeletes;
 
     protected $table = 'unique_tasks';
 
