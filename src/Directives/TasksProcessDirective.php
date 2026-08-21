@@ -82,11 +82,8 @@ final class TasksProcessDirective extends AbstractDirective
             $this->console = $app->make(Console::class);
             $this->isVerbose = $this->isFlagActive('verbose');
             $this->isMuted = $this->isFlagActive('mute');
-
-            // Initialisation du ProgressManager
             $this->progress = new ProgressManager($this->console);
 
-            // Validation centralisée du limit
             try {
                 $this->limit = $this->validateAndGetLimit();
             } catch (InvalidArgumentException $e) {
@@ -99,7 +96,6 @@ final class TasksProcessDirective extends AbstractDirective
 
             $this->executionId = Uuid::uuid4()->toString();
 
-            // Validation des options
             $validationResult = $this->validateOptions();
             if ($validationResult !== ExitCode::SUCCESS) {
                 return $validationResult;
@@ -112,21 +108,21 @@ final class TasksProcessDirective extends AbstractDirective
                 $this->renderStart();
             }
 
-            // Calculer le nombre total de tâches pour la barre de progression
             $this->totalTasks = $this->calculateTotalTasks($uniqueOnly, $recurringOnly);
 
-            // Démarrer la barre de progression si on a des tâches et qu'on est en verbose
-            if ($this->isVerbose && ! $this->isMuted() && $this->totalTasks > 0) {
-                $this->progress->start('Processing tasks', $this->totalTasks);
-            }
+            $this->contextSet('task_process.total', $this->totalTasks);
+            $this->contextSet('task_process.processed', 0);
+            $this->contextSet('task_process.running', true);
+            $this->contextSet('task_process.type', 'all');
 
             $hasFailures = match (true) {
-                $uniqueOnly => $this->processTasks(TaskType::UNIQUE),
-                $recurringOnly => $this->processTasks(TaskType::RECURRING),
+                $uniqueOnly => $this->processUniqueTasks(),
+                $recurringOnly => $this->processRecurringTasks(),
                 default => $this->processBothTypes(),
             };
 
-            // S'assurer que la barre de progression est terminée
+            $this->contextSet('task_process.running', false);
+
             if ($this->progress->isActive()) {
                 $this->progress->finish('✅ Processing completed');
             }
@@ -134,10 +130,12 @@ final class TasksProcessDirective extends AbstractDirective
             return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
 
         } catch (Throwable $e) {
-            // S'assurer que la barre de progression est terminée en cas d'erreur
             if (isset($this->progress) && $this->progress->isActive()) {
                 $this->progress->finish('❌ Error: '.$e->getMessage());
             }
+
+            $this->contextSet('task_process.running', false);
+            $this->contextSet('task_process.error', $e->getMessage());
 
             if (! $this->isMuted() && isset($this->console)) {
                 $this->console->error('❌ Error processing tasks: '.$e->getMessage());
@@ -147,40 +145,75 @@ final class TasksProcessDirective extends AbstractDirective
         }
     }
 
-    // ==================== TASK PROCESSING ====================
-
-    private function processTasks(TaskType $type): bool
+    private function processUniqueTasks(): bool
     {
+        $type = TaskType::UNIQUE;
         $this->currentType = $type;
         $service = $this->getService($type);
 
-        // Récupérer le nombre total de tâches à traiter pour ce type
         $this->currentTypeTotal = $this->getTotalTasks($type);
-
-        // Récupérer le nombre total de tâches (pour la progression)
         $limit = $this->limit;
         if ($limit !== null && $limit < $this->currentTypeTotal) {
             $this->currentTypeTotal = $limit;
         }
 
-        // Démarrer la barre de progression si on est en verbose et pas en mode silencieux
-        if ($this->isVerbose && ! $this->isMuted() && $this->currentTypeTotal > 0) {
+        $this->contextSet('task_process.type', $type->value);
+        $this->contextSet('task_process.type_total', $this->currentTypeTotal);
+
+        if (! $this->isMuted() && $this->currentTypeTotal > 0) {
             $label = $this->getTaskTypeLabel($type).' tasks';
-            if (! $this->progress->isActive()) {
-                $this->progress->start($label, $this->currentTypeTotal);
-            } else {
-                $this->progress->finish('✅ '.$this->getTaskTypeLabel($type).' tasks');
-                $this->progress->start($label, $this->currentTypeTotal);
-            }
+            $this->progress->start($label, $this->currentTypeTotal);
         }
 
-        // Exécuter les tâches avec un LimitVO
-        $result = $this->limit !== null
-            ? $service->process(new LimitVO($this->limit))
-            : $service->process();
+        $callback = $this->createProgressCallback($type);
 
-        // Fin de la barre de progression pour ce type
-        if ($this->isVerbose && ! $this->isMuted() && $this->progress->isActive()) {
+        $result = $this->limit !== null
+            ? $service->process(new LimitVO($this->limit), $callback)
+            : $service->process(new LimitVO, $callback);
+
+        if (! $this->isMuted() && $this->progress->isActive()) {
+            $this->progress->finish('✅ '.$this->getTaskTypeLabel($type).' tasks processed');
+        }
+
+        $label = $this->getTaskTypeLabel($type);
+
+        if (! $this->isMuted()) {
+            $this->renderResult($result, $label);
+            $this->renderErrors($result->errors, $label);
+        }
+
+        $this->storeResult($this->executionId, $result, $type);
+
+        return $result->failed->isPositive();
+    }
+
+    private function processRecurringTasks(): bool
+    {
+        $type = TaskType::RECURRING;
+        $this->currentType = $type;
+        $service = $this->getService($type);
+
+        $this->currentTypeTotal = $this->getTotalTasks($type);
+        $limit = $this->limit;
+        if ($limit !== null && $limit < $this->currentTypeTotal) {
+            $this->currentTypeTotal = $limit;
+        }
+
+        $this->contextSet('task_process.type', $type->value);
+        $this->contextSet('task_process.type_total', $this->currentTypeTotal);
+
+        if (! $this->isMuted() && $this->currentTypeTotal > 0) {
+            $label = $this->getTaskTypeLabel($type).' tasks';
+            $this->progress->start($label, $this->currentTypeTotal);
+        }
+
+        $callback = $this->createProgressCallback($type);
+
+        $result = $this->limit !== null
+            ? $service->process(new LimitVO($this->limit), $callback)
+            : $service->process(new LimitVO, $callback);
+
+        if (! $this->isMuted() && $this->progress->isActive()) {
             $this->progress->finish('✅ '.$this->getTaskTypeLabel($type).' tasks processed');
         }
 
@@ -198,48 +231,41 @@ final class TasksProcessDirective extends AbstractDirective
 
     private function processBothTypes(): bool
     {
-        // Récupérer le nombre total de tâches pour les deux types
         $totalUnique = $this->getTotalTasks(TaskType::UNIQUE);
         $totalRecurring = $this->getTotalTasks(TaskType::RECURRING);
         $this->totalTasks = $totalUnique + $totalRecurring;
 
-        // Démarrer la barre de progression globale
-        if ($this->isVerbose && ! $this->isMuted() && $this->totalTasks > 0) {
-            $this->progress->start('Processing all tasks', $this->totalTasks);
-        }
-
+        // === UNIQUE TASKS ===
         if (! $this->isMuted()) {
             $this->console->info('Processing Unique tasks...');
         }
 
-        $uniqueResult = $this->processTasksWithoutRendering(TaskType::UNIQUE);
-
-        // Mettre à jour la progression après les tâches uniques
-        if ($this->isVerbose && ! $this->isMuted() && $this->progress->isActive()) {
-            $processed = $uniqueResult->success->add($uniqueResult->failed);
-            $this->progress->update(
-                $processed->getValue(),
-                "Unique: {$processed->getValue()} tasks"
-            );
+        if (! $this->isMuted() && $totalUnique > 0) {
+            $this->progress->start('Unique tasks', $totalUnique);
         }
 
+        $uniqueResult = $this->processTasksWithoutRendering(TaskType::UNIQUE);
+
+        if (! $this->isMuted() && $this->progress->isActive()) {
+            $this->progress->finish('✅ Unique tasks processed');
+        }
+
+        // === RECURRING TASKS ===
         if (! $this->isMuted()) {
             $this->console->info('Processing Recurring tasks...');
         }
 
-        $recurringResult = $this->processTasksWithoutRendering(TaskType::RECURRING);
-
-        // Mettre à jour la progression après les tâches récurrentes
-        if ($this->isVerbose && ! $this->isMuted() && $this->progress->isActive()) {
-            $totalProcessed = $uniqueResult->success->add($uniqueResult->failed)
-                ->add($recurringResult->success->add($recurringResult->failed));
-            $this->progress->update(
-                $totalProcessed->getValue(),
-                "All tasks: {$totalProcessed->getValue()} / {$this->totalTasks}"
-            );
-            $this->progress->finish('✅ All tasks processed');
+        if (! $this->isMuted() && $totalRecurring > 0) {
+            $this->progress->start('Recurring tasks', $totalRecurring);
         }
 
+        $recurringResult = $this->processTasksWithoutRendering(TaskType::RECURRING);
+
+        if (! $this->isMuted() && $this->progress->isActive()) {
+            $this->progress->finish('✅ Recurring tasks processed');
+        }
+
+        // === RESULTS ===
         $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
 
         if (! $this->isMuted()) {
@@ -255,10 +281,35 @@ final class TasksProcessDirective extends AbstractDirective
     private function processTasksWithoutRendering(TaskType $type): ProcessResultRecord
     {
         $service = $this->getService($type);
+        $callback = $this->createProgressCallback($type);
 
         return $this->limit !== null
-            ? $service->process(new LimitVO($this->limit))
-            : $service->process();
+            ? $service->process(new LimitVO($this->limit), $callback)
+            : $service->process(new LimitVO, $callback);
+    }
+
+    private function createProgressCallback(TaskType $type): callable
+    {
+        return function (int $processed, int $total, TaskType $taskType, $task = null) {
+            $this->processedCount = $processed;
+
+            $this->contextSet('task_process.processed', $processed);
+            $this->contextSet('task_process.type', $taskType->value);
+
+            if (! $this->isMuted() && $this->progress->isActive()) {
+                if ($task) {
+                    $alias = $task->alias->getValue();
+                    $fqcn = $task->fqcn->getValue();
+                    $shortFqcn = substr($fqcn, strrpos($fqcn, '\\') + 1);
+                    $detail = "{$shortFqcn} ({$alias})";
+                } else {
+                    $label = $this->getTaskTypeLabel($taskType);
+                    $detail = "{$label}: {$processed}/{$total} tasks";
+                }
+
+                $this->progress->update($processed, $detail);
+            }
+        };
     }
 
     private function getService(TaskType $type): UniqueTaskServiceInterface|RecurringTaskServiceInterface
@@ -283,9 +334,6 @@ final class TasksProcessDirective extends AbstractDirective
         };
     }
 
-    /**
-     * Récupère le nombre total de tâches à traiter pour un type donné.
-     */
     private function getTotalTasks(TaskType $type): int
     {
         $service = $this->getService($type);
@@ -296,9 +344,6 @@ final class TasksProcessDirective extends AbstractDirective
         };
     }
 
-    /**
-     * Calcule le nombre total de tâches à traiter.
-     */
     private function calculateTotalTasks(bool $uniqueOnly, bool $recurringOnly): int
     {
         if ($uniqueOnly) {
@@ -311,8 +356,6 @@ final class TasksProcessDirective extends AbstractDirective
 
         return $this->getTotalTasks(TaskType::UNIQUE) + $this->getTotalTasks(TaskType::RECURRING);
     }
-
-    // ==================== VALIDATION ====================
 
     private function validateOptions(): ExitCode
     {
@@ -350,8 +393,6 @@ final class TasksProcessDirective extends AbstractDirective
     {
         return $this->isMuted ?? false;
     }
-
-    // ==================== RENDERING ====================
 
     private function renderStart(): void
     {
@@ -463,8 +504,6 @@ final class TasksProcessDirective extends AbstractDirective
         ));
         $this->console->line();
     }
-
-    // ==================== CONTEXT STORAGE ====================
 
     private function storeResult(string $uuid, ProcessResultRecord $result, TaskType $type): void
     {

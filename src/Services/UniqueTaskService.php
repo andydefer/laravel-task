@@ -136,7 +136,6 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
             return $this->handleExecutionFailure($taskRecord, $alias, $e, $startTime);
         } finally {
-            // ✅ Ajout du debug avec le bon type
             $this->repository->addDebug(
                 $taskRecord,
                 $debugStatus,
@@ -148,7 +147,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
     /**
      * {@inheritDoc}
      */
-    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord
+    public function process(LimitVO $limit = new LimitVO, ?callable $onProgress = null): ProcessResultRecord
     {
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
@@ -159,21 +158,17 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         $now = new Iso8601DateTimeVO;
 
         $tasks = $this->repository->findReadyToRun($now, $limit);
+        $total = count($tasks);
 
-        foreach ($tasks as $task) {
+        foreach ($tasks as $index => $task) {
             $record = $this->modelToRecord($task);
 
             try {
                 $result = $this->run($record->alias);
 
-                // ✅ Si la tâche a été skip (déjà traitée par un autre worker)
                 if ($result->skipped ?? false) {
                     $skipped++;
-
-                    continue;
-                }
-
-                if ($result->success) {
+                } elseif ($result->success) {
                     $success++;
                 } else {
                     $failed++;
@@ -196,6 +191,10 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
                     $e->getMessage(),
                     'Exception during execution'
                 ));
+            }
+
+            if ($onProgress !== null) {
+                $onProgress($index + 1, $total, TaskType::UNIQUE, $record);
             }
         }
 
@@ -536,13 +535,9 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
      */
     private function performPreExecutionChecks(UniqueTaskRecord $taskRecord, TaskAliasVO $alias): ?TaskRunResultRecord
     {
-        // ✅ Accepter PENDING et IN_PROGRESS
-        // IN_PROGRESS signifie que ce worker a déjà verrouillé la tâche
         if ($taskRecord->status === UniqueTaskStatus::IN_PROGRESS) {
-            // Continue l'exécution, la tâche est déjà verrouillée par ce worker
-            // Ne rien faire, passer à la suite
+            // Continue execution, the task is already locked by this worker
         } elseif ($taskRecord->status !== UniqueTaskStatus::PENDING) {
-            // ✅ Si la tâche n'est pas PENDING ou IN_PROGRESS, on la SKIP
             return $this->createSkippedResult(
                 $alias,
                 sprintf(
@@ -555,7 +550,6 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
         $now = new Iso8601DateTimeVO;
         $scheduledAt = $taskRecord->scheduled_at;
 
-        // ✅ Si la tâche est programmée dans le futur, on la SKIP
         if ($scheduledAt->isAfter($now)) {
             return $this->createSkippedResult(
                 $alias,
@@ -563,7 +557,6 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
             );
         }
 
-        // ✅ Si le nombre max de tentatives est atteint, on la SKIP
         if ($taskRecord->attempts->getValue() >= $taskRecord->max_attempts->getValue()) {
             $this->repository->moveToFailed($taskRecord);
 

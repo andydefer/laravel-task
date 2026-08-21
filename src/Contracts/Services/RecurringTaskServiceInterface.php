@@ -18,117 +18,217 @@ use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
 
+/**
+ * Interface for recurring task service.
+ *
+ * Provides methods for registering, executing, and managing recurring tasks.
+ * Recurring tasks are tasks that run repeatedly at defined intervals.
+ */
 interface RecurringTaskServiceInterface
 {
-    // ==================== ENREGISTREMENT ====================
-
+    /**
+     * Registers a new recurring task.
+     *
+     * @param  RecurringTaskFqcnVO  $fqcn  Task class (must extend AbstractRecurringTask)
+     * @param  StrictDataObject  $payload  Task payload data
+     * @param  RecurringTaskConfigRecord  $config  Task configuration
+     * @return TaskAliasVO Alias of the created task
+     */
     public function register(
         RecurringTaskFqcnVO $fqcn,
         StrictDataObject $payload,
         RecurringTaskConfigRecord $config
     ): TaskAliasVO;
 
-    // ==================== EXÉCUTION ====================
-
+    /**
+     * Runs a specific recurring task.
+     *
+     * @param  TaskAliasVO  $alias  Alias of the task to run
+     * @return TaskRunResultRecord Execution result
+     */
     public function run(TaskAliasVO $alias): TaskRunResultRecord;
 
-    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord;
-
-    // ==================== GESTION D'ÉTAT ====================
+    /**
+     * Processes all recurring tasks that are ready to run.
+     *
+     * @param  LimitVO  $limit  Maximum number of tasks to process
+     * @param  callable|null  $onProgress  Optional callback for progress tracking
+     * @return ProcessResultRecord Execution results
+     */
+    public function process(LimitVO $limit = new LimitVO, ?callable $onProgress = null): ProcessResultRecord;
 
     /**
-     * Met une tâche en pause.
+     * Pauses a running recurring task.
      *
-     * @return bool True si la pause a été effectuée, false sinon
+     * @param  TaskAliasVO  $alias  Task alias
+     * @return bool True if the task was paused, false otherwise
      */
     public function pause(TaskAliasVO $alias): bool;
 
     /**
-     * Reprend une tâche en pause.
+     * Resumes a paused recurring task.
      *
-     * @return bool True si la reprise a été effectuée, false sinon
+     * @param  TaskAliasVO  $alias  Task alias
+     * @return bool True if the task was resumed, false otherwise
      */
     public function resume(TaskAliasVO $alias): bool;
 
     /**
-     * Termine une tâche prématurément.
+     * Finishes a recurring task prematurely.
      *
-     * @return bool True si la tâche a été terminée, false sinon
+     * @param  TaskAliasVO  $alias  Task alias
+     * @return bool True if the task was finished, false otherwise
      */
     public function finish(TaskAliasVO $alias): bool;
 
     /**
-     * Annule une tâche récurrente.
+     * Cancels a recurring task.
      *
-     * @param  TaskAliasVO  $alias  Alias de la tâche
-     * @param  DescriptionVO|null  $reason  Raison de l'annulation
-     * @return bool True si la tâche a été annulée, false sinon
+     * @param  TaskAliasVO  $alias  Task alias
+     * @param  DescriptionVO|null  $reason  Cancellation reason
+     * @return bool True if the task was cancelled, false otherwise
      */
     public function cancel(TaskAliasVO $alias, ?DescriptionVO $reason = null): bool;
 
-    // ==================== MODIFICATION ====================
-
     /**
-     * Avance la date de début d'une tâche.
+     * Advances the start date of a recurring task.
      *
-     * @return bool True si la date a été avancée, false sinon
+     * @param  TaskAliasVO  $alias  Task alias
+     * @param  Iso8601DateTimeVO  $newStartAt  New start date
+     * @return bool True if the start date was advanced, false otherwise
      */
     public function advanceStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool;
 
     /**
-     * Repousse la date de début d'une tâche.
+     * Postpones the start date of a recurring task.
      *
-     * @return bool True si la date a été repoussée, false sinon
+     * @param  TaskAliasVO  $alias  Task alias
+     * @param  Iso8601DateTimeVO  $newStartAt  New start date
+     * @return bool True if the start date was postponed, false otherwise
      */
     public function postponeStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool;
 
     /**
-     * Modifie l'intervalle d'une tâche.
+     * Changes the interval of a recurring task.
      *
-     * @param  TaskAliasVO  $alias  Alias de la tâche
-     * @param  DurationVO  $intervalSeconds  Nouvel intervalle en secondes
-     * @return bool True si l'intervalle a été modifié, false sinon
+     * @param  TaskAliasVO  $alias  Task alias
+     * @param  DurationVO  $intervalSeconds  New interval in seconds
+     * @return bool True if the interval was changed, false otherwise
      */
     public function changeInterval(TaskAliasVO $alias, DurationVO $intervalSeconds): bool;
 
     /**
-     * Prolonge la date de fin d'une tâche.
+     * Extends the end date of a recurring task.
      *
-     * @return bool True si la date de fin a été prolongée, false sinon
+     * @param  TaskAliasVO  $alias  Task alias
+     * @param  Iso8601DateTimeVO  $newEndAt  New end date
+     * @return bool True if the end date was extended, false otherwise
      */
     public function extendEndAt(TaskAliasVO $alias, Iso8601DateTimeVO $newEndAt): bool;
 
-    // ==================== RECHERCHE ====================
-
+    /**
+     * Finds a recurring task by its alias.
+     *
+     * @param  TaskAliasVO  $alias  Task alias
+     * @return RecurringTaskRecord|null The task record or null if not found
+     */
     public function find(TaskAliasVO $alias): ?RecurringTaskRecord;
 
+    /**
+     * Finds all waiting tasks.
+     *
+     * @param  LimitVO  $limit  Maximum number of tasks
+     * @return RecurringTaskRecordCollection Collection of waiting tasks
+     */
     public function findWaiting(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
+    /**
+     * Finds all playing tasks.
+     *
+     * @param  LimitVO  $limit  Maximum number of tasks
+     * @return RecurringTaskRecordCollection Collection of playing tasks
+     */
     public function findPlaying(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
+    /**
+     * Finds all paused tasks.
+     *
+     * @param  LimitVO  $limit  Maximum number of tasks
+     * @return RecurringTaskRecordCollection Collection of paused tasks
+     */
     public function findPaused(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
+    /**
+     * Finds all finished tasks.
+     *
+     * @param  LimitVO  $limit  Maximum number of tasks
+     * @return RecurringTaskRecordCollection Collection of finished tasks
+     */
     public function findFinished(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
+    /**
+     * Finds all cancelled tasks.
+     *
+     * @param  LimitVO  $limit  Maximum number of tasks
+     * @return RecurringTaskRecordCollection Collection of cancelled tasks
+     */
     public function findCanceled(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection;
 
+    /**
+     * Checks if a recurring task exists.
+     *
+     * @param  TaskAliasVO  $alias  Task alias
+     * @return bool True if the task exists
+     */
     public function exists(TaskAliasVO $alias): bool;
 
-    // ==================== SUPPRESSION ====================
-
+    /**
+     * Permanently deletes a recurring task.
+     *
+     * @param  TaskAliasVO  $alias  Task alias
+     * @return bool True if the task was deleted, false otherwise
+     */
     public function delete(TaskAliasVO $alias): bool;
 
-    // ==================== COMPTAGE ====================
-
+    /**
+     * Counts the total number of recurring tasks.
+     *
+     * @return CounterVO Total count
+     */
     public function count(): CounterVO;
 
+    /**
+     * Counts the number of waiting tasks.
+     *
+     * @return CounterVO Waiting count
+     */
     public function countWaiting(): CounterVO;
 
+    /**
+     * Counts the number of playing tasks.
+     *
+     * @return CounterVO Playing count
+     */
     public function countPlaying(): CounterVO;
 
+    /**
+     * Counts the number of paused tasks.
+     *
+     * @return CounterVO Paused count
+     */
     public function countPaused(): CounterVO;
 
+    /**
+     * Counts the number of finished tasks.
+     *
+     * @return CounterVO Finished count
+     */
     public function countFinished(): CounterVO;
 
+    /**
+     * Counts the number of cancelled tasks.
+     *
+     * @return CounterVO Cancelled count
+     */
     public function countCanceled(): CounterVO;
 }

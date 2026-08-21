@@ -22,6 +22,7 @@ final class HelloUniqueTask extends AbstractUniqueTask
 
     protected function process(): void
     {
+        usleep(500);
         $this->info(new DescriptionVO('Hello World, I am a unique task'));
     }
 

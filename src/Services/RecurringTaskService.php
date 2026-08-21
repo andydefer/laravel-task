@@ -41,6 +41,14 @@ use Ramsey\Uuid\Uuid;
  */
 final class RecurringTaskService implements RecurringTaskServiceInterface
 {
+    /**
+     * Constructor for the recurring task service.
+     *
+     * @param  RecurringTaskRepositoryInterface  $repository  The task repository
+     * @param  LoggerInterface  $logger  The logger instance
+     * @param  HydrationService  $hydration  The hydration service
+     * @param  Application  $app  The application container
+     */
     public function __construct(
         private readonly RecurringTaskRepositoryInterface $repository,
         private readonly LoggerInterface $logger,
@@ -48,6 +56,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         private readonly Application $app,
     ) {}
 
+    /**
+     * {@inheritDoc}
+     */
     public function register(
         RecurringTaskFqcnVO $fqcn,
         StrictDataObject $payload,
@@ -89,6 +100,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $model->getAlias();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function run(TaskAliasVO $alias): TaskRunResultRecord
     {
         $startTime = new Iso8601DateTimeVO;
@@ -144,8 +158,6 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
             $error = $e->getMessage();
             $this->repository->updateAfterRun($record, false, new DescriptionVO($error));
 
-            // ✅ Stocker le résultat dans JSONL (ÉCHEC)
-
             return TaskRunResultRecord::from([
                 'alias' => $alias,
                 'success' => false,
@@ -155,7 +167,10 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
-    public function process(LimitVO $limit = new LimitVO): ProcessResultRecord
+    /**
+     * {@inheritDoc}
+     */
+    public function process(LimitVO $limit = new LimitVO, ?callable $onProgress = null): ProcessResultRecord
     {
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
@@ -169,7 +184,10 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
         $finished += $result->fresh_state->playing_to_finished->getValue();
 
-        foreach ($result->tasks as $record) {
+        $tasks = $result->tasks;
+        $total = count($tasks);
+
+        foreach ($tasks as $index => $record) {
             if (! $this->shouldRunAgain($record)) {
                 continue;
             }
@@ -199,6 +217,10 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
                     'context' => 'Exception during execution',
                 ]));
             }
+
+            if ($onProgress !== null) {
+                $onProgress($index + 1, $total, TaskType::RECURRING, $record);
+            }
         }
 
         return ProcessResultRecord::from([
@@ -211,6 +233,12 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         ]);
     }
 
+    /**
+     * Determines if a recurring task should run again.
+     *
+     * @param  RecurringTaskRecord  $record  The task record
+     * @return bool True if the task should run again
+     */
     private function shouldRunAgain(RecurringTaskRecord $record): bool
     {
         if ($record->status !== RecurringTaskStatus::PLAYING) {
@@ -228,6 +256,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $now->diffInSeconds($lastRun)->getValue() >= $interval->getValue();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function pause(TaskAliasVO $alias): bool
     {
         try {
@@ -250,6 +281,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function resume(TaskAliasVO $alias): bool
     {
         try {
@@ -272,6 +306,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function finish(TaskAliasVO $alias): bool
     {
         try {
@@ -294,6 +331,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function cancel(TaskAliasVO $alias, ?DescriptionVO $reason = null): bool
     {
         try {
@@ -319,6 +359,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function advanceStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool
     {
         try {
@@ -344,11 +387,17 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function postponeStartAt(TaskAliasVO $alias, Iso8601DateTimeVO $newStartAt): bool
     {
         return $this->advanceStartAt($alias, $newStartAt);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function changeInterval(TaskAliasVO $alias, DurationVO $intervalSeconds): bool
     {
         try {
@@ -374,6 +423,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function extendEndAt(TaskAliasVO $alias, Iso8601DateTimeVO $newEndAt): bool
     {
         try {
@@ -399,6 +451,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function find(TaskAliasVO $alias): ?RecurringTaskRecord
     {
         $model = $this->repository->findByAlias($alias);
@@ -409,6 +464,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $this->modelToRecord($model);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findWaiting(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findWaiting($limit);
@@ -421,6 +479,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $collection;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findPlaying(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findPlaying($limit);
@@ -433,6 +494,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $collection;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findPaused(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findPaused($limit);
@@ -445,6 +509,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $collection;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findFinished(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findFinished($limit);
@@ -457,6 +524,9 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $collection;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function findCanceled(LimitVO $limit = new LimitVO): RecurringTaskRecordCollection
     {
         $models = $this->repository->findCanceled($limit);
@@ -469,11 +539,17 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return $collection;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function exists(TaskAliasVO $alias): bool
     {
         return $this->repository->findByAlias($alias) !== null;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function delete(TaskAliasVO $alias): bool
     {
         try {
@@ -489,36 +565,61 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function count(): CounterVO
     {
         return new CounterVO($this->repository->count());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countWaiting(): CounterVO
     {
         return $this->repository->countWaiting();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countPlaying(): CounterVO
     {
         return $this->repository->countPlaying();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countPaused(): CounterVO
     {
         return $this->repository->countPaused();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countFinished(): CounterVO
     {
         return $this->repository->countFinished();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function countCanceled(): CounterVO
     {
         return $this->repository->countCanceled();
     }
 
+    /**
+     * Instantiates the task class.
+     *
+     * @param  RecurringTaskFqcnVO  $fqcn  The task FQCN
+     * @param  RecurringTaskRecord  $record  The task record
+     * @return AbstractRecurringTask The instantiated task
+     */
     private function instantiateTask(RecurringTaskFqcnVO $fqcn, RecurringTaskRecord $record): AbstractRecurringTask
     {
         $context = new RecurringTaskContext;
@@ -535,6 +636,12 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
         return new $className($context, $this->logger, $this->hydration);
     }
 
+    /**
+     * Converts an Eloquent model to a record object.
+     *
+     * @param  ModelsRecurringTask  $model  The model to convert
+     * @return RecurringTaskRecord The converted record
+     */
     private function modelToRecord(ModelsRecurringTask $model): RecurringTaskRecord
     {
         return RecurringTaskRecord::from([
