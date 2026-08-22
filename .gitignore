@@ -8,6 +8,9 @@ yarn-error.log
 
 # Laravel 4 specific
 bootstrap/compiled.php
+bootstrap/
+storage/
+database/
 app/storage/
 
 # Laravel 5 & Lumen specific
@@ -35,4 +38,8 @@ auth.json
 .phpunit.cache/
 
 all.txt
-all.md
+all.mdbootstrap/
+storage/logs/structured/
+database/database.sqlite
+*.log
+*.sqlite
