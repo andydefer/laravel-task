@@ -2,7 +2,7 @@
 
 ## Description
 
-Exécuteur de tâches en parallèle utilisant `pcntl_fork()` pour répartir le traitement des tâches sur plusieurs workers. Permet d'exécuter simultanément plusieurs directives `tasks:process` avec des configurations différentes.
+Exécute des tâches en parallèle en utilisant `pcntl_fork()`. Crée plusieurs processus workers pour exécuter simultanément la directive `tasks:process` et agréger les résultats.
 
 ## Hiérarchie
 
@@ -110,6 +110,24 @@ foreach ($results as $result) {
 
 ---
 
+### `mergeResults(array $results): TaskExecutionResultRecord`
+
+**Rôle :** Fusionne plusieurs résultats en un seul.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$results` | `array<TaskExecutionResultRecord>` | Résultats à fusionner |
+
+**Retourne :** `TaskExecutionResultRecord` - Résultat fusionné
+
+**Comportement :**
+1. Additionne les succès, échecs et erreurs
+2. Répartit les succès par type dans `type_counts`
+3. Répartit les échecs par type dans `failed_counts`
+4. Détermine le type principal
+
+---
+
 ### `resetDatabaseConnection(): void`
 
 **Rôle :** Réinitialise la connexion à la base de données pour éviter les conflits entre processus.
@@ -118,6 +136,8 @@ foreach ($results as $result) {
 1. `DB::purge()` - Supprime toutes les connexions
 2. `DB::reconnect()` - Reconnecte avec une nouvelle connexion
 3. `DB::connection()->getPdo()` - Vérifie que la connexion fonctionne
+
+**Exceptions :** `Throwable` - Si la réinitialisation échoue
 
 ---
 
@@ -182,6 +202,28 @@ $results = $executor->execute(
 // Aucune sortie console, seulement les résultats
 ```
 
+### Cas 5 : Exécution avec fusion des résultats mixtes
+
+```php
+// Les workers retournent des résultats UNIQUE et RECURRING
+$results = $executor->execute(
+    uniqueOnly: false,
+    recurringOnly: false,
+    limit: new LimitVO(100),
+    verbose: true,
+    muted: false
+);
+
+// Chaque résultat contient type_counts et failed_counts
+foreach ($results as $result) {
+    if ($result->type_counts !== null) {
+        $unique = $result->type_counts->get('unique', 0);
+        $recurring = $result->type_counts->get('recurring', 0);
+        echo "Unique: {$unique}, Recurring: {$recurring}\n";
+    }
+}
+```
+
 ---
 
 ## Flux d'exécution
@@ -210,7 +252,7 @@ Processus Parent
 ### Communication inter-processus
 
 ```
-Worker (enfant)                       Parent
+Worker (enfant)                      Parent
       │                                   │
       ├── Exécution                       │
       ├── Serialize($result)              │
@@ -219,6 +261,20 @@ Worker (enfant)                       Parent
       ├── exit(0)                         ├── pcntl_waitpid()
       │                                   ├── Unserialize($data)
       │                                   └── Ajout au tableau de résultats
+```
+
+### Fusion des résultats
+
+```
+Résultat #1 (UNIQUE) ──┐
+                        ├── Fusion → Résultat fusionné
+Résultat #2 (RECURRING)┘
+                        ↓
+            type_counts = ['unique' => 100, 'recurring' => 100]
+            failed_counts = ['unique' => 0, 'recurring' => 2]
+            type = UNIQUE (hasUnique = true)
+            has_unique = true
+            has_recurring = true
 ```
 
 ---
@@ -233,6 +289,7 @@ Worker (enfant)                       Parent
 | Exception dans l'enfant | Message d'erreur transmis via socket |
 | Enfant se termine avec code != 0 | Erreur loggée, socket fermé |
 | Désérialisation échoue | Erreur loggée |
+| Réinitialisation DB échoue | Exception levée |
 
 ---
 
@@ -245,6 +302,7 @@ Worker (enfant)                       Parent
 | Nombre de workers | Augmente le parallélisme mais aussi la charge |
 | Réinitialisation DB | Chaque worker purge/reconnecte |
 | Communication socket | Surcharge de sérialisation/désérialisation |
+| Fusion des résultats | O(n) où n = nombre de résultats |
 
 ### Recommandations
 
@@ -257,6 +315,10 @@ $executor->execute(..., muted: true);
 
 // ✅ Limiter les tâches par worker
 $limit = new LimitVO(50); // Évite de surcharger
+
+// ✅ Utiliser le filtre FQCN pour réduire la charge
+$fqcns = TaskFqcnVOCollection::from([$specificTaskClass]);
+$executor->execute(..., fqcns: $fqcns);
 ```
 
 ---
@@ -282,6 +344,7 @@ declare(strict_types=1);
 use AndyDefer\Task\Services\Watchs\ParallelExecutor;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\Collections\TaskFqcnVOCollection;
+use AndyDefer\Task\Handlers\OutputHandler;
 
 // 1. Création de l'exécuteur
 $executor = new ParallelExecutor(
@@ -311,17 +374,24 @@ $results = $executor->execute(
 // 4. Agrégation des résultats
 $totalSuccess = 0;
 $totalFailed = 0;
+$totalUniqueSuccess = 0;
+$totalRecurringSuccess = 0;
 
 foreach ($results as $result) {
     $totalSuccess += $result->success->getValue();
     $totalFailed += $result->failed->getValue();
+
+    if ($result->type_counts !== null) {
+        $totalUniqueSuccess += $result->type_counts->get('unique', 0);
+        $totalRecurringSuccess += $result->type_counts->get('recurring', 0);
+    }
 }
 
 echo "📊 Résultats agrégés :\n";
 echo "  ✅ Succès : " . $totalSuccess . "\n";
 echo "  ❌ Échecs : " . $totalFailed . "\n";
-
-// 5. Vérification du nombre de workers
+echo "  🔄 Unique : " . $totalUniqueSuccess . "\n";
+echo "  🔁 Recurring : " . $totalRecurringSuccess . "\n";
 echo "🔧 Workers exécutés : " . count($results) . "\n";
 ```
 
@@ -329,7 +399,9 @@ echo "🔧 Workers exécutés : " . count($results) . "\n";
 
 ## Voir aussi
 
+- `ResultAggregator` - Agrégateur de résultats
 - `TasksProcessDirective` - Directive exécutée par les workers
 - `DirectiveKernel` - Kernel exécutant les directives
 - `OutputHandler` - Gestionnaire de sortie
 - `TaskExecutionResultRecord` - Résultat d'exécution
+- `CycleHistoryRecord` - Historique des cycles

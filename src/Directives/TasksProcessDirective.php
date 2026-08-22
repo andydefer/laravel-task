@@ -25,6 +25,23 @@ use Ramsey\Uuid\Uuid;
 use RuntimeException;
 use Throwable;
 
+/**
+ * Processes pending tasks in a single batch execution.
+ *
+ * Supports filtering by task type (unique/recurring), limiting the number of tasks,
+ * and filtering by FQCN (Fully Qualified Class Name). Provides real-time progress
+ * tracking and detailed error reporting.
+ *
+ * @example
+ * // Process all tasks with default settings
+ * ./bin/app tasks:process
+ *
+ * // Process only unique tasks with a limit of 50
+ * ./bin/app tasks:process 50 --unique-only
+ *
+ * // Process specific tasks by FQCN
+ * ./bin/app tasks:process [App.Tasks.SyncUsersTask, App.Tasks.ImportProductsTask]
+ */
 final class TasksProcessDirective extends AbstractDirective
 {
     private Console $console;
@@ -47,6 +64,9 @@ final class TasksProcessDirective extends AbstractDirective
 
     private TaskType $currentType;
 
+    /**
+     * {@inheritDoc}
+     */
     public function getSignature(): string
     {
         return 'tasks:process 
@@ -58,16 +78,25 @@ final class TasksProcessDirective extends AbstractDirective
                     {--mute}#"Suppress all console output"';
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getDescription(): string
     {
         return 'Process all pending tasks in a single batch (no polling, no waiting)';
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getAliases(): StringTypedCollection
     {
         return StringTypedCollection::from(['task-process', 'tp']);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function execute(): ExitCode
     {
         try {
@@ -149,6 +178,12 @@ final class TasksProcessDirective extends AbstractDirective
         }
     }
 
+    /**
+     * Process only unique tasks with a progress bar.
+     *
+     * @param  TaskFqcnVOCollection  $fqcns  Optional FQCN filter
+     * @return bool True if any task failed
+     */
     private function processUniqueTasks(TaskFqcnVOCollection $fqcns): bool
     {
         $type = TaskType::UNIQUE;
@@ -191,6 +226,12 @@ final class TasksProcessDirective extends AbstractDirective
         return $result->failed->isPositive();
     }
 
+    /**
+     * Process only recurring tasks with a progress bar.
+     *
+     * @param  TaskFqcnVOCollection  $fqcns  Optional FQCN filter
+     * @return bool True if any task failed
+     */
     private function processRecurringTasks(TaskFqcnVOCollection $fqcns): bool
     {
         $type = TaskType::RECURRING;
@@ -233,13 +274,19 @@ final class TasksProcessDirective extends AbstractDirective
         return $result->failed->isPositive();
     }
 
+    /**
+     * Process both unique and recurring tasks with separate progress bars.
+     *
+     * @param  TaskFqcnVOCollection  $fqcns  Optional FQCN filter
+     * @return bool True if any task failed
+     */
     private function processBothTypes(TaskFqcnVOCollection $fqcns): bool
     {
         $totalUnique = $this->getTotalTasks(TaskType::UNIQUE, $fqcns);
         $totalRecurring = $this->getTotalTasks(TaskType::RECURRING, $fqcns);
         $this->totalTasks = $totalUnique + $totalRecurring;
 
-        // === UNIQUE TASKS ===
+        // Process unique tasks
         if (! $this->isMuted()) {
             $this->console->info('Processing Unique tasks...');
         }
@@ -254,7 +301,7 @@ final class TasksProcessDirective extends AbstractDirective
             $this->progress->finish('✅ Unique tasks processed');
         }
 
-        // === RECURRING TASKS ===
+        // Process recurring tasks
         if (! $this->isMuted()) {
             $this->console->info('Processing Recurring tasks...');
         }
@@ -269,7 +316,6 @@ final class TasksProcessDirective extends AbstractDirective
             $this->progress->finish('✅ Recurring tasks processed');
         }
 
-        // === RESULTS ===
         $hasFailures = $uniqueResult->failed->isPositive() || $recurringResult->failed->isPositive();
 
         if (! $this->isMuted()) {
@@ -282,6 +328,13 @@ final class TasksProcessDirective extends AbstractDirective
         return $hasFailures;
     }
 
+    /**
+     * Process tasks without rendering output (used for background processing).
+     *
+     * @param  TaskType  $type  The type of tasks to process
+     * @param  TaskFqcnVOCollection  $fqcns  Optional FQCN filter
+     * @return ProcessResultRecord The processing result
+     */
     private function processTasksWithoutRendering(TaskType $type, TaskFqcnVOCollection $fqcns): ProcessResultRecord
     {
         $service = $this->getService($type);
@@ -292,6 +345,14 @@ final class TasksProcessDirective extends AbstractDirective
             : $service->process(new LimitVO, $callback, $fqcns);
     }
 
+    /**
+     * Creates a progress callback for tracking task processing.
+     *
+     * Updates the progress bar and shared context with each processed task.
+     *
+     * @param  TaskType  $type  The type of tasks being processed
+     * @return callable The progress callback
+     */
     private function createProgressCallback(TaskType $type): callable
     {
         return function (int $processed, int $total, TaskType $taskType, $task = null) {
@@ -316,6 +377,13 @@ final class TasksProcessDirective extends AbstractDirective
         };
     }
 
+    /**
+     * Extracts and validates FQCN filters from the variadic argument.
+     *
+     * Converts dot notation to backslash notation and validates each FQCN.
+     *
+     * @return TaskFqcnVOCollection The validated FQCN collection
+     */
     private function getFqcnFilters(): TaskFqcnVOCollection
     {
         $fqcnNames = $this->getVariadic('fqcnNames');
@@ -330,11 +398,17 @@ final class TasksProcessDirective extends AbstractDirective
             return trim($fqcn, '\\');
         }, $fqcnNames);
 
-        $collection = TaskFqcnVOCollection::from($cleanedFqcns);
-
-        return $collection;
+        return TaskFqcnVOCollection::from($cleanedFqcns);
     }
 
+    /**
+     * Gets the service for the specified task type.
+     *
+     * @param  TaskType  $type  The task type
+     * @return UniqueTaskServiceInterface|RecurringTaskServiceInterface The service instance
+     *
+     * @throws RuntimeException If the container is not available
+     */
     private function getService(TaskType $type): UniqueTaskServiceInterface|RecurringTaskServiceInterface
     {
         $container = $this->getApplication();
@@ -349,6 +423,12 @@ final class TasksProcessDirective extends AbstractDirective
         };
     }
 
+    /**
+     * Gets the display label for a task type.
+     *
+     * @param  TaskType  $type  The task type
+     * @return string The display label
+     */
     private function getTaskTypeLabel(TaskType $type): string
     {
         return match ($type) {
@@ -357,6 +437,13 @@ final class TasksProcessDirective extends AbstractDirective
         };
     }
 
+    /**
+     * Gets the total number of tasks for a specific type with optional FQCN filter.
+     *
+     * @param  TaskType  $type  The task type
+     * @param  TaskFqcnVOCollection  $fqcns  Optional FQCN filter
+     * @return int The total count
+     */
     private function getTotalTasks(TaskType $type, TaskFqcnVOCollection $fqcns): int
     {
         $service = $this->getService($type);
@@ -367,6 +454,14 @@ final class TasksProcessDirective extends AbstractDirective
         };
     }
 
+    /**
+     * Calculates the total number of tasks to process.
+     *
+     * @param  bool  $uniqueOnly  Whether to process only unique tasks
+     * @param  bool  $recurringOnly  Whether to process only recurring tasks
+     * @param  TaskFqcnVOCollection  $fqcns  Optional FQCN filter
+     * @return int The total count
+     */
     private function calculateTotalTasks(bool $uniqueOnly, bool $recurringOnly, TaskFqcnVOCollection $fqcns): int
     {
         if ($uniqueOnly) {
@@ -380,6 +475,11 @@ final class TasksProcessDirective extends AbstractDirective
         return $this->getTotalTasks(TaskType::UNIQUE, $fqcns) + $this->getTotalTasks(TaskType::RECURRING, $fqcns);
     }
 
+    /**
+     * Validates that mutually exclusive options are not used together.
+     *
+     * @return ExitCode The validation result
+     */
     private function validateOptions(): ExitCode
     {
         $uniqueOnly = $this->isFlagActive('unique-only');
@@ -396,6 +496,13 @@ final class TasksProcessDirective extends AbstractDirective
         return ExitCode::SUCCESS;
     }
 
+    /**
+     * Validates and returns the limit argument.
+     *
+     * @return int|null The limit value or null for no limit
+     *
+     * @throws InvalidArgumentException If the limit is invalid
+     */
     private function validateAndGetLimit(): ?int
     {
         $limitRaw = $this->getArgument('limit');
@@ -412,11 +519,19 @@ final class TasksProcessDirective extends AbstractDirective
         return $limit;
     }
 
+    /**
+     * Checks if the command is muted.
+     *
+     * @return bool True if muted
+     */
     private function isMuted(): bool
     {
         return $this->isMuted ?? false;
     }
 
+    /**
+     * Renders the start message with configuration details.
+     */
     private function renderStart(): void
     {
         $this->console->info('Processing tasks...');
@@ -429,6 +544,12 @@ final class TasksProcessDirective extends AbstractDirective
         $this->console->line();
     }
 
+    /**
+     * Renders the result for a single task type.
+     *
+     * @param  ProcessResultRecord  $result  The processing result
+     * @param  string  $type  The task type label
+     */
     private function renderResult(ProcessResultRecord $result, string $type): void
     {
         $total = $result->success->add($result->failed);
@@ -445,6 +566,12 @@ final class TasksProcessDirective extends AbstractDirective
         $this->console->line();
     }
 
+    /**
+     * Renders combined results for both task types.
+     *
+     * @param  ProcessResultRecord  $unique  The unique task result
+     * @param  ProcessResultRecord  $recurring  The recurring task result
+     */
     private function renderCombinedResults(ProcessResultRecord $unique, ProcessResultRecord $recurring): void
     {
         $totalSuccess = $unique->success->add($recurring->success);
@@ -467,6 +594,12 @@ final class TasksProcessDirective extends AbstractDirective
         $this->console->line();
     }
 
+    /**
+     * Renders errors for a single task type.
+     *
+     * @param  iterable  $errors  The errors to render
+     * @param  string  $type  The task type label
+     */
     private function renderErrors(iterable $errors, string $type): void
     {
         if (! $this->isVerbose) {
@@ -486,6 +619,12 @@ final class TasksProcessDirective extends AbstractDirective
         }
     }
 
+    /**
+     * Renders errors from both task types.
+     *
+     * @param  iterable  $uniqueErrors  The unique task errors
+     * @param  iterable  $recurringErrors  The recurring task errors
+     */
     private function renderErrorsFromMultiple(iterable $uniqueErrors, iterable $recurringErrors): void
     {
         if (! $this->isVerbose) {
@@ -519,6 +658,11 @@ final class TasksProcessDirective extends AbstractDirective
         }
     }
 
+    /**
+     * Renders a single error entry.
+     *
+     * @param  mixed  $error  The error to render
+     */
     private function renderError(mixed $error): void
     {
         $this->console->raw(KeyValue::renderWithValueColor(
@@ -528,6 +672,13 @@ final class TasksProcessDirective extends AbstractDirective
         $this->console->line();
     }
 
+    /**
+     * Stores the processing result in the shared context.
+     *
+     * @param  string  $uuid  The execution UUID
+     * @param  ProcessResultRecord  $result  The processing result
+     * @param  TaskType  $type  The task type
+     */
     private function storeResult(string $uuid, ProcessResultRecord $result, TaskType $type): void
     {
         $key = $type->value.'-'.$uuid;
@@ -552,6 +703,13 @@ final class TasksProcessDirective extends AbstractDirective
         $this->contextSet($key, $record);
     }
 
+    /**
+     * Stores both unique and recurring results in the shared context.
+     *
+     * @param  string  $uuid  The execution UUID
+     * @param  ProcessResultRecord  $unique  The unique task result
+     * @param  ProcessResultRecord  $recurring  The recurring task result
+     */
     private function storeFullResult(string $uuid, ProcessResultRecord $unique, ProcessResultRecord $recurring): void
     {
         $this->storeResult($uuid, $unique, TaskType::UNIQUE);

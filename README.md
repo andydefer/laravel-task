@@ -1,9 +1,3 @@
-Je comprends, je vais corriger le README pour utiliser les **signatures exactes** des services avec les **records** appropriés (`UniqueTaskConfigRecord` et `RecurringTaskConfigRecord`), et non des tableaux PHP.
-
-Voici la version corrigée :
-
----
-
 # Laravel Task
 
 **Un moteur de tâches persistantes pour Laravel. Planification dynamique, exécution récurrente, état, retry, pause, reprise - avec un simple cron.**
@@ -30,7 +24,6 @@ Voici la version corrigée :
 12. [Cas d'usage concrets](#cas-dusage-concrets)
 13. [Intégration avec les cron jobs](#intégration-avec-les-cron-jobs)
 14. [Bonnes pratiques](#bonnes-pratiques)
-15. [Référence des commandes](#référence-des-commandes)
 
 ---
 
@@ -95,6 +88,7 @@ $exitCode = $kernel->run(['directive', 'tasks:process']);
 - ✅ Journalisation des exécutions en JSONL
 - ✅ Mode verbose pour le débogage
 - ✅ Détection de circularité
+- ✅ **Arguments variadiques** pour filtrer par FQCN
 
 ### Les directives
 
@@ -105,6 +99,43 @@ Le package fournit trois directives principales :
 | `tasks:process` | Exécution unique en lot | `./bin/task tasks:process` |
 | `tasks:watch` | Surveillance continue | `./bin/task tasks:watch` |
 | `fixture:register-tasks` | Création de tâches de test | `./bin/task fixture:register-tasks` |
+
+### Filtrage par FQCN (Arguments variadiques)
+
+Les directives `tasks:process` et `tasks:watch` supportent les **arguments variadiques** pour filtrer les tâches par leur FQCN (Fully Qualified Class Name).
+
+```bash
+# Exécuter uniquement les tâches spécifiées
+./bin/task tasks:process [App.Tasks.SyncUsersTask, App.Tasks.ImportProductsTask]
+
+# Avec limite
+./bin/task tasks:process 50 [App.Tasks.SyncUsersTask]
+
+# Dans tasks:watch, le filtre se place après les arguments positionnels
+./bin/task tasks:watch 10 300 100 1 [App.Tasks.SyncUsersTask, App.Tasks.ImportProductsTask]
+
+# Avec des flags
+./bin/task tasks:process [App.Tasks.SyncUsersTask] --unique-only --verbose
+```
+
+**Utilisation des points (.) au lieu des backslashes (\) :**
+```bash
+# ✅ Avec des points (recommandé)
+./bin/task tasks:process [App.Tasks.SyncUsersTask, App.Tasks.ImportProductsTask]
+
+# ✅ Avec des backslashes (également accepté)
+./bin/task tasks:process [App\\Tasks\\SyncUsersTask, App\\Tasks\\ImportProductsTask]
+```
+
+**Dans le code :**
+```php
+// Le filtre FQCN est automatiquement appliqué aux services
+$fqcns = $this->getFqcnFilters(); // TaskFqcnVOCollection
+
+$result = $this->limit !== null
+    ? $service->process(new LimitVO($this->limit), $callback, $fqcns)
+    : $service->process(new LimitVO, $callback, $fqcns);
+```
 
 ### Les services de tâches
 
@@ -379,6 +410,12 @@ $result = $context->get('process_result');
 
 # Mode silencieux (pour cron)
 ./bin/task tasks:process --mute
+
+# Filtrer par FQCN (arguments variadiques)
+./bin/task tasks:process [App.Tasks.SyncUsersTask, App.Tasks.ImportProductsTask]
+
+# Combinaison : limite + filtre FQCN
+./bin/task tasks:process 50 [App.Tasks.SyncUsersTask]
 ```
 
 ---
@@ -396,6 +433,12 @@ La directive `tasks:watch` exécute `tasks:process` en boucle avec un intervalle
 
 # Avec 4 workers parallèles
 ./bin/task tasks:watch 5 600 100 4 --verbose
+
+# Filtrer par FQCN (arguments variadiques)
+./bin/task tasks:watch 10 300 100 1 [App.Tasks.SyncUsersTask, App.Tasks.ImportProductsTask]
+
+# Ignorer un argument avec _ (utiliser la valeur par défaut)
+./bin/task tasks:watch 10 _ _ 2 [App.Tasks.SyncUsersTask]
 ```
 
 ### Arguments
@@ -406,6 +449,14 @@ La directive `tasks:watch` exécute `tasks:process` en boucle avec un intervalle
 | `duration` | Durée totale d'exécution en secondes | Illimité |
 | `limit` | Nombre max de tâches par cycle | 100 |
 | `parallel` | Nombre de workers parallèles | 1 |
+| `fqcnNames*` | Liste des FQCN à filtrer (variadique) | Aucun |
+
+**Astuce :** Utilisez `_` (underscore) pour ignorer un argument positionnel et utiliser sa valeur par défaut.
+
+```bash
+# Seulement parallel et FQCNs (interval et duration par défaut)
+./bin/task tasks:watch _ _ _ 4 [App.Tasks.SyncUsersTask]
+```
 
 ---
 
@@ -425,8 +476,8 @@ Le package supporte l'exécution parallèle des tâches via l'option `--parallel
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    tasks:watch (parent)                        │
-│              CycleCalculator + ResultAggregator                │
+│                    tasks:watch (parent)                         │
+│              CycleCalculator + ResultAggregator                 │
 └────────────────────────┬────────────────────────────────────────┘
                          │
           ┌──────────────┼──────────────┐
@@ -977,35 +1028,6 @@ $payload = StrictDataObject::from([
 ```
 
 ---
-
-## Référence des commandes
-
-| Commande | Description |
-|----------|-------------|
-| `./bin/task tasks:process` | Traite toutes les tâches en un lot |
-| `./bin/task tasks:process 50` | Limite à 50 tâches |
-| `./bin/task tasks:process --unique-only` | Uniquement les uniques |
-| `./bin/task tasks:process --recurring-only` | Uniquement les récurrentes |
-| `./bin/task tasks:process --verbose` | Affiche les erreurs |
-| `./bin/task tasks:process --mute` | Mode silencieux |
-| `./bin/task tasks:watch` | Surveillance continue (60s) |
-| `./bin/task tasks:watch 30` | Toutes les 30s |
-| `./bin/task tasks:watch 30 3600` | Pendant 1 heure |
-| `./bin/task tasks:watch 10 300 50 4` | 4 workers parallèles |
-| `./bin/task fixture:register-tasks` | Créer 1 tâche de chaque type |
-| `./bin/task fixture:register-tasks 10 5` | Créer 10 uniques + 5 récurrentes |
-
-### Codes de sortie
-
-| Code | Signification |
-|------|---------------|
-| `0` | SUCCESS |
-| `1` | FAILURE |
-| `2` | INVALID_ARGUMENT |
-| `3` | RUNTIME_ERROR |
-
----
-
 ## Licence
 
 MIT © [Andy Defer](https://github.com/andydefer)

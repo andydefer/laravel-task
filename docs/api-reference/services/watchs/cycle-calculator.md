@@ -2,26 +2,21 @@
 
 ## Description
 
-Le `CycleCalculator` est un service utilitaire qui calcule et gère les cycles d'exécution pour les boucles de surveillance. Il détermine le nombre total de cycles, les temps d'attente et les conditions d'arrêt en fonction d'un intervalle et d'une durée configurés.
+Calcule le timing des cycles pour les boucles de surveillance des tâches. Détermine le nombre de cycles, la durée estimée et la décision de continuer en fonction de l'intervalle et de la durée totale configurés.
 
-## Hiérarchie / Implémentations
+## Hiérarchie
 
 ```
-CycleCalculator (final)
-    └── Aucune interface implémentée
+CycleCalculator
 ```
-
-**Classe finale :** Ne peut pas être étendue
 
 ## Rôle principal
 
-Ce service agit comme un calculateur de cycle pour les boucles d'exécution :
+Fournir des calculs temporels pour les boucles de surveillance : nombre total de cycles, durée estimée, cycles restants, et temps d'attente entre les cycles.
 
-1. **Calcul du nombre total de cycles** basé sur l'intervalle et la durée
-2. **Estimation de la durée totale** d'exécution
-3. **Détermination des cycles restants**
-4. **Conditions de continuation** (arrêt ou poursuite)
-5. **Calcul du temps d'attente** entre les cycles
+Un cycle s'exécute à t=0, t=intervalle, t=2*intervalle, etc. Le nombre total de cycles est `(durée / intervalle) + 1` (pour inclure le cycle initial).
+
+---
 
 ## API / Méthodes publiques
 
@@ -29,420 +24,299 @@ Ce service agit comme un calculateur de cycle pour les boucles d'exécution :
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$interval` | `DurationVO` | Intervalle entre les cycles en secondes |
-| `$duration` | `DurationVO|null` | Durée totale d'exécution (null = illimité) |
+| `$interval` | `DurationVO` | Temps entre les cycles en secondes |
+| `$duration` | `DurationVO|null` | Durée totale d'exécution, ou `null` pour illimité |
 
 **Exemple :**
 ```php
-<?php
-
-use AndyDefer\Task\Services\Watchs\CycleCalculator;
-use AndyDefer\Task\ValueObjects\DurationVO;
-
-// Cycle toutes les 5 secondes pendant 30 secondes
-$calculator = new CycleCalculator(
-    new DurationVO(5),
-    new DurationVO(30)
-);
-
-// Cycle toutes les 10 secondes indéfiniment
-$infiniteCalculator = new CycleCalculator(
-    new DurationVO(10)
-);
+$interval = new DurationVO(3);
+$duration = new DurationVO(30);
+$calculator = new CycleCalculator($interval, $duration);
 ```
 
 ---
 
 ### `getInterval(): DurationVO`
 
-**Retourne :** `DurationVO` - L'intervalle configuré
+Retourne l'intervalle entre les cycles.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| Aucun | - | - |
+
+**Retourne :** `DurationVO` - L'intervalle en secondes
 
 **Exemple :**
 ```php
-$interval = $calculator->getInterval();
-echo "Intervalle : " . $interval->getValue() . "s\n";
+$interval = $calculator->getInterval(); // 3s
 ```
 
 ---
 
 ### `getDuration(): ?DurationVO`
 
-**Retourne :** `DurationVO|null` - La durée configurée ou null si illimitée
+Retourne la durée totale d'exécution.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| Aucun | - | - |
+
+**Retourne :** `DurationVO|null` - La durée, ou `null` si illimité
 
 **Exemple :**
 ```php
-$duration = $calculator->getDuration();
-if ($duration === null) {
-    echo "Exécution illimitée\n";
-} else {
-    echo "Durée : " . $duration->getValue() . "s\n";
-}
+$duration = $calculator->getDuration(); // 30s ou null
 ```
 
 ---
 
 ### `getTotalCycles(): int`
 
-**Retourne :** `int` - Nombre total de cycles à exécuter
+Calcule le nombre total de cycles.
 
-**Comportement :**
-- Si `duration` est null → retourne `PHP_INT_MAX` (illimité)
-- Sinon, calcule : `floor(duration / interval) + 1`
-- Le `+1` compense le premier cycle à t=0
+**Formule :** `floor(duration / interval) + 1`
+
+**Exemple :**
+- Intervalle = 3s, Durée = 30s
+- Cycle #1: t=0s
+- Cycle #2: t=3s
+- ...
+- Cycle #10: t=27s
+- Cycle #11: t=30s
+- **Total = 11 cycles**
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| Aucun | - | - |
+
+**Retourne :** `int` - Nombre total de cycles, ou `PHP_INT_MAX` si illimité
 
 **Exemple :**
 ```php
-$calculator = new CycleCalculator(
-    new DurationVO(3),
-    new DurationVO(30)
-);
-
-echo "Cycles : " . $calculator->getTotalCycles() . "\n";
-// Résultat : 11 (cycles à t=0, 3, 6, 9, 12, 15, 18, 21, 24, 27, 30)
-```
-
-**Schéma des cycles (interval=3s, duration=30s) :**
-```
-Cycle #1  : t=0s   ← start
-Cycle #2  : t=3s
-Cycle #3  : t=6s
-Cycle #4  : t=9s
-Cycle #5  : t=12s
-Cycle #6  : t=15s
-Cycle #7  : t=18s
-Cycle #8  : t=21s
-Cycle #9  : t=24s
-Cycle #10 : t=27s
-Cycle #11 : t=30s ← fin (duration atteinte)
+$totalCycles = $calculator->getTotalCycles(); // 11
 ```
 
 ---
 
 ### `getEstimatedDuration(): float`
 
-**Retourne :** `float` - Durée estimée en secondes
+Calcule la durée totale estimée d'exécution.
 
-**Comportement :**
-- Si `duration` est null → retourne `PHP_FLOAT_MAX`
-- Sinon : `(totalCycles - 1) * interval`
-- La durée estimée est légèrement inférieure à la durée configurée
+Cette durée est la durée requise pour compléter tous les cycles. Elle peut être légèrement inférieure à la durée configurée en raison de l'arrondi inférieur.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| Aucun | - | - |
+
+**Retourne :** `float` - Durée estimée en secondes, ou `PHP_FLOAT_MAX` si illimité
 
 **Exemple :**
 ```php
-$calculator = new CycleCalculator(
-    new DurationVO(3),
-    new DurationVO(30)
-);
-
-echo "Durée estimée : " . $calculator->getEstimatedDuration() . "s\n";
-// Résultat : 30s (11 cycles × 3s = 30s)
+$estimated = $calculator->getEstimatedDuration(); // 30s
 ```
 
 ---
 
 ### `getRemainingCycles(int $currentCycle): int`
 
+Calcule le nombre de cycles restants.
+
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$currentCycle` | `int` | Numéro du cycle actuel (commence à 1) |
+| `$currentCycle` | `int` | Numéro du cycle actuel (1-indexé) |
 
-**Retourne :** `int` - Nombre de cycles restants
-
-**Comportement :**
-- Calcule : `totalCycles - currentCycle`
-- Ne retourne jamais une valeur négative
+**Retourne :** `int` - Nombre de cycles restants (minimum 0)
 
 **Exemple :**
 ```php
-$calculator = new CycleCalculator(
-    new DurationVO(3),
-    new DurationVO(30)
-);
-
-echo "Restant après cycle #5 : " . $calculator->getRemainingCycles(5) . "\n";
-// Résultat : 6 (cycles #6 à #11)
-
-echo "Restant après cycle #11 : " . $calculator->getRemainingCycles(11) . "\n";
-// Résultat : 0
+$remaining = $calculator->getRemainingCycles(5); // 6 cycles restants
 ```
 
 ---
 
 ### `shouldContinue(int $currentCycle, bool $shouldStop): bool`
 
+Détermine si la boucle de surveillance doit continuer.
+
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$currentCycle` | `int` | Numéro du cycle actuel |
-| `$shouldStop` | `bool` | Signal d'arrêt externe (ex: Ctrl+C) |
+| `$currentCycle` | `int` | Numéro du cycle actuel (1-indexé) |
+| `$shouldStop` | `bool` | Si un signal d'arrêt a été reçu |
 
-**Retourne :** `bool` - `true` si l'exécution doit continuer
-
-**Comportement :**
-1. Si `$shouldStop` est `true` → retourne `false`
-2. Si `$duration` est null → retourne `true` (illimité)
-3. Sinon : `$currentCycle < $totalCycles`
+**Retourne :** `bool` - `true` si la boucle doit continuer
 
 **Exemple :**
 ```php
-$calculator = new CycleCalculator(
-    new DurationVO(3),
-    new DurationVO(30)
-);
-
-// Boucle principale
-$cycleNumber = 0;
-while ($calculator->shouldContinue($cycleNumber, false)) {
-    $cycleNumber++;
-    echo "Cycle #$cycleNumber\n";
-    
-    // Exécuter les tâches...
-    
-    // Attendre avant le prochain cycle
-    $waitTime = $calculator->getNextWaitTime($cycleNumber);
-    sleep($waitTime->getValue());
+if ($calculator->shouldContinue($cycleNumber, $signalHandler->shouldStop())) {
+    // Continuer l'exécution
 }
-// Affichera 11 cycles (1 à 11)
 ```
 
 ---
 
 ### `getNextWaitTime(int $currentCycle): DurationVO`
 
+Calcule le temps d'attente avant le prochain cycle.
+
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$currentCycle` | `int` | Numéro du cycle actuel |
+| `$currentCycle` | `int` | Numéro du cycle actuel (1-indexé) |
 
-**Retourne :** `DurationVO` - Temps d'attente avant le prochain cycle
-
-**Comportement :**
-- Si `duration` est null → retourne l'intervalle (illimité)
-- Si `currentCycle < totalCycles` → retourne l'intervalle
-- Sinon (dernier cycle) → retourne `DurationVO(0)`
+**Retourne :** `DurationVO` - Temps d'attente en secondes, ou 0 si c'est le dernier cycle
 
 **Exemple :**
 ```php
-$calculator = new CycleCalculator(
-    new DurationVO(3),
-    new DurationVO(30)
-);
-
-echo "Attente après cycle #5 : " . $calculator->getNextWaitTime(5)->getValue() . "s\n";
-// Résultat : 3s
-
-echo "Attente après cycle #11 : " . $calculator->getNextWaitTime(11)->getValue() . "s\n";
-// Résultat : 0s (dernier cycle)
+$waitTime = $calculator->getNextWaitTime(5); // 3s
+$waitTime = $calculator->getNextWaitTime(11); // 0s (dernier cycle)
 ```
 
 ---
 
 ## Cas d'utilisation
 
-### Cas 1 : Boucle avec durée limitée
+### Cas 1 : Surveillance avec durée limitée
 
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\Task\Services\Watchs\CycleCalculator;
-use AndyDefer\Task\ValueObjects\DurationVO;
-
-$calculator = new CycleCalculator(
-    new DurationVO(5),   // Toutes les 5 secondes
-    new DurationVO(60)   // Pendant 60 secondes
-);
+$interval = new DurationVO(5);
+$duration = new DurationVO(60);
+$calculator = new CycleCalculator($interval, $duration);
 
 $cycleNumber = 0;
-
 while ($calculator->shouldContinue($cycleNumber, false)) {
     $cycleNumber++;
-    
-    echo "🔄 Cycle #{$cycleNumber} de " . $calculator->getTotalCycles() . "\n";
-    echo "   Restant : " . $calculator->getRemainingCycles($cycleNumber) . " cycles\n";
+    echo "Cycle #{$cycleNumber}\n";
     
     // Exécuter les tâches...
-    // ...
     
-    // Attendre avant le prochain cycle
     $waitTime = $calculator->getNextWaitTime($cycleNumber);
     if ($waitTime->getValue() > 0) {
-        echo "   Attente : {$waitTime->getValue()}s\n";
         sleep($waitTime->getValue());
     }
 }
-
-echo "✅ Terminé après {$cycleNumber} cycles\n";
+// Sortie : Cycles 1 à 13
 ```
 
-### Cas 2 : Boucle infinie avec gestion des signaux
+### Cas 2 : Surveillance illimitée
 
 ```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\Task\Services\Watchs\CycleCalculator;
-use AndyDefer\Task\ValueObjects\DurationVO;
-
-$calculator = new CycleCalculator(
-    new DurationVO(10)  // Durée illimitée
-);
+$interval = new DurationVO(10);
+$calculator = new CycleCalculator($interval); // Durée = null
 
 $cycleNumber = 0;
-$shouldStop = false; // Modifié par le gestionnaire de signaux
+while ($calculator->shouldContinue($cycleNumber, $signalHandler->shouldStop())) {
+    $cycleNumber++;
+    echo "Cycle #{$cycleNumber}\n";
+    
+    // Exécuter les tâches...
+    
+    // Attend l'intervalle
+    sleep($calculator->getInterval()->getValue());
+}
+```
+
+### Cas 3 : Affichage des statistiques
+
+```php
+$interval = new DurationVO(3);
+$duration = new DurationVO(30);
+$calculator = new CycleCalculator($interval, $duration);
+
+echo "📊 Statistiques des cycles:\n";
+echo "  Intervalle: " . $calculator->getInterval()->getValue() . "s\n";
+echo "  Durée: " . $calculator->getDuration()->getValue() . "s\n";
+echo "  Cycles totaux: " . $calculator->getTotalCycles() . "\n";
+echo "  Durée estimée: " . $calculator->getEstimatedDuration() . "s\n";
+
+// À mi-parcours
+$currentCycle = 5;
+echo "  Cycles restants: " . $calculator->getRemainingCycles($currentCycle) . "\n";
+echo "  Prochain cycle dans: " . $calculator->getNextWaitTime($currentCycle)->getValue() . "s\n";
+```
+
+### Cas 4 : Arrêt propre
+
+```php
+$calculator = new CycleCalculator(new DurationVO(5), new DurationVO(60));
+$cycleNumber = 0;
+$shouldStop = false;
+
+// Signal handler pour Ctrl+C
+pcntl_signal(SIGINT, function() use (&$shouldStop) {
+    $shouldStop = true;
+});
 
 while ($calculator->shouldContinue($cycleNumber, $shouldStop)) {
     $cycleNumber++;
     
-    echo "🔄 Cycle #{$cycleNumber} (illimité)\n";
-    
     // Exécuter les tâches...
-    // ...
     
-    // Attendre 10 secondes
     $waitTime = $calculator->getNextWaitTime($cycleNumber);
-    sleep($waitTime->getValue());
-}
-
-echo "⏹️ Arrêt demandé par l'utilisateur\n";
-```
-
-### Cas 3 : Estimation de la durée pour l'affichage
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\Task\Services\Watchs\CycleCalculator;
-use AndyDefer\Task\ValueObjects\DurationVO;
-
-$interval = new DurationVO(3);
-$duration = new DurationVO(30);
-
-$calculator = new CycleCalculator($interval, $duration);
-
-$totalCycles = $calculator->getTotalCycles();
-$estimatedDuration = $calculator->getEstimatedDuration();
-
-echo "📊 Configuration :\n";
-echo "   Intervalle : " . $interval->getValue() . "s\n";
-echo "   Durée configurée : " . $duration->getValue() . "s\n";
-echo "   Durée estimée : " . $estimatedDuration . "s\n";
-echo "   Cycles : {$totalCycles}\n";
-
-// Affichage de la progression
-for ($cycle = 1; $cycle <= $totalCycles; $cycle++) {
-    $remaining = $calculator->getRemainingCycles($cycle);
-    $progress = round(($cycle / $totalCycles) * 100, 1);
-    
-    echo sprintf(
-        "   Cycle #%2d | Progression: %5.1f%% | Restant: %d cycles\n",
-        $cycle,
-        $progress,
-        $remaining
-    );
+    if ($waitTime->getValue() > 0) {
+        // Attente avec vérification des signaux
+        $seconds = $waitTime->getValue();
+        $elapsed = 0;
+        while ($elapsed < $seconds) {
+            pcntl_signal_dispatch();
+            if ($shouldStop) {
+                break;
+            }
+            usleep(100000);
+            $elapsed += 0.1;
+        }
+    }
 }
 ```
 
-**Sortie :**
-```
-📊 Configuration :
-   Intervalle : 3s
-   Durée configurée : 30s
-   Durée estimée : 30s
-   Cycles : 11
-   Cycle # 1 | Progression:   9.1% | Restant: 10 cycles
-   Cycle # 2 | Progression:  18.2% | Restant: 9 cycles
-   Cycle # 3 | Progression:  27.3% | Restant: 8 cycles
-   Cycle # 4 | Progression:  36.4% | Restant: 7 cycles
-   Cycle # 5 | Progression:  45.5% | Restant: 6 cycles
-   Cycle # 6 | Progression:  54.5% | Restant: 5 cycles
-   Cycle # 7 | Progression:  63.6% | Restant: 4 cycles
-   Cycle # 8 | Progression:  72.7% | Restant: 3 cycles
-   Cycle # 9 | Progression:  81.8% | Restant: 2 cycles
-   Cycle #10 | Progression:  90.9% | Restant: 1 cycles
-   Cycle #11 | Progression: 100.0% | Restant: 0 cycles
-```
+---
 
-## Flux de décision
+## Flux d'exécution
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    CycleCalculator::shouldContinue()                │
-└────────────────────────┬────────────────────────────────────────────┘
-                         │
-                         ▼
-              ┌──────────┴──────────┐
-              │                     │
-              ▼                     ▼
-   ┌──────────────────┐   ┌─────────────────────────────────────────┐
-   │ shouldStop = true│   │ shouldStop = false                      │
-   │ → Retourne false │   │ → Vérifier la durée                     │ 
-   └──────────────────┘   └────────────────┬────────────────────────┘
-                                           │
-                                           ▼
-                              ┌────────────┴────────────┐
-                              │                         │
-                              ▼                         ▼
-                    ┌─────────────────┐     ┌─────────────────────────────┐
-                    │ duration = null │     │ duration défini             │
-                    │ → Retourne true │     │ → currentCycle < totalCycles│
-                    └─────────────────┘     └─────────────────────────────┘
+1. Création avec interval et duration
+   ↓
+2. getTotalCycles() calcule floor(duration / interval) + 1
+   ↓
+3. getEstimatedDuration() = (totalCycles - 1) * interval
+   ↓
+4. shouldContinue() vérifie cycle < totalCycles
+   ↓
+5. getNextWaitTime() retourne interval ou 0
 ```
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                    CycleCalculator::getNextWaitTime()               │
-└────────────────────────┬────────────────────────────────────────────┘
-                         │
-                         ▼
-              ┌──────────┴──────────┐
-              │                     │
-              ▼                     ▼
-    ┌─────────────────┐   ┌─────────────────────────────────────────┐
-    │ duration = null │   │ duration défini                         │
-    │ → interval      │   │ → Vérifier la position dans le cycle    │
-    └─────────────────┘   └────────────────┬────────────────────────┘
-                                           │
-                                           ▼
-                              ┌────────────┴────────────┐
-                              │                         │
-                              ▼                         ▼
-                    ┌─────────────────┐     ┌───────────────────────────┐
-                    │ currentCycle <  │     │ currentCycle >=           │
-                    │ totalCycles     │     │ totalCycles               │
-                    │ → interval      │     │ → DurationVO(0)           │
-                    └─────────────────┘     └───────────────────────────┘
-```
+---
 
 ## Gestion des erreurs
 
-| Situation | Comportement | Explication |
-|-----------|--------------|-------------|
-| Intervalle > Durée | `shouldContinue()` faux après cycle #1 | La durée est inférieure à l'intervalle, un seul cycle s'exécute |
-| Cycle négatif | `getRemainingCycles()` retourne total | Le paramètre est ignoré, traité comme 0 |
-| Durée = 0 | `getTotalCycles()` retourne 1 | `floor(0/interval) + 1 = 1` |
+| Situation | Comportement |
+|-----------|--------------|
+| `$duration` = null | `getTotalCycles()` → `PHP_INT_MAX` |
+| `$duration` = null | `getEstimatedDuration()` → `PHP_FLOAT_MAX` |
+| `$duration` = null | `shouldContinue()` → `true` (sauf si stop) |
+| `$duration` = null | `getNextWaitTime()` → `interval` |
+| `$duration` < interval | `getTotalCycles()` → 1 (minimum) |
+
+---
 
 ## Performance
 
 | Opération | Complexité | Description |
-|-----------|-----------|-------------|
+|-----------|------------|-------------|
 | `getTotalCycles()` | O(1) | Calcul simple |
 | `getEstimatedDuration()` | O(1) | Calcul simple |
 | `getRemainingCycles()` | O(1) | Soustraction |
 | `shouldContinue()` | O(1) | Comparaison |
-| `getNextWaitTime()` | O(1) | Retourne intervalle ou 0 |
+| `getNextWaitTime()` | O(1) | Comparaison |
 
-**Aucun cache nécessaire** - Tous les calculs sont triviaux.
+---
 
 ## Compatibilité
 
 | Version | Support |
 |---------|---------|
 | PHP 8.1+ | ✅ Complet |
-| PHP 8.0 | ✅ Complet |
-| Tous environnements | ✅ |
+| PHP 8.2+ | ✅ Complet |
+
+---
 
 ## Exemple complet
 
@@ -454,114 +328,44 @@ declare(strict_types=1);
 use AndyDefer\Task\Services\Watchs\CycleCalculator;
 use AndyDefer\Task\ValueObjects\DurationVO;
 
-class WatchService
-{
-    private CycleCalculator $calculator;
+// 1. Création du calculateur
+$interval = new DurationVO(10);
+$duration = new DurationVO(120); // 2 minutes
+$calculator = new CycleCalculator($interval, $duration);
+
+// 2. Affichage des informations
+echo "📊 Cycle Calculator\n";
+echo "====================\n";
+echo "Intervalle: " . $calculator->getInterval()->getValue() . "s\n";
+echo "Durée: " . $calculator->getDuration()->getValue() . "s\n";
+echo "Cycles totaux: " . $calculator->getTotalCycles() . "\n";
+echo "Durée estimée: " . $calculator->getEstimatedDuration() . "s\n";
+echo "\n";
+
+// 3. Simulation des cycles
+$cycleNumber = 0;
+echo "🔄 Simulation des cycles:\n";
+while ($calculator->shouldContinue($cycleNumber, false)) {
+    $cycleNumber++;
     
-    public function __construct(float $interval, ?float $duration = null)
-    {
-        $this->calculator = new CycleCalculator(
-            new DurationVO($interval),
-            $duration !== null ? new DurationVO($duration) : null
-        );
-    }
+    $remaining = $calculator->getRemainingCycles($cycleNumber);
+    $waitTime = $calculator->getNextWaitTime($cycleNumber);
     
-    public function run(): void
-    {
-        $cycleNumber = 0;
-        $shouldStop = false; // À connecter au gestionnaire de signaux
-        
-        // Afficher la configuration
-        $this->displayConfiguration();
-        
-        // Boucle principale
-        while ($this->calculator->shouldContinue($cycleNumber, $shouldStop)) {
-            $cycleNumber++;
-            
-            // Début du cycle
-            $cycleStart = microtime(true);
-            
-            echo sprintf(
-                "\n🔄 Cycle #%d/%d\n",
-                $cycleNumber,
-                $this->calculator->getTotalCycles() === PHP_INT_MAX ? '∞' : $this->calculator->getTotalCycles()
-            );
-            
-            // Exécuter les tâches...
-            $this->executeTasks();
-            
-            // Fin du cycle
-            $cycleDuration = microtime(true) - $cycleStart;
-            echo sprintf("   ⏱️  Cycle exécuté en %.2fs\n", $cycleDuration);
-            
-            // Temps restant estimé
-            $remaining = $this->calculator->getRemainingCycles($cycleNumber);
-            if ($remaining > 0 && $remaining < PHP_INT_MAX) {
-                $estimatedRemaining = $remaining * $this->calculator->getInterval()->getValue();
-                echo sprintf("   ⏳ Temps restant estimé : %.0fs\n", $estimatedRemaining);
-            }
-            
-            // Attendre avant le prochain cycle
-            $waitTime = $this->calculator->getNextWaitTime($cycleNumber);
-            if ($waitTime->getValue() > 0) {
-                echo sprintf("   💤 Attente : %.1fs\n", $waitTime->getValue());
-                
-                // Attente avec vérification des signaux
-                $this->waitWithSignals($waitTime);
-            }
-        }
-        
-        echo "\n✅ Terminé après {$cycleNumber} cycles\n";
-    }
+    echo "  Cycle #{$cycleNumber}";
+    echo " (reste: {$remaining} cycles, ";
+    echo "prochain cycle dans: " . $waitTime->getValue() . "s)\n";
     
-    private function displayConfiguration(): void
-    {
-        echo "📊 Configuration :\n";
-        echo "   Intervalle : " . $this->calculator->getInterval()->getValue() . "s\n";
-        
-        $duration = $this->calculator->getDuration();
-        if ($duration !== null) {
-            echo "   Durée : " . $duration->getValue() . "s\n";
-            echo "   Cycles : " . $this->calculator->getTotalCycles() . "\n";
-            echo "   Durée estimée : " . $this->calculator->getEstimatedDuration() . "s\n";
-        } else {
-            echo "   Durée : Illimitée\n";
-            echo "   Cycles : ∞\n";
-        }
-        echo "\n";
-    }
-    
-    private function executeTasks(): void
-    {
-        // Simuler l'exécution des tâches
-        sleep(1);
-    }
-    
-    private function waitWithSignals(DurationVO $waitTime): void
-    {
-        $seconds = $waitTime->getValue();
-        $elapsed = 0.0;
-        
-        while ($elapsed < $seconds) {
-            // Vérifier les signaux (Ctrl+C)
-            pcntl_signal_dispatch();
-            
-            $sleepTime = min(0.1, $seconds - $elapsed);
-            if ($sleepTime > 0) {
-                usleep((int) ($sleepTime * 1000000));
-            }
-            
-            $elapsed += $sleepTime;
-        }
-    }
+    // Simuler l'exécution
+    usleep(100000);
 }
 
-// Utilisation
-$service = new WatchService(5, 30);
-$service->run();
+echo "\n✅ Simulation terminée après {$cycleNumber} cycles\n";
 ```
 
+---
+
 ## Voir aussi
+
 - `DurationVO` - Value Object pour les durées
-- `TasksWatchDirective` - Directive utilisant ce calculateur
-- `ParallelExecutor` - Exécuteur de tâches parallèles
+- `ResultAggregator` - Agrégateur de résultats
+- `TasksWatchDirective` - Directive de surveillance

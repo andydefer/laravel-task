@@ -16,6 +16,7 @@ use AndyDefer\Task\Helpers\JsonlResultHelper;
 use AndyDefer\Task\Helpers\SessionHelper;
 use AndyDefer\Task\Models\RecurringTask;
 use AndyDefer\Task\Models\UniqueTask;
+use AndyDefer\Task\Records\TaskExecutionResultRecord;
 use AndyDefer\Task\Services\Watchs\CycleCalculator;
 use AndyDefer\Task\Services\Watchs\ParallelExecutor;
 use AndyDefer\Task\Services\Watchs\ResultAggregator;
@@ -25,6 +26,15 @@ use AndyDefer\Task\ValueObjects\LimitVO;
 use RuntimeException;
 use Throwable;
 
+/**
+ * Directive that continuously watches and processes tasks in a loop.
+ *
+ * Runs task processing cycles at a configurable interval for a specified duration.
+ * Supports parallel execution with multiple workers and filtering by task type.
+ *
+ * @example
+ * php artisan tasks:watch 10 300 100 4 --verbose
+ */
 final class TasksWatchDirective extends AbstractDirective
 {
     private const MIN_INTERVAL_SECONDS = 2;
@@ -39,6 +49,9 @@ final class TasksWatchDirective extends AbstractDirective
 
     private ResultAggregator $aggregator;
 
+    /**
+     * {@inheritDoc}
+     */
     public function getSignature(): string
     {
         return 'tasks:watch 
@@ -53,16 +66,25 @@ final class TasksWatchDirective extends AbstractDirective
                     {--mute}#"Suppress all console output"';
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getDescription(): string
     {
         return 'Watch and process tasks in a continuous loop with configurable interval (in seconds, min 2) and duration. Use --parallel=N for parallel execution with N workers. Use --mute to suppress all console output.';
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function getAliases(): StringTypedCollection
     {
         return StringTypedCollection::from(['task-watch', 'tw']);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     protected function execute(): ExitCode
     {
         $sessionId = SessionHelper::generate();
@@ -77,7 +99,6 @@ final class TasksWatchDirective extends AbstractDirective
 
             $this->signalHandler->install();
 
-            $startedAt = new Iso8601DateTimeVO;
             $hasFailures = false;
             $cycleNumber = 0;
 
@@ -89,25 +110,20 @@ final class TasksWatchDirective extends AbstractDirective
                 }
 
                 $cycleNumber++;
-                $this->aggregator->startNewCycle();
-
                 $cycleStartTime = microtime(true);
 
                 $this->output->line();
                 $this->output->line(sprintf('🔄 Cycle #%d', $cycleNumber));
 
+                $this->aggregator->startNewCycle();
                 $cycleResults = $this->executeCycle();
 
                 if (! empty($cycleResults)) {
                     $this->aggregator->addResults($cycleResults);
                 }
 
-                // Afficher les résultats du cycle
                 $this->displayCycleSummary($cycleNumber);
-
-                // Afficher la progression globale
                 $this->displayGlobalProgress();
-
                 $this->displayRemainingTasks();
 
                 $elapsedTime = microtime(true) - $cycleStartTime;
@@ -123,15 +139,12 @@ final class TasksWatchDirective extends AbstractDirective
                 }
             }
 
-            // Afficher le résumé détaillé final
             $this->displayFinalSummary();
-
             $this->displayFinalRemaining();
 
             return $hasFailures ? ExitCode::FAILURE : ExitCode::SUCCESS;
 
         } catch (Throwable $e) {
-
             $this->getKernel()->addProblem(
                 'tasks_watch_error',
                 'Failed to watch tasks',
@@ -145,12 +158,15 @@ final class TasksWatchDirective extends AbstractDirective
 
             return ExitCode::RUNTIME_ERROR;
         } finally {
-
             SessionHelper::delete();
-
         }
     }
 
+    /**
+     * Initialises the directive dependencies and services.
+     *
+     * @throws RuntimeException If the Laravel container or kernel is unavailable
+     */
     private function boot(): void
     {
         $app = $this->getApplication();
@@ -195,6 +211,11 @@ final class TasksWatchDirective extends AbstractDirective
         $this->aggregator = new ResultAggregator;
     }
 
+    /**
+     * Executes a single cycle of task processing.
+     *
+     * @return array<TaskExecutionResultRecord> The execution results
+     */
     private function executeCycle(): array
     {
         $uniqueOnly = $this->isFlagActive('unique-only');
@@ -213,6 +234,13 @@ final class TasksWatchDirective extends AbstractDirective
         );
     }
 
+    /**
+     * Gets the FQCN filters from the variadic argument.
+     *
+     * Converts dot notation (App.Tasks.SomeTask) to PHP namespace notation.
+     *
+     * @return TaskFqcnVOCollection The FQCN filters
+     */
     private function getFqcnFilters(): TaskFqcnVOCollection
     {
         $fqcnNames = $this->getVariadic('fqcnNames');
@@ -222,16 +250,14 @@ final class TasksWatchDirective extends AbstractDirective
         }
 
         $cleanedFqcns = array_map(function ($fqcn) {
-            $fqcn = str_replace('.', '\\', $fqcn);
-
-            return trim($fqcn, '\\');
+            return trim(str_replace('.', '\\', $fqcn), '\\');
         }, $fqcnNames);
 
         return TaskFqcnVOCollection::from($cleanedFqcns);
     }
 
     /**
-     * Affiche un résumé du cycle terminé.
+     * Displays the summary for a completed cycle.
      */
     private function displayCycleSummary(int $cycleNumber): void
     {
@@ -264,7 +290,6 @@ final class TasksWatchDirective extends AbstractDirective
             )
         );
 
-        // En mode verbose, afficher les détails par type
         if ($this->output->isVerbose()) {
             $uniqueSuccess = $this->aggregator->getCycleUniqueSuccess($cycleNumber)->getValue();
             $uniqueFailed = $this->aggregator->getCycleUniqueFailed($cycleNumber)->getValue();
@@ -287,7 +312,7 @@ final class TasksWatchDirective extends AbstractDirective
     }
 
     /**
-     * Affiche la progression globale des cycles.
+     * Displays the global progress across all cycles.
      */
     private function displayGlobalProgress(): void
     {
@@ -319,7 +344,7 @@ final class TasksWatchDirective extends AbstractDirective
     }
 
     /**
-     * Affiche le résumé détaillé final.
+     * Displays the final detailed summary.
      */
     private function displayFinalSummary(): void
     {
@@ -334,38 +359,37 @@ final class TasksWatchDirective extends AbstractDirective
         $this->output->line();
 
         $this->output->line('📌 Totals:');
-        $this->output->line(sprintf('   ✅ Success  : %d', $summary['total']['success']));
-        $this->output->line(sprintf('   ❌ Failed   : %d', $summary['total']['failed']));
-        $this->output->line(sprintf('   ⚠️ Errors   : %d', $summary['total']['errors']));
+        $this->output->line(sprintf('   ✅ Success  : %d', $summary->total->success));
+        $this->output->line(sprintf('   ❌ Failed   : %d', $summary->total->failed));
+        $this->output->line(sprintf('   ⚠️ Errors   : %d', $summary->total->errors));
         $this->output->line();
 
         $this->output->line('🔄 Unique tasks:');
-        $this->output->line(sprintf('   ✅ Success  : %d', $summary['unique']['success']));
-        $this->output->line(sprintf('   ❌ Failed   : %d', $summary['unique']['failed']));
+        $this->output->line(sprintf('   ✅ Success  : %d', $summary->unique->success));
+        $this->output->line(sprintf('   ❌ Failed   : %d', $summary->unique->failed));
         $this->output->line();
 
         $this->output->line('🔁 Recurring tasks:');
-        $this->output->line(sprintf('   ✅ Success  : %d', $summary['recurring']['success']));
-        $this->output->line(sprintf('   ❌ Failed   : %d', $summary['recurring']['failed']));
+        $this->output->line(sprintf('   ✅ Success  : %d', $summary->recurring->success));
+        $this->output->line(sprintf('   ❌ Failed   : %d', $summary->recurring->failed));
         $this->output->line();
 
-        // Afficher l'historique des cycles en mode verbose
         if ($this->output->isVerbose()) {
             $history = $this->aggregator->getCycleHistory();
             if (count($history) > 1) {
                 $this->output->line('📈 Cycle history:');
                 foreach ($history as $cycle => $data) {
-                    $total = $data['success'] + $data['failed'];
-                    $status = $data['failed'] > 0 || $data['errors'] > 0 ? '⚠️' : '✅';
+                    $total = $data->success + $data->failed;
+                    $status = $data->failed > 0 || $data->errors > 0 ? '⚠️' : '✅';
                     $this->output->line(
                         sprintf(
                             '   %s Cycle #%d: %d tasks (success: %d, failed: %d, errors: %d)',
                             $status,
                             $cycle,
                             $total,
-                            $data['success'],
-                            $data['failed'],
-                            $data['errors']
+                            $data->success,
+                            $data->failed,
+                            $data->errors
                         )
                     );
                 }
@@ -374,6 +398,9 @@ final class TasksWatchDirective extends AbstractDirective
         }
     }
 
+    /**
+     * Displays the remaining tasks count.
+     */
     private function displayRemainingTasks(): void
     {
         if ($this->output->isMuted()) {
@@ -393,6 +420,9 @@ final class TasksWatchDirective extends AbstractDirective
         $this->output->remainingTasks($uniquePending, $recurringPlaying, $recurringWaiting);
     }
 
+    /**
+     * Displays the final remaining tasks status.
+     */
     private function displayFinalRemaining(): void
     {
         if ($this->output->isMuted()) {
@@ -440,6 +470,9 @@ final class TasksWatchDirective extends AbstractDirective
         $this->output->line();
     }
 
+    /**
+     * Gets the interval duration from arguments.
+     */
     private function getInterval(): DurationVO
     {
         $interval = (float) ($this->getArgument('interval') ?? 60);
@@ -447,6 +480,9 @@ final class TasksWatchDirective extends AbstractDirective
         return new DurationVO(max($interval, self::MIN_INTERVAL_SECONDS));
     }
 
+    /**
+     * Gets the total duration from arguments.
+     */
     private function getDuration(): ?DurationVO
     {
         $duration = $this->getArgument('duration');
@@ -454,6 +490,9 @@ final class TasksWatchDirective extends AbstractDirective
         return $duration !== null ? new DurationVO((float) $duration) : null;
     }
 
+    /**
+     * Gets the task limit from arguments.
+     */
     private function getLimit(): ?LimitVO
     {
         $limit = $this->getArgument('limit');
@@ -461,6 +500,9 @@ final class TasksWatchDirective extends AbstractDirective
         return $limit !== null ? new LimitVO((int) $limit) : null;
     }
 
+    /**
+     * Gets the number of parallel workers from arguments.
+     */
     private function getParallelWorkers(): int
     {
         $parallel = $this->getArgument('parallel');
@@ -468,6 +510,9 @@ final class TasksWatchDirective extends AbstractDirective
         return $parallel !== null ? max(1, (int) $parallel) : 1;
     }
 
+    /**
+     * Waits for the specified duration while handling signals.
+     */
     private function waitWithSignals(DurationVO $waitTime): void
     {
         $seconds = $waitTime->getValue();
@@ -492,6 +537,9 @@ final class TasksWatchDirective extends AbstractDirective
         }
     }
 
+    /**
+     * Displays the start message with configuration details.
+     */
     private function displayStartMessage(): void
     {
         if ($this->output->isMuted()) {

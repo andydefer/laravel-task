@@ -6,6 +6,10 @@ namespace AndyDefer\Task\Services\Watchs;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\Task\Enums\TaskType;
+use AndyDefer\Task\Records\CycleHistoryRecord;
+use AndyDefer\Task\Records\DetailedSummaryRecord;
+use AndyDefer\Task\Records\SummaryTotalsRecord;
+use AndyDefer\Task\Records\SummaryTypeRecord;
 use AndyDefer\Task\Records\TaskExecutionResultRecord;
 use AndyDefer\Task\ValueObjects\CounterVO;
 
@@ -19,7 +23,7 @@ use AndyDefer\Task\ValueObjects\CounterVO;
 final class ResultAggregator
 {
     /**
-     * @var array<int, array{success: int, failed: int, errors: int, unique_success: int, unique_failed: int, recurring_success: int, recurring_failed: int}>
+     * @var array<int, CycleHistoryRecord>
      */
     private array $cycleHistory = [];
 
@@ -48,15 +52,15 @@ final class ResultAggregator
     {
         $this->cycleCount++;
 
-        $this->cycleHistory[$this->cycleCount] = [
-            'success' => 0,
-            'failed' => 0,
-            'errors' => 0,
-            'unique_success' => 0,
-            'unique_failed' => 0,
-            'recurring_success' => 0,
-            'recurring_failed' => 0,
-        ];
+        $this->cycleHistory[$this->cycleCount] = new CycleHistoryRecord(
+            success: 0,
+            failed: 0,
+            errors: 0,
+            unique_success: 0,
+            unique_failed: 0,
+            recurring_success: 0,
+            recurring_failed: 0,
+        );
     }
 
     /**
@@ -133,13 +137,17 @@ final class ResultAggregator
         }
 
         if (isset($this->cycleHistory[$this->cycleCount])) {
-            $this->cycleHistory[$this->cycleCount]['success'] += $cycleSuccess;
-            $this->cycleHistory[$this->cycleCount]['failed'] += $cycleFailed;
-            $this->cycleHistory[$this->cycleCount]['errors'] += $cycleErrors;
-            $this->cycleHistory[$this->cycleCount]['unique_success'] += $cycleUniqueSuccess;
-            $this->cycleHistory[$this->cycleCount]['unique_failed'] += $cycleUniqueFailed;
-            $this->cycleHistory[$this->cycleCount]['recurring_success'] += $cycleRecurringSuccess;
-            $this->cycleHistory[$this->cycleCount]['recurring_failed'] += $cycleRecurringFailed;
+            $history = $this->cycleHistory[$this->cycleCount];
+
+            $this->cycleHistory[$this->cycleCount] = new CycleHistoryRecord(
+                success: $history->success + $cycleSuccess,
+                failed: $history->failed + $cycleFailed,
+                errors: $history->errors + $cycleErrors,
+                unique_success: $history->unique_success + $cycleUniqueSuccess,
+                unique_failed: $history->unique_failed + $cycleUniqueFailed,
+                recurring_success: $history->recurring_success + $cycleRecurringSuccess,
+                recurring_failed: $history->recurring_failed + $cycleRecurringFailed,
+            );
         }
     }
 
@@ -235,7 +243,7 @@ final class ResultAggregator
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]['success']);
+        return new CounterVO($this->cycleHistory[$cycleNumber]->success);
     }
 
     /**
@@ -250,7 +258,7 @@ final class ResultAggregator
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]['failed']);
+        return new CounterVO($this->cycleHistory[$cycleNumber]->failed);
     }
 
     /**
@@ -265,7 +273,7 @@ final class ResultAggregator
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]['errors']);
+        return new CounterVO($this->cycleHistory[$cycleNumber]->errors);
     }
 
     /**
@@ -280,7 +288,7 @@ final class ResultAggregator
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]['unique_success']);
+        return new CounterVO($this->cycleHistory[$cycleNumber]->unique_success);
     }
 
     /**
@@ -295,7 +303,7 @@ final class ResultAggregator
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]['unique_failed']);
+        return new CounterVO($this->cycleHistory[$cycleNumber]->unique_failed);
     }
 
     /**
@@ -310,7 +318,7 @@ final class ResultAggregator
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]['recurring_success']);
+        return new CounterVO($this->cycleHistory[$cycleNumber]->recurring_success);
     }
 
     /**
@@ -325,7 +333,7 @@ final class ResultAggregator
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]['recurring_failed']);
+        return new CounterVO($this->cycleHistory[$cycleNumber]->recurring_failed);
     }
 
     /**
@@ -341,33 +349,33 @@ final class ResultAggregator
     /**
      * Get a detailed summary of all aggregated results.
      *
-     * Returns an associative array with breakdowns by task type.
+     * Returns a DetailedSummaryRecord with breakdowns by task type.
      *
-     * @return array<string, array<string, int>> The detailed summary
+     * @return DetailedSummaryRecord The detailed summary
      */
-    public function getDetailedSummary(): array
+    public function getDetailedSummary(): DetailedSummaryRecord
     {
-        return [
-            'total' => [
-                'success' => $this->totalSuccess,
-                'failed' => $this->totalFailed,
-                'errors' => $this->totalErrors,
-            ],
-            'unique' => [
-                'success' => $this->uniqueSuccess,
-                'failed' => $this->uniqueFailed,
-            ],
-            'recurring' => [
-                'success' => $this->recurringSuccess,
-                'failed' => $this->recurringFailed,
-            ],
-        ];
+        return new DetailedSummaryRecord(
+            total: new SummaryTotalsRecord(
+                success: $this->totalSuccess,
+                failed: $this->totalFailed,
+                errors: $this->totalErrors,
+            ),
+            unique: new SummaryTypeRecord(
+                success: $this->uniqueSuccess,
+                failed: $this->uniqueFailed,
+            ),
+            recurring: new SummaryTypeRecord(
+                success: $this->recurringSuccess,
+                failed: $this->recurringFailed,
+            ),
+        );
     }
 
     /**
      * Get the complete cycle history.
      *
-     * @return array<int, array{success: int, failed: int, errors: int, unique_success: int, unique_failed: int, recurring_success: int, recurring_failed: int}>
+     * @return array<int, CycleHistoryRecord>
      */
     public function getCycleHistory(): array
     {
