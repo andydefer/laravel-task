@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\Enums\TaskType;
@@ -19,6 +20,7 @@ use AndyDefer\Task\Services\RecurringTaskService;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\SomeClass;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTaskForRepository;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
 use AndyDefer\Task\ValueObjects\DurationVO;
@@ -26,6 +28,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\RecurringTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\TaskFqcnVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\App;
@@ -126,6 +129,16 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
             'end_at' => $endAt,
             'max_attempts' => 3,
         ]);
+    }
+
+    private function createFqcnCollection(array $fqcns): TaskFqcnVOCollection
+    {
+        $collection = new TaskFqcnVOCollection;
+        foreach ($fqcns as $fqcn) {
+            $collection->add(new TaskFqcnVO($fqcn));
+        }
+
+        return $collection;
     }
 
     // ==================== TESTS REGISTER ====================
@@ -446,6 +459,226 @@ final class RecurringTaskServiceTest extends IntegrationTestCase
         $this->assertEquals(3, $result->success->getValue());
         $this->assertEquals(0, $result->failed->getValue());
         $this->assertEquals(0, $result->finished->getValue());
+    }
+
+    // ==================== TESTS PROCESS WITH FQCN FILTER ====================
+
+    public function test_process_with_fqcn_filter_executes_only_matching_tasks(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfigWithPastStart();
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from(['test' => 'task-1']), $config1);
+        $this->updateTaskStatus($alias1, RecurringTaskStatus::PLAYING);
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfigWithPastStart();
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from(['test' => 'task-2']), $config2);
+        $this->updateTaskStatus($alias2, RecurringTaskStatus::PLAYING);
+
+        $fqcn3 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config3 = $this->createConfigWithPastStart();
+        $alias3 = $this->service->register($fqcn3, StrictDataObject::from(['test' => 'task-3']), $config3);
+        $this->updateTaskStatus($alias3, RecurringTaskStatus::PLAYING);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $result = $this->service->process(new LimitVO(10), null, $fqcns);
+
+        $this->assertEquals(2, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    public function test_process_with_fqcn_filter_returns_zero_when_no_match(): void
+    {
+        $fqcn = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config = $this->createConfigWithPastStart();
+        $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => 'task-1']), $config);
+        $this->updateTaskStatus($alias, RecurringTaskStatus::PLAYING);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTaskForRepository::class]);
+
+        $result = $this->service->process(new LimitVO(10), null, $fqcns);
+
+        $this->assertEquals(0, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    public function test_process_with_null_fqcn_filter_executes_all_tasks(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfigWithPastStart();
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from(['test' => 'task-1']), $config1);
+        $this->updateTaskStatus($alias1, RecurringTaskStatus::PLAYING);
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfigWithPastStart();
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from(['test' => 'task-2']), $config2);
+        $this->updateTaskStatus($alias2, RecurringTaskStatus::PLAYING);
+
+        $result = $this->service->process(new LimitVO(10), null, null);
+
+        $this->assertEquals(2, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    public function test_process_with_empty_fqcn_collection_executes_all_tasks(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfigWithPastStart();
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from(['test' => 'task-1']), $config1);
+        $this->updateTaskStatus($alias1, RecurringTaskStatus::PLAYING);
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfigWithPastStart();
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from(['test' => 'task-2']), $config2);
+        $this->updateTaskStatus($alias2, RecurringTaskStatus::PLAYING);
+
+        $fqcns = new TaskFqcnVOCollection;
+
+        $result = $this->service->process(new LimitVO(10), null, $fqcns);
+
+        $this->assertEquals(2, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    public function test_process_with_fqcn_filter_and_limit(): void
+    {
+        for ($i = 1; $i <= 5; $i++) {
+            $fqcn = new RecurringTaskFqcnVO(TestRecurringTask::class);
+            $config = $this->createConfigWithPastStart();
+            $alias = $this->service->register($fqcn, StrictDataObject::from(['test' => "task-{$i}"]), $config);
+            $this->updateTaskStatus($alias, RecurringTaskStatus::PLAYING);
+        }
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $result = $this->service->process(new LimitVO(3), null, $fqcns);
+
+        $this->assertEquals(3, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    // ==================== TESTS COUNTS WITH FQCN FILTER ====================
+
+    public function test_count_waiting_with_fqcn_filter(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfig();
+        $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfig();
+        $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+
+        $fqcn3 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config3 = $this->createConfig();
+        $this->service->register($fqcn3, StrictDataObject::from([]), $config3);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $this->assertEquals(2, $this->service->countWaiting($fqcns)->getValue());
+    }
+
+    public function test_count_waiting_with_fqcn_filter_returns_zero_when_no_match(): void
+    {
+        $fqcn = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config = $this->createConfig();
+        $this->service->register($fqcn, StrictDataObject::from([]), $config);
+
+        $fqcns = $this->createFqcnCollection([FailingRecurringTask::class]);
+
+        $this->assertEquals(0, $this->service->countWaiting($fqcns)->getValue());
+    }
+
+    public function test_count_waiting_with_null_fqcn_filter_returns_all(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfig();
+        $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfig();
+        $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+
+        $this->assertEquals(2, $this->service->countWaiting(null)->getValue());
+    }
+
+    public function test_count_playing_with_fqcn_filter(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfig();
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+        $this->updateTaskStatus($alias1, RecurringTaskStatus::PLAYING);
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfig();
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+        $this->updateTaskStatus($alias2, RecurringTaskStatus::PLAYING);
+
+        $fqcn3 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config3 = $this->createConfig();
+        $alias3 = $this->service->register($fqcn3, StrictDataObject::from([]), $config3);
+        $this->updateTaskStatus($alias3, RecurringTaskStatus::PLAYING);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $this->assertEquals(2, $this->service->countPlaying($fqcns)->getValue());
+    }
+
+    public function test_count_paused_with_fqcn_filter(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfig();
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+        $this->updateTaskStatus($alias1, RecurringTaskStatus::PAUSED);
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfig();
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+        $this->updateTaskStatus($alias2, RecurringTaskStatus::PAUSED);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $this->assertEquals(1, $this->service->countPaused($fqcns)->getValue());
+    }
+
+    public function test_count_finished_with_fqcn_filter(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfig();
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+        $this->updateTaskStatus($alias1, RecurringTaskStatus::FINISHED);
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfig();
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+        $this->updateTaskStatus($alias2, RecurringTaskStatus::FINISHED);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $this->assertEquals(1, $this->service->countFinished($fqcns)->getValue());
+    }
+
+    public function test_count_canceled_with_fqcn_filter(): void
+    {
+        $fqcn1 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config1 = $this->createConfig();
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+        $this->service->cancel($alias1, new DescriptionVO('Test'));
+
+        $fqcn2 = new RecurringTaskFqcnVO(FailingRecurringTask::class);
+        $config2 = $this->createConfig();
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+        $this->service->cancel($alias2, new DescriptionVO('Test'));
+
+        $fqcn3 = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $config3 = $this->createConfig();
+        $alias3 = $this->service->register($fqcn3, StrictDataObject::from([]), $config3);
+        $this->service->cancel($alias3, new DescriptionVO('Test'));
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $this->assertEquals(2, $this->service->countCanceled($fqcns)->getValue());
     }
 
     // ==================== TESTS CHANGE INTERVAL ====================

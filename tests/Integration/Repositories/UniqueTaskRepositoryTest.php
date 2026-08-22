@@ -13,12 +13,14 @@ use AndyDefer\Logger\LoggerService;
 use AndyDefer\PhpServices\Enums\PermissionMode;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Repository\Records\FindByRecord;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask;
 use AndyDefer\Task\Records\UniqueTaskFiltersRecord;
 use AndyDefer\Task\Records\UniqueTaskRecord;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
+use AndyDefer\Task\Tests\Fixtures\Tasks\HelloUniqueTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
@@ -27,6 +29,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\TaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -108,9 +111,9 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         return new TaskAliasVO('unique@'.$uuid);
     }
 
-    private function createFqcnVO(): UniqueTaskFqcnVO
+    private function createFqcnVO(string $fqcn = TestUniqueTask::class): UniqueTaskFqcnVO
     {
-        return new UniqueTaskFqcnVO(TestUniqueTask::class);
+        return new UniqueTaskFqcnVO($fqcn);
     }
 
     private function createIdVO(?string $id = null): UuidVO
@@ -127,7 +130,8 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         ?\DateTimeInterface $scheduledAt = null,
         int $gracePeriodSeconds = 86400,
         int $attempts = 0,
-        int $maxAttempts = 3
+        int $maxAttempts = 3,
+        string $fqcn = TestUniqueTask::class
     ): UniqueTaskRecord {
         $scheduledAt = $scheduledAt ?? now();
         $id = $id ?? $this->generateUuid();
@@ -136,7 +140,7 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         return UniqueTaskRecord::from([
             'id' => new UuidVO($id),
             'alias' => $this->createAliasVO($alias),
-            'fqcn' => $this->createFqcnVO(),
+            'fqcn' => $this->createFqcnVO($fqcn),
             'payload' => ['test' => 'unique'],
             'scheduled_at' => new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
             'grace_period_seconds' => new DurationVO($gracePeriodSeconds),
@@ -153,12 +157,13 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         ?\DateTimeInterface $scheduledAt = null,
         int $gracePeriodSeconds = 86400,
         int $attempts = 0,
-        int $maxAttempts = 3
+        int $maxAttempts = 3,
+        string $fqcn = TestUniqueTask::class
     ): UniqueTask {
         $id = $id ?? $this->generateUuid();
         $alias = $alias ?? $this->generateUuid();
 
-        $record = $this->createTaskRecord($alias, $id, $status, $scheduledAt, $gracePeriodSeconds, $attempts, $maxAttempts);
+        $record = $this->createTaskRecord($alias, $id, $status, $scheduledAt, $gracePeriodSeconds, $attempts, $maxAttempts, $fqcn);
 
         return $this->repository->create($record);
     }
@@ -166,6 +171,16 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
     private function createCanceledTask(): UniqueTask
     {
         return $this->createAndSaveTask(null, null, UniqueTaskStatus::CANCELED);
+    }
+
+    private function createFqcnCollection(array $fqcns): TaskFqcnVOCollection
+    {
+        $collection = new TaskFqcnVOCollection;
+        foreach ($fqcns as $fqcn) {
+            $collection->add(new TaskFqcnVO($fqcn));
+        }
+
+        return $collection;
     }
 
     // ==================== TESTS FINDERS ====================
@@ -369,6 +384,92 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
         $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(10));
         $this->assertInstanceOf(Collection::class, $ready);
         $this->assertCount(0, $ready);
+    }
+
+    // ==================== TESTS READY TO RUN WITH FQCN FILTER ====================
+
+    public function test_find_ready_to_run_with_fqcn_filter_returns_only_matching_tasks(): void
+    {
+        $now = Carbon::now();
+
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, HelloUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(10), $fqcns);
+
+        $this->assertInstanceOf(Collection::class, $ready);
+        $this->assertCount(2, $ready);
+
+        foreach ($ready as $task) {
+            $this->assertEquals(TestUniqueTask::class, $task->getFqcn()->getValue());
+        }
+    }
+
+    public function test_find_ready_to_run_with_fqcn_filter_returns_empty_when_no_match(): void
+    {
+        $now = Carbon::now();
+
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+
+        $fqcns = $this->createFqcnCollection([HelloUniqueTask::class]);
+
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(10), $fqcns);
+
+        $this->assertInstanceOf(Collection::class, $ready);
+        $this->assertCount(0, $ready);
+    }
+
+    public function test_find_ready_to_run_with_null_fqcn_filter_returns_all_tasks(): void
+    {
+        $now = Carbon::now();
+
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, HelloUniqueTask::class);
+
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(10), null);
+
+        $this->assertInstanceOf(Collection::class, $ready);
+        $this->assertCount(2, $ready);
+    }
+
+    public function test_find_ready_to_run_with_empty_fqcn_collection_returns_all_tasks(): void
+    {
+        $now = Carbon::now();
+
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, HelloUniqueTask::class);
+
+        $fqcns = new TaskFqcnVOCollection;
+
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(10), $fqcns);
+
+        $this->assertInstanceOf(Collection::class, $ready);
+        $this->assertCount(2, $ready);
+    }
+
+    public function test_find_ready_to_run_with_fqcn_filter_and_limit(): void
+    {
+        $now = Carbon::now();
+
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, $now->copy()->subHours(2), 86400, 0, 3, TestUniqueTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $nowVO = new Iso8601DateTimeVO($now->format('Y-m-d\TH:i:sP'));
+        $ready = $this->repository->findReadyToRun($nowVO, new LimitVO(2), $fqcns);
+
+        $this->assertInstanceOf(Collection::class, $ready);
+        $this->assertCount(2, $ready);
     }
 
     // ==================== TESTS FIND EXPIRED ====================
@@ -609,6 +710,75 @@ final class UniqueTaskRepositoryTest extends IntegrationTestCase
 
         $result = $this->repository->updateAttempts($taskRecord, new CounterVO(2));
         $this->assertFalse($result);
+    }
+
+    // ==================== TESTS COUNTS WITH FQCN FILTER ====================
+
+    public function test_count_pending_with_fqcn_filter(): void
+    {
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, HelloUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $count = $this->repository->countPending($fqcns);
+        $this->assertEquals(2, $count->getValue());
+    }
+
+    public function test_count_pending_with_fqcn_filter_returns_zero_when_no_match(): void
+    {
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+
+        $fqcns = $this->createFqcnCollection([HelloUniqueTask::class]);
+
+        $count = $this->repository->countPending($fqcns);
+        $this->assertEquals(0, $count->getValue());
+    }
+
+    public function test_count_pending_with_null_fqcn_filter_returns_all(): void
+    {
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, HelloUniqueTask::class);
+
+        $count = $this->repository->countPending(null);
+        $this->assertEquals(2, $count->getValue());
+    }
+
+    public function test_count_completed_with_fqcn_filter(): void
+    {
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED, null, 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED, null, 86400, 0, 3, HelloUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::COMPLETED, null, 86400, 0, 3, TestUniqueTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $count = $this->repository->countCompleted($fqcns);
+        $this->assertEquals(2, $count->getValue());
+    }
+
+    public function test_count_failed_with_fqcn_filter(): void
+    {
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED, null, 86400, 0, 3, TestUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED, null, 86400, 0, 3, HelloUniqueTask::class);
+        $this->createAndSaveTask(null, null, UniqueTaskStatus::FAILED, null, 86400, 0, 3, TestUniqueTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $count = $this->repository->countFailed($fqcns);
+        $this->assertEquals(2, $count->getValue());
+    }
+
+    public function test_count_canceled_with_fqcn_filter(): void
+    {
+        $this->createCanceledTask();
+        $this->createCanceledTask();
+        $task = $this->createAndSaveTask(null, null, UniqueTaskStatus::CANCELED, null, 86400, 0, 3, HelloUniqueTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $count = $this->repository->countCanceled($fqcns);
+        $this->assertEquals(2, $count->getValue());
     }
 
     // ==================== TESTS COUNTS ====================

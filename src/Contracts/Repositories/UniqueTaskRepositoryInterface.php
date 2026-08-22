@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Contracts\Repositories;
 
 use AndyDefer\Repository\AbstractRepositoryInterface;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Enums\ExecutionStatus;
 use AndyDefer\Task\Models\UniqueTask;
 use AndyDefer\Task\Records\UniqueTaskRecord;
@@ -65,9 +66,14 @@ interface UniqueTaskRepositoryInterface extends AbstractRepositoryInterface
      *
      * @param  Iso8601DateTimeVO  $now  Current timestamp
      * @param  LimitVO|null  $limit  Optional limit for the number of results
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return Collection<int, UniqueTask> Collection of ready tasks
      */
-    public function findReadyToRun(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection;
+    public function findReadyToRun(
+        Iso8601DateTimeVO $now,
+        ?LimitVO $limit = null,
+        ?TaskFqcnVOCollection $fqcns = null
+    ): Collection;
 
     /**
      * Find tasks that have expired.
@@ -144,28 +150,32 @@ interface UniqueTaskRepositoryInterface extends AbstractRepositoryInterface
     /**
      * Count tasks in PENDING state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countPending(): CounterVO;
+    public function countPending(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Count tasks in COMPLETED state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countCompleted(): CounterVO;
+    public function countCompleted(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Count tasks in FAILED state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countFailed(): CounterVO;
+    public function countFailed(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Count tasks in CANCELED state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countCanceled(): CounterVO;
+    public function countCanceled(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 }

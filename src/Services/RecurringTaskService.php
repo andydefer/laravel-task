@@ -11,6 +11,7 @@ use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Abstract\AbstractRecurringTask;
 use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Contexts\RecurringTaskContext;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
@@ -170,8 +171,11 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
     /**
      * {@inheritDoc}
      */
-    public function process(LimitVO $limit = new LimitVO, ?callable $onProgress = null): ProcessResultRecord
-    {
+    public function process(
+        LimitVO $limit = new LimitVO,
+        ?callable $onProgress = null,
+        ?TaskFqcnVOCollection $fqcns = null
+    ): ProcessResultRecord {
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
         $failed = 0;
@@ -180,7 +184,7 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
 
         $now = new Iso8601DateTimeVO;
 
-        $result = $this->repository->findReadyToRun($now, $limit);
+        $result = $this->repository->findReadyToRun($now, $limit, $fqcns);
 
         $finished += $result->fresh_state->playing_to_finished->getValue();
 
@@ -576,41 +580,41 @@ final class RecurringTaskService implements RecurringTaskServiceInterface
     /**
      * {@inheritDoc}
      */
-    public function countWaiting(): CounterVO
+    public function countWaiting(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countWaiting();
+        return $this->repository->countWaiting($fqcns);
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countPlaying(): CounterVO
+    public function countPlaying(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countPlaying();
+        return $this->repository->countPlaying($fqcns);
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countPaused(): CounterVO
+    public function countPaused(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countPaused();
+        return $this->repository->countPaused($fqcns);
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countFinished(): CounterVO
+    public function countFinished(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countFinished();
+        return $this->repository->countFinished($fqcns);
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countCanceled(): CounterVO
+    public function countCanceled(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countCanceled();
+        return $this->repository->countCanceled($fqcns);
     }
 
     /**

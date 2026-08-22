@@ -10,6 +10,7 @@ use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Repository\AbstractRepository;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Contracts\Repositories\RecurringTaskRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\TaskExecutionDebugRepositoryInterface;
 use AndyDefer\Task\Enums\ExecutionStatus;
@@ -316,16 +317,25 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    public function findReadyToRun(?Iso8601DateTimeVO $now = null, ?LimitVO $limit = null): RecurringTaskReadyToRunResultRecord
-    {
+    public function findReadyToRun(
+        ?Iso8601DateTimeVO $now = null,
+        ?LimitVO $limit = null,
+        ?TaskFqcnVOCollection $fqcns = null
+    ): RecurringTaskReadyToRunResultRecord {
         try {
             $freshStateResult = $this->freshState($now);
             $now = $now ?? new Iso8601DateTimeVO;
             $nowCarbon = $now->toCarbon();
 
-            $models = $this->model->newQuery()
-                ->where('status', RecurringTaskStatus::PLAYING->value)
-                ->get()
+            $query = $this->model->newQuery()
+                ->where('status', RecurringTaskStatus::PLAYING->value);
+
+            if ($fqcns !== null && $fqcns->isNotEmpty()) {
+                $fqcnStrings = $fqcns->toStrings();
+                $query->whereIn('fqcn', $fqcnStrings);
+            }
+
+            $models = $query->get()
                 ->filter(function ($task) use ($nowCarbon) {
                     $lastRun = $task->getLastRunAt();
 
@@ -641,7 +651,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    public function countWaiting(): CounterVO
+    public function countWaiting(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         try {
             $this->freshState();
@@ -649,7 +659,15 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'status' => RecurringTaskStatus::WAITING,
             ]);
 
-            return new CounterVO($this->count($filters));
+            $query = $this->model->newQuery();
+            $this->applyFilters($query, $filters);
+
+            if ($fqcns !== null && $fqcns->isNotEmpty()) {
+                $fqcnStrings = $fqcns->toStrings();
+                $query->whereIn('fqcn', $fqcnStrings);
+            }
+
+            return new CounterVO($query->count());
         } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_waiting_error',
@@ -660,7 +678,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    public function countPlaying(): CounterVO
+    public function countPlaying(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         try {
             $this->freshState();
@@ -668,7 +686,15 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'status' => RecurringTaskStatus::PLAYING,
             ]);
 
-            return new CounterVO($this->count($filters));
+            $query = $this->model->newQuery();
+            $this->applyFilters($query, $filters);
+
+            if ($fqcns !== null && $fqcns->isNotEmpty()) {
+                $fqcnStrings = $fqcns->toStrings();
+                $query->whereIn('fqcn', $fqcnStrings);
+            }
+
+            return new CounterVO($query->count());
         } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_playing_error',
@@ -679,7 +705,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    public function countPaused(): CounterVO
+    public function countPaused(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         try {
             $this->freshState();
@@ -687,7 +713,15 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'status' => RecurringTaskStatus::PAUSED,
             ]);
 
-            return new CounterVO($this->count($filters));
+            $query = $this->model->newQuery();
+            $this->applyFilters($query, $filters);
+
+            if ($fqcns !== null && $fqcns->isNotEmpty()) {
+                $fqcnStrings = $fqcns->toStrings();
+                $query->whereIn('fqcn', $fqcnStrings);
+            }
+
+            return new CounterVO($query->count());
         } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_paused_error',
@@ -698,7 +732,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    public function countFinished(): CounterVO
+    public function countFinished(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         try {
             $this->freshState();
@@ -706,7 +740,15 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'status' => RecurringTaskStatus::FINISHED,
             ]);
 
-            return new CounterVO($this->count($filters));
+            $query = $this->model->newQuery();
+            $this->applyFilters($query, $filters);
+
+            if ($fqcns !== null && $fqcns->isNotEmpty()) {
+                $fqcnStrings = $fqcns->toStrings();
+                $query->whereIn('fqcn', $fqcnStrings);
+            }
+
+            return new CounterVO($query->count());
         } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_finished_error',
@@ -717,7 +759,7 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
         }
     }
 
-    public function countCanceled(): CounterVO
+    public function countCanceled(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         try {
             $this->freshState();
@@ -725,7 +767,15 @@ final class RecurringTaskRepository extends AbstractRepository implements Recurr
                 'status' => RecurringTaskStatus::CANCELED,
             ]);
 
-            return new CounterVO($this->count($filters));
+            $query = $this->model->newQuery();
+            $this->applyFilters($query, $filters);
+
+            if ($fqcns !== null && $fqcns->isNotEmpty()) {
+                $fqcnStrings = $fqcns->toStrings();
+                $query->whereIn('fqcn', $fqcnStrings);
+            }
+
+            return new CounterVO($query->count());
         } catch (Throwable $e) {
             $this->logger->error(LogDataRecord::from([
                 'type' => 'recurring_task_count_canceled_error',

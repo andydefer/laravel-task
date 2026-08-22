@@ -6,6 +6,7 @@ namespace AndyDefer\Task\Contracts\Services;
 
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Records\ProcessResultRecord;
 use AndyDefer\Task\Records\RecurringTaskConfigRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
@@ -53,9 +54,14 @@ interface RecurringTaskServiceInterface
      *
      * @param  LimitVO  $limit  Maximum number of tasks to process
      * @param  callable|null  $onProgress  Optional callback for progress tracking
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return ProcessResultRecord Execution results
      */
-    public function process(LimitVO $limit = new LimitVO, ?callable $onProgress = null): ProcessResultRecord;
+    public function process(
+        LimitVO $limit = new LimitVO,
+        ?callable $onProgress = null,
+        ?TaskFqcnVOCollection $fqcns = null
+    ): ProcessResultRecord;
 
     /**
      * Pauses a running recurring task.
@@ -200,35 +206,40 @@ interface RecurringTaskServiceInterface
     /**
      * Counts the number of waiting tasks.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO Waiting count
      */
-    public function countWaiting(): CounterVO;
+    public function countWaiting(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Counts the number of playing tasks.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO Playing count
      */
-    public function countPlaying(): CounterVO;
+    public function countPlaying(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Counts the number of paused tasks.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO Paused count
      */
-    public function countPaused(): CounterVO;
+    public function countPaused(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Counts the number of finished tasks.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO Finished count
      */
-    public function countFinished(): CounterVO;
+    public function countFinished(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Counts the number of cancelled tasks.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO Cancelled count
      */
-    public function countCanceled(): CounterVO;
+    public function countCanceled(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 }

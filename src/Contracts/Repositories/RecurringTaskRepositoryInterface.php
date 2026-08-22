@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Contracts\Repositories;
 
 use AndyDefer\Repository\AbstractRepositoryInterface;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Models\RecurringTask;
 use AndyDefer\Task\Records\RecurringTaskReadyToRunResultRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
@@ -73,9 +74,14 @@ interface RecurringTaskRepositoryInterface extends AbstractRepositoryInterface
      *
      * @param  Iso8601DateTimeVO|null  $now  Current timestamp (uses now if null)
      * @param  LimitVO|null  $limit  Optional limit for the number of results
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return RecurringTaskReadyToRunResultRecord Result containing tasks and fresh state
      */
-    public function findReadyToRun(?Iso8601DateTimeVO $now = null, ?LimitVO $limit = null): RecurringTaskReadyToRunResultRecord;
+    public function findReadyToRun(
+        ?Iso8601DateTimeVO $now = null,
+        ?LimitVO $limit = null,
+        ?TaskFqcnVOCollection $fqcns = null
+    ): RecurringTaskReadyToRunResultRecord;
 
     /**
      * Find a task by its alias.
@@ -146,35 +152,40 @@ interface RecurringTaskRepositoryInterface extends AbstractRepositoryInterface
     /**
      * Count tasks in WAITING state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countWaiting(): CounterVO;
+    public function countWaiting(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Count tasks in PLAYING state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countPlaying(): CounterVO;
+    public function countPlaying(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Count tasks in PAUSED state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countPaused(): CounterVO;
+    public function countPaused(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Count tasks in FINISHED state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countFinished(): CounterVO;
+    public function countFinished(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 
     /**
      * Count tasks in CANCELED state.
      *
+     * @param  TaskFqcnVOCollection|null  $fqcns  Optional filter by FQCNs
      * @return CounterVO The number of tasks
      */
-    public function countCanceled(): CounterVO;
+    public function countCanceled(?TaskFqcnVOCollection $fqcns = null): CounterVO;
 }

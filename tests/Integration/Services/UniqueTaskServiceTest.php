@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Tests\Integration\Services;
 use AndyDefer\DomainStructures\Services\HydrationService;
 use AndyDefer\DomainStructures\Utils\StrictDataObject;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Enums\UniqueTaskStatus;
 use AndyDefer\Task\Models\UniqueTask;
@@ -26,6 +27,7 @@ use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\MaxFailedAttemptsVO;
 use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\ValueObjects\TaskFqcnVO;
 use AndyDefer\Task\ValueObjects\UniqueTaskFqcnVO;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Carbon;
@@ -122,6 +124,16 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
             max_attempts: new MaxFailedAttemptsVO($maxAttempts),
             grace_period: new DurationVO($gracePeriod),
         );
+    }
+
+    private function createFqcnCollection(array $fqcns): TaskFqcnVOCollection
+    {
+        $collection = new TaskFqcnVOCollection;
+        foreach ($fqcns as $fqcn) {
+            $collection->add(new TaskFqcnVO($fqcn));
+        }
+
+        return $collection;
     }
 
     // ==================== TESTS REGISTER ====================
@@ -222,7 +234,6 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $result = $this->service->run($alias);
 
-        // ✅ Maintenant, la tâche est skipped, pas en erreur
         $this->assertTrue($result->success);
         $this->assertTrue($result->skipped);
         $this->assertStringContainsString('skipped', $result->message ?? '');
@@ -446,6 +457,121 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $this->assertEquals(0, $result->finished->getValue());
     }
 
+    // ==================== TESTS PROCESS WITH FQCN FILTER ====================
+
+    public function test_process_with_fqcn_filter_executes_only_matching_tasks(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config1 = $this->createConfig(
+            description: 'Task 1',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $this->service->register($fqcn1, StrictDataObject::from(['test' => 'task-1']), $config1);
+
+        $fqcn2 = new UniqueTaskFqcnVO(FailingTask::class);
+        $config2 = $this->createConfig(
+            description: 'Task 2',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $this->service->register($fqcn2, StrictDataObject::from(['test' => 'task-2']), $config2);
+
+        $fqcn3 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config3 = $this->createConfig(
+            description: 'Task 3',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $this->service->register($fqcn3, StrictDataObject::from(['test' => 'task-3']), $config3);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $result = $this->service->process(new LimitVO(10), null, $fqcns);
+
+        $this->assertEquals(2, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    public function test_process_with_fqcn_filter_returns_zero_when_no_match(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config1 = $this->createConfig(
+            description: 'Task 1',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $this->service->register($fqcn1, StrictDataObject::from(['test' => 'task-1']), $config1);
+
+        $fqcns = $this->createFqcnCollection([FailingTask::class]);
+
+        $result = $this->service->process(new LimitVO(10), null, $fqcns);
+
+        $this->assertEquals(0, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    public function test_process_with_null_fqcn_filter_executes_all_tasks(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config1 = $this->createConfig(
+            description: 'Task 1',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $this->service->register($fqcn1, StrictDataObject::from(['test' => 'task-1']), $config1);
+
+        $fqcn2 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config2 = $this->createConfig(
+            description: 'Task 2',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $this->service->register($fqcn2, StrictDataObject::from(['test' => 'task-2']), $config2);
+
+        $result = $this->service->process(new LimitVO(10), null, null);
+
+        $this->assertEquals(2, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    public function test_process_with_empty_fqcn_collection_executes_all_tasks(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config1 = $this->createConfig(
+            description: 'Task 1',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $this->service->register($fqcn1, StrictDataObject::from(['test' => 'task-1']), $config1);
+
+        $fqcn2 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config2 = $this->createConfig(
+            description: 'Task 2',
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $this->service->register($fqcn2, StrictDataObject::from(['test' => 'task-2']), $config2);
+
+        $fqcns = new TaskFqcnVOCollection;
+
+        $result = $this->service->process(new LimitVO(10), null, $fqcns);
+
+        $this->assertEquals(2, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
+    public function test_process_with_fqcn_filter_and_limit(): void
+    {
+        for ($i = 1; $i <= 5; $i++) {
+            $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
+            $config = $this->createConfig(
+                description: "Task {$i}",
+                scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+            );
+            $this->service->register($fqcn, StrictDataObject::from(['test' => "task-{$i}"]), $config);
+        }
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $result = $this->service->process(new LimitVO(3), null, $fqcns);
+
+        $this->assertEquals(3, $result->success->getValue());
+        $this->assertEquals(0, $result->failed->getValue());
+    }
+
     // ==================== TESTS FIND ====================
 
     public function test_find_returns_task_record(): void
@@ -589,12 +715,8 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
 
         $result = $this->service->run($alias);
 
-        // ✅ La tâche est skipped car max attempts atteint
-        // Mais elle est bien marquée FAILED
         $this->assertTrue($result->success);
         $this->assertTrue($result->skipped);
-
-        // ✅ Vérifier que le compteur failed est bien à 1
         $this->assertEquals(1, $this->service->countFailed()->getValue());
     }
 
@@ -607,5 +729,123 @@ final class UniqueTaskServiceTest extends IntegrationTestCase
         $this->service->cancel($alias, new DescriptionVO('Test'));
 
         $this->assertEquals(1, $this->service->countCanceled()->getValue());
+    }
+
+    // ==================== TESTS COUNTS WITH FQCN FILTER ====================
+
+    public function test_count_pending_with_fqcn_filter_returns_matching_tasks(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config1 = $this->createConfig();
+        $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+
+        $fqcn2 = new UniqueTaskFqcnVO(FailingTask::class);
+        $config2 = $this->createConfig();
+        $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+
+        $fqcn3 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config3 = $this->createConfig();
+        $this->service->register($fqcn3, StrictDataObject::from([]), $config3);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $this->assertEquals(2, $this->service->countPending($fqcns)->getValue());
+    }
+
+    public function test_count_pending_with_fqcn_filter_returns_zero_when_no_match(): void
+    {
+        $fqcn = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config = $this->createConfig();
+        $this->service->register($fqcn, StrictDataObject::from([]), $config);
+
+        $fqcns = $this->createFqcnCollection([FailingTask::class]);
+
+        $this->assertEquals(0, $this->service->countPending($fqcns)->getValue());
+    }
+
+    public function test_count_pending_with_null_fqcn_filter_returns_all_pending(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config1 = $this->createConfig();
+        $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+
+        $fqcn2 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config2 = $this->createConfig();
+        $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+
+        $this->assertEquals(2, $this->service->countPending(null)->getValue());
+    }
+
+    public function test_count_completed_with_fqcn_filter_returns_matching_tasks(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config1 = $this->createConfig(
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+        $this->service->run($alias1);
+
+        $fqcn2 = new UniqueTaskFqcnVO(FailingTask::class);
+        $config2 = $this->createConfig(
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+        $this->service->run($alias2);
+
+        $fqcn3 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config3 = $this->createConfig(
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $alias3 = $this->service->register($fqcn3, StrictDataObject::from([]), $config3);
+        $this->service->run($alias3);
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $this->assertEquals(2, $this->service->countCompleted($fqcns)->getValue());
+    }
+
+    public function test_count_failed_with_fqcn_filter_returns_matching_tasks(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(FailingTask::class);
+        $config1 = $this->createConfig(
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+        $this->updateTaskAttempts($alias1, 3);
+        $this->service->run($alias1);
+
+        $fqcn2 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config2 = $this->createConfig(
+            scheduledAt: (new Iso8601DateTimeVO)->addSeconds(-7200)
+        );
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+        $this->updateTaskAttempts($alias2, 3);
+        $this->service->run($alias2);
+
+        $fqcns = $this->createFqcnCollection([FailingTask::class]);
+
+        $this->assertEquals(1, $this->service->countFailed($fqcns)->getValue());
+    }
+
+    public function test_count_canceled_with_fqcn_filter_returns_matching_tasks(): void
+    {
+        $fqcn1 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config1 = $this->createConfig();
+        $alias1 = $this->service->register($fqcn1, StrictDataObject::from([]), $config1);
+        $this->service->cancel($alias1, new DescriptionVO('Test'));
+
+        $fqcn2 = new UniqueTaskFqcnVO(FailingTask::class);
+        $config2 = $this->createConfig();
+        $alias2 = $this->service->register($fqcn2, StrictDataObject::from([]), $config2);
+        $this->service->cancel($alias2, new DescriptionVO('Test'));
+
+        $fqcn3 = new UniqueTaskFqcnVO(TestUniqueTask::class);
+        $config3 = $this->createConfig();
+        $alias3 = $this->service->register($fqcn3, StrictDataObject::from([]), $config3);
+        $this->service->cancel($alias3, new DescriptionVO('Test'));
+
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $this->assertEquals(2, $this->service->countCanceled($fqcns)->getValue());
     }
 }

@@ -10,6 +10,7 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Task\Abstract\AbstractUniqueTask;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Collections\UniqueTaskRecordCollection;
 use AndyDefer\Task\Contexts\UniqueTaskContext;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
@@ -147,8 +148,11 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
     /**
      * {@inheritDoc}
      */
-    public function process(LimitVO $limit = new LimitVO, ?callable $onProgress = null): ProcessResultRecord
-    {
+    public function process(
+        LimitVO $limit = new LimitVO,
+        ?callable $onProgress = null,
+        ?TaskFqcnVOCollection $fqcns = null
+    ): ProcessResultRecord {
         $startedAt = new Iso8601DateTimeVO;
         $success = 0;
         $failed = 0;
@@ -157,7 +161,7 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
 
         $now = new Iso8601DateTimeVO;
 
-        $tasks = $this->repository->findReadyToRun($now, $limit);
+        $tasks = $this->repository->findReadyToRun($now, $limit, $fqcns);
         $total = count($tasks);
 
         foreach ($tasks as $index => $task) {
@@ -420,33 +424,33 @@ final class UniqueTaskService implements UniqueTaskServiceInterface
     /**
      * {@inheritDoc}
      */
-    public function countPending(): CounterVO
+    public function countPending(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countPending();
+        return $this->repository->countPending($fqcns);
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countCompleted(): CounterVO
+    public function countCompleted(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countCompleted();
+        return $this->repository->countCompleted($fqcns);
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countFailed(): CounterVO
+    public function countFailed(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countFailed();
+        return $this->repository->countFailed($fqcns);
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countCanceled(): CounterVO
+    public function countCanceled(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
-        return $this->repository->countCanceled();
+        return $this->repository->countCanceled($fqcns);
     }
 
     /**

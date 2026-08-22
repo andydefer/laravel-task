@@ -14,13 +14,16 @@ use AndyDefer\PhpServices\Enums\PermissionMode;
 use AndyDefer\PhpServices\Services\FileSystemService;
 use AndyDefer\Repository\Records\FindByRecord;
 use AndyDefer\Task\Collections\RecurringTaskRecordCollection;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Enums\RecurringTaskStatus;
 use AndyDefer\Task\Models\RecurringTask;
 use AndyDefer\Task\Records\RecurringTaskFiltersRecord;
 use AndyDefer\Task\Records\RecurringTaskRecord;
 use AndyDefer\Task\Repositories\RecurringTaskRepository;
 use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
+use AndyDefer\Task\Tests\Fixtures\Tasks\HelloRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTaskForRepository;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
@@ -152,7 +155,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         return $task;
     }
 
-    private function createCancelledTask(?string $alias = null): RecurringTaskRecord
+    private function createCancelledTask(?string $alias = null, string $fqcn = TestRecurringTask::class): RecurringTaskRecord
     {
         $alias = $alias ?? $this->generateUuid();
         $id = $this->generateUuid();
@@ -160,7 +163,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $task = RecurringTaskRecord::from([
             'id' => new UuidVO($id),
             'alias' => $this->createAliasVO($alias),
-            'fqcn' => $this->createFqcnVO(),
+            'fqcn' => $this->createFqcnVO($fqcn),
             'payload' => ['test' => 'recurring'],
             'interval_seconds' => new DurationVO(3600),
             'start_at' => new Iso8601DateTimeVO($this->formatDate(Carbon::now()->addHours(2))),
@@ -172,6 +175,16 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->repository->create($task);
 
         return $task;
+    }
+
+    private function createFqcnCollection(array $fqcns): TaskFqcnVOCollection
+    {
+        $collection = new TaskFqcnVOCollection;
+        foreach ($fqcns as $fqcn) {
+            $collection->add(new TaskFqcnVO($fqcn));
+        }
+
+        return $collection;
     }
 
     // ==================== TEST findByAlias ====================
@@ -460,21 +473,14 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
         Carbon::setTestNow($frozenNow);
 
-        // ✅ Tâches avec start_at dans le PASSÉ → seront transformées en PLAYING
         $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2));
         $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(1));
-
-        // ✅ Tâche déjà PLAYING
         $this->createAndSaveTask(null, RecurringTaskStatus::PLAYING, $frozenNow->copy()->subHours(2));
-
-        // ❌ Tâche avec start_at dans le FUTUR → restera WAITING
         $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2));
 
         $result = $this->repository->findReadyToRun(new Iso8601DateTimeVO($this->formatDate($frozenNow)), new LimitVO(10));
 
-        // ✅ 2 WAITING transformées en PLAYING + 1 déjà PLAYING = 3
         $this->assertCount(3, $result->tasks);
-
         $this->assertEquals(2, $result->fresh_state->waiting_to_playing->getValue());
         $this->assertEquals(0, $result->fresh_state->playing_to_finished->getValue());
     }
@@ -490,7 +496,6 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
 
         $result = $this->repository->findReadyToRun(new Iso8601DateTimeVO($this->formatDate($frozenNow)), new LimitVO(3));
 
-        // ✅ 5 WAITING transformées en PLAYING, limité à 3
         $this->assertCount(3, $result->tasks);
         $this->assertEquals(5, $result->fresh_state->waiting_to_playing->getValue());
     }
@@ -500,7 +505,6 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
         Carbon::setTestNow($frozenNow);
 
-        // ✅ Toutes les tâches ont start_at dans le FUTUR → aucune transformée
         $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2));
         $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(3));
 
@@ -516,7 +520,6 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
         Carbon::setTestNow($frozenNow);
 
-        // ✅ Tâche PLAYING avec end_at dans le PASSÉ → sera FINISHED
         $this->createAndSaveTask(
             null,
             RecurringTaskStatus::PLAYING,
@@ -524,7 +527,6 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
             $frozenNow->copy()->subHours(1)
         );
 
-        // ✅ Tâche WAITING avec start_at dans le PASSÉ → sera PLAYING
         $this->createAndSaveTask(
             null,
             RecurringTaskStatus::WAITING,
@@ -536,6 +538,109 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertEquals(1, $result->fresh_state->playing_to_finished->getValue());
         $this->assertEquals(1, $result->fresh_state->waiting_to_playing->getValue());
         $this->assertCount(1, $result->tasks);
+    }
+
+    // ==================== TESTS READY TO RUN WITH FQCN FILTER ====================
+
+    public function test_find_ready_to_run_with_fqcn_filter_returns_only_matching_tasks(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, HelloRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, TestRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $result = $this->repository->findReadyToRun(
+            new Iso8601DateTimeVO($this->formatDate($frozenNow)),
+            new LimitVO(10),
+            $fqcns
+        );
+
+        $this->assertCount(2, $result->tasks);
+        foreach ($result->tasks as $task) {
+            $this->assertEquals(TestRecurringTask::class, $task->fqcn->getValue());
+        }
+    }
+
+    public function test_find_ready_to_run_with_fqcn_filter_returns_empty_when_no_match(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, TestRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([HelloRecurringTask::class]);
+
+        $result = $this->repository->findReadyToRun(
+            new Iso8601DateTimeVO($this->formatDate($frozenNow)),
+            new LimitVO(10),
+            $fqcns
+        );
+
+        $this->assertCount(0, $result->tasks);
+    }
+
+    public function test_find_ready_to_run_with_null_fqcn_filter_returns_all_tasks(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, HelloRecurringTask::class);
+
+        $result = $this->repository->findReadyToRun(
+            new Iso8601DateTimeVO($this->formatDate($frozenNow)),
+            new LimitVO(10),
+            null
+        );
+
+        $this->assertCount(2, $result->tasks);
+    }
+
+    public function test_find_ready_to_run_with_empty_fqcn_collection_returns_all_tasks(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, HelloRecurringTask::class);
+
+        $fqcns = new TaskFqcnVOCollection;
+
+        $result = $this->repository->findReadyToRun(
+            new Iso8601DateTimeVO($this->formatDate($frozenNow)),
+            new LimitVO(10),
+            $fqcns
+        );
+
+        $this->assertCount(2, $result->tasks);
+    }
+
+    public function test_find_ready_to_run_with_fqcn_filter_and_limit(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        for ($i = 1; $i <= 5; $i++) {
+            $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->subHours(2), null, 3600, null, TestRecurringTask::class);
+        }
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $result = $this->repository->findReadyToRun(
+            new Iso8601DateTimeVO($this->formatDate($frozenNow)),
+            new LimitVO(3),
+            $fqcns
+        );
+
+        $this->assertCount(3, $result->tasks);
+        foreach ($result->tasks as $task) {
+            $this->assertEquals(TestRecurringTask::class, $task->fqcn->getValue());
+        }
     }
 
     // ==================== TESTS MOVES ====================
@@ -696,11 +801,8 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         Carbon::setTestNow($frozenNow);
 
         $alias = $this->generateUuid();
-
-        // ✅ Créer une tâche PLAYING
         $task = $this->createAndSaveTask($alias, RecurringTaskStatus::PLAYING);
 
-        // ✅ Vérifier que la tâche existe
         $found = $this->repository->findByAlias($this->createAliasVO($alias));
         $this->assertNotNull($found, 'Task should exist before updateAfterRun');
 
@@ -726,11 +828,8 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         Carbon::setTestNow($frozenNow);
 
         $alias = $this->generateUuid();
-
-        // ✅ Créer une tâche PLAYING
         $task = $this->createAndSaveTask($alias, RecurringTaskStatus::PLAYING);
 
-        // ✅ Vérifier que la tâche existe
         $found = $this->repository->findByAlias($this->createAliasVO($alias));
         $this->assertNotNull($found, 'Task should exist before updateAfterRun');
 
@@ -825,6 +924,119 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $this->assertEquals(2, $this->repository->countCanceled()->getValue());
     }
 
+    // ==================== TESTS COUNTS WITH FQCN FILTER ====================
+
+    public function test_count_waiting_with_fqcn_filter(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2), null, 3600, null, HelloRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $count = $this->repository->countWaiting($fqcns);
+        $this->assertEquals(2, $count->getValue());
+    }
+
+    public function test_count_waiting_with_fqcn_filter_returns_zero_when_no_match(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([HelloRecurringTask::class]);
+
+        $count = $this->repository->countWaiting($fqcns);
+        $this->assertEquals(0, $count->getValue());
+    }
+
+    public function test_count_waiting_with_null_fqcn_filter_returns_all(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::WAITING, $frozenNow->copy()->addHours(2), null, 3600, null, HelloRecurringTask::class);
+
+        $count = $this->repository->countWaiting(null);
+        $this->assertEquals(2, $count->getValue());
+    }
+
+    public function test_count_playing_with_fqcn_filter(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::PLAYING, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::PLAYING, $frozenNow->copy()->addHours(2), null, 3600, null, HelloRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::PLAYING, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $count = $this->repository->countPlaying($fqcns);
+        $this->assertEquals(2, $count->getValue());
+    }
+
+    public function test_count_playing_with_fqcn_filter_returns_zero_when_no_match(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::PLAYING, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([HelloRecurringTask::class]);
+
+        $count = $this->repository->countPlaying($fqcns);
+        $this->assertEquals(0, $count->getValue());
+    }
+
+    public function test_count_paused_with_fqcn_filter(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::PAUSED, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::PAUSED, $frozenNow->copy()->addHours(2), null, 3600, null, HelloRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $count = $this->repository->countPaused($fqcns);
+        $this->assertEquals(1, $count->getValue());
+    }
+
+    public function test_count_finished_with_fqcn_filter(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createAndSaveTask(null, RecurringTaskStatus::FINISHED, $frozenNow->copy()->addHours(2), null, 3600, null, TestRecurringTask::class);
+        $this->createAndSaveTask(null, RecurringTaskStatus::FINISHED, $frozenNow->copy()->addHours(2), null, 3600, null, HelloRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $count = $this->repository->countFinished($fqcns);
+        $this->assertEquals(1, $count->getValue());
+    }
+
+    public function test_count_canceled_with_fqcn_filter(): void
+    {
+        $frozenNow = Carbon::create(2026, 6, 22, 12, 0, 0);
+        Carbon::setTestNow($frozenNow);
+
+        $this->createCancelledTask(null, TestRecurringTask::class);
+        $this->createCancelledTask(null, TestRecurringTask::class);
+        $this->createCancelledTask(null, HelloRecurringTask::class);
+
+        $fqcns = $this->createFqcnCollection([TestRecurringTask::class]);
+
+        $count = $this->repository->countCanceled($fqcns);
+        $this->assertEquals(2, $count->getValue());
+    }
+
     // ==================== TESTS CREATE ====================
 
     public function test_create_persists_task(): void
@@ -839,7 +1051,7 @@ final class RecurringTaskRepositoryTest extends IntegrationTestCase
         $task = RecurringTaskRecord::from([
             'id' => new UuidVO($this->generateUuid()),
             'alias' => $this->createAliasVO($alias),
-            'fqcn' => $this->createFqcnVO(),
+            'fqcn' => $this->createFqcnVO(TestRecurringTaskForRepository::class),
             'payload' => ['test' => 'create'],
             'interval_seconds' => new DurationVO(7200),
             'start_at' => new Iso8601DateTimeVO($this->formatDate($startAt)),

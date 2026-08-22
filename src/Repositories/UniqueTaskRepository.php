@@ -9,6 +9,7 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Repository\AbstractRepository;
 use AndyDefer\Repository\Records\FindByRecord;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Contracts\Repositories\TaskExecutionDebugRepositoryInterface;
 use AndyDefer\Task\Contracts\Repositories\UniqueTaskRepositoryInterface;
 use AndyDefer\Task\Enums\ExecutionStatus;
@@ -188,20 +189,28 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
      * Uses lockForUpdate() to prevent concurrency issues and ensure
      * each task is executed only once.
      */
-    public function findReadyToRun(Iso8601DateTimeVO $now, ?LimitVO $limit = null): Collection
-    {
+    public function findReadyToRun(
+        Iso8601DateTimeVO $now,
+        ?LimitVO $limit = null,
+        ?TaskFqcnVOCollection $fqcns = null
+    ): Collection {
         $limit = $limit ?? new LimitVO;
         $formattedNow = $now->forDatabase();
 
-        return DB::transaction(function () use ($formattedNow, $limit) {
-            $tasks = $this->model->newQuery()
+        return DB::transaction(function () use ($formattedNow, $limit, $fqcns) {
+            $query = $this->model->newQuery()
                 ->where('status', UniqueTaskStatus::PENDING->value)
-                ->where('scheduled_at', '<=', $formattedNow)
-                ->lockForUpdate()
+                ->where('scheduled_at', '<=', $formattedNow);
+
+            if ($fqcns !== null && $fqcns->isNotEmpty()) {
+                $fqcnStrings = $fqcns->toStrings();
+                $query->whereIn('fqcn', $fqcnStrings);
+            }
+
+            $tasks = $query->lockForUpdate()
                 ->limit($limit->getValue() ?? PHP_INT_MAX)
                 ->get();
 
-            // ✅ UPDATE en lot (une seule requête pour toutes les tâches)
             if ($tasks->isNotEmpty()) {
                 $taskIds = $tasks->pluck('id')->toArray();
                 $this->model->newQuery()
@@ -266,9 +275,6 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
 
     // ==================== MOVES ====================
 
-    /**
-     * {@inheritDoc}
-     */
     /**
      * {@inheritDoc}
      */
@@ -467,48 +473,80 @@ final class UniqueTaskRepository extends AbstractRepository implements UniqueTas
     /**
      * {@inheritDoc}
      */
-    public function countPending(): CounterVO
+    public function countPending(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         $filters = UniqueTaskFiltersRecord::from([
             'status' => UniqueTaskStatus::PENDING,
         ]);
 
-        return new CounterVO($this->count($filters));
+        $query = $this->model->newQuery();
+        $this->applyFilters($query, $filters);
+
+        if ($fqcns !== null && $fqcns->isNotEmpty()) {
+            $fqcnStrings = $fqcns->toStrings();
+            $query->whereIn('fqcn', $fqcnStrings);
+        }
+
+        return new CounterVO($query->count());
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countCompleted(): CounterVO
+    public function countCompleted(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         $filters = UniqueTaskFiltersRecord::from([
             'status' => UniqueTaskStatus::COMPLETED,
         ]);
 
-        return new CounterVO($this->count($filters));
+        $query = $this->model->newQuery();
+        $this->applyFilters($query, $filters);
+
+        if ($fqcns !== null && $fqcns->isNotEmpty()) {
+            $fqcnStrings = $fqcns->toStrings();
+            $query->whereIn('fqcn', $fqcnStrings);
+        }
+
+        return new CounterVO($query->count());
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countFailed(): CounterVO
+    public function countFailed(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         $filters = UniqueTaskFiltersRecord::from([
             'status' => UniqueTaskStatus::FAILED,
         ]);
 
-        return new CounterVO($this->count($filters));
+        $query = $this->model->newQuery();
+        $this->applyFilters($query, $filters);
+
+        if ($fqcns !== null && $fqcns->isNotEmpty()) {
+            $fqcnStrings = $fqcns->toStrings();
+            $query->whereIn('fqcn', $fqcnStrings);
+        }
+
+        return new CounterVO($query->count());
     }
 
     /**
      * {@inheritDoc}
      */
-    public function countCanceled(): CounterVO
+    public function countCanceled(?TaskFqcnVOCollection $fqcns = null): CounterVO
     {
         $filters = UniqueTaskFiltersRecord::from([
             'status' => UniqueTaskStatus::CANCELED,
         ]);
 
-        return new CounterVO($this->count($filters));
+        $query = $this->model->newQuery();
+        $this->applyFilters($query, $filters);
+
+        if ($fqcns !== null && $fqcns->isNotEmpty()) {
+            $fqcnStrings = $fqcns->toStrings();
+            $query->whereIn('fqcn', $fqcnStrings);
+        }
+
+        return new CounterVO($query->count());
     }
 }
