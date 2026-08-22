@@ -74,6 +74,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $this->assertEquals(0, $this->aggregator->getUniqueFailed()->getValue());
         $this->assertEquals(0, $this->aggregator->getRecurringSuccess()->getValue());
         $this->assertEquals(0, $this->aggregator->getRecurringFailed()->getValue());
+        $this->assertEmpty($this->aggregator->getCycleHistory());
     }
 
     public function test_start_new_cycle_increments_cycle_count(): void
@@ -83,6 +84,21 @@ final class ResultAggregatorTest extends IntegrationTestCase
 
         $this->aggregator->startNewCycle();
         $this->assertEquals(2, $this->aggregator->getCycleCount());
+    }
+
+    public function test_start_new_cycle_initializes_history(): void
+    {
+        $this->aggregator->startNewCycle();
+
+        $history = $this->aggregator->getCycleHistory();
+        $this->assertArrayHasKey(1, $history);
+        $this->assertEquals(0, $history[1]['success']);
+        $this->assertEquals(0, $history[1]['failed']);
+        $this->assertEquals(0, $history[1]['errors']);
+        $this->assertEquals(0, $history[1]['unique_success']);
+        $this->assertEquals(0, $history[1]['unique_failed']);
+        $this->assertEquals(0, $history[1]['recurring_success']);
+        $this->assertEquals(0, $history[1]['recurring_failed']);
     }
 
     public function test_add_results_with_unique_tasks(): void
@@ -185,7 +201,6 @@ final class ResultAggregatorTest extends IntegrationTestCase
 
     public function test_has_failures_with_errors(): void
     {
-
         $result = $this->createResultRecord(success: 5, failed: 0, errors: 2);
 
         $this->aggregator->addResults([$result]);
@@ -210,59 +225,276 @@ final class ResultAggregatorTest extends IntegrationTestCase
 
         $this->aggregator->addResults([$result]);
 
-        // ✅ Le cycle count n'est pas incrémenté automatiquement
         $this->assertEquals(0, $this->aggregator->getCycleCount());
 
-        // ✅ Il faut appeler startNewCycle() manuellement
         $this->aggregator->startNewCycle();
         $this->assertEquals(1, $this->aggregator->getCycleCount());
     }
 
     public function test_multiple_cycles_with_results(): void
     {
-        // ✅ Cycle #1
+        // Cycle #1
         $this->aggregator->startNewCycle();
         $result1 = $this->createResultRecord(success: 3, failed: 1);
         $this->aggregator->addResults([$result1]);
         $this->assertEquals(1, $this->aggregator->getCycleCount());
 
-        // ✅ Cycle #2
+        // Cycle #2
         $this->aggregator->startNewCycle();
         $result2 = $this->createResultRecord(success: 2, failed: 0);
         $this->aggregator->addResults([$result2]);
         $this->assertEquals(2, $this->aggregator->getCycleCount());
 
-        // ✅ Totaux cumulés
+        // Totaux cumulés
         $this->assertEquals(5, $this->aggregator->getTotalSuccess()->getValue());
         $this->assertEquals(1, $this->aggregator->getTotalFailed()->getValue());
     }
 
-    public function test_has_failures_returns_false_when_no_failures(): void
+    // ==================== TESTS CYCLE HISTORY ====================
+
+    public function test_cycle_history_stores_results_per_cycle(): void
     {
-        $result = $this->createResultRecord(success: 10, failed: 0, errors: 0);
+        $this->aggregator->startNewCycle();
 
-        $this->aggregator->addResults([$result]);
+        $result1 = $this->createResultRecord(success: 3, failed: 1, type: TaskType::UNIQUE);
+        $result2 = $this->createResultRecord(success: 2, failed: 0, type: TaskType::RECURRING);
 
-        $this->assertFalse($this->aggregator->hasFailures());
+        $this->aggregator->addResults([$result1, $result2]);
+
+        $history = $this->aggregator->getCycleHistory();
+
+        $this->assertArrayHasKey(1, $history);
+
+        // ✅ Totaux
+        $this->assertEquals(5, $history[1]['success']);
+        $this->assertEquals(1, $history[1]['failed']);
+        $this->assertEquals(0, $history[1]['errors']);
+
+        // ✅ Uniques
+        $this->assertEquals(3, $history[1]['unique_success']);
+        $this->assertEquals(1, $history[1]['unique_failed']);
+
+        // ✅ Récurrents
+        $this->assertEquals(2, $history[1]['recurring_success']);
+        $this->assertEquals(0, $history[1]['recurring_failed']);
     }
 
-    public function test_has_failures_returns_true_when_has_failed_tasks(): void
+    public function test_cycle_history_maintains_multiple_cycles(): void
     {
-        $result = $this->createResultRecord(success: 5, failed: 3, errors: 0);
+        // Cycle #1
+        $this->aggregator->startNewCycle();
+        $result1 = $this->createResultRecord(success: 3, failed: 1, type: TaskType::UNIQUE);
+        $this->aggregator->addResults([$result1]);
 
-        $this->aggregator->addResults([$result]);
+        // Cycle #2
+        $this->aggregator->startNewCycle();
+        $result2 = $this->createResultRecord(success: 2, failed: 0, type: TaskType::RECURRING);
+        $this->aggregator->addResults([$result2]);
 
-        $this->assertTrue($this->aggregator->hasFailures());
+        $history = $this->aggregator->getCycleHistory();
+
+        $this->assertArrayHasKey(1, $history);
+        $this->assertArrayHasKey(2, $history);
+
+        $this->assertEquals(3, $history[1]['success']);
+        $this->assertEquals(1, $history[1]['failed']);
+
+        $this->assertEquals(2, $history[2]['success']);
+        $this->assertEquals(0, $history[2]['failed']);
     }
 
-    public function test_has_failures_returns_true_when_has_errors(): void
+    public function test_get_cycle_success_returns_correct_value(): void
     {
-        $result = $this->createResultRecord(success: 5, failed: 0, errors: 1);
-
+        $this->aggregator->startNewCycle();
+        $result = $this->createResultRecord(success: 5, failed: 2);
         $this->aggregator->addResults([$result]);
 
-        // ✅ Correction : hasFailures() vérifie totalFailed > 0 OU totalErrors > 0
-        // Donc avec errors: 1, hasFailures() retourne true
-        $this->assertTrue($this->aggregator->hasFailures());
+        $this->assertEquals(5, $this->aggregator->getCycleSuccess(1)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleSuccess(2)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleSuccess(99)->getValue());
+    }
+
+    public function test_get_cycle_failed_returns_correct_value(): void
+    {
+        $this->aggregator->startNewCycle();
+        $result = $this->createResultRecord(success: 5, failed: 3);
+        $this->aggregator->addResults([$result]);
+
+        $this->assertEquals(3, $this->aggregator->getCycleFailed(1)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleFailed(2)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleFailed(99)->getValue());
+    }
+
+    public function test_get_cycle_errors_returns_correct_value(): void
+    {
+        $this->aggregator->startNewCycle();
+        $result = $this->createResultRecord(success: 5, failed: 0, errors: 2);
+        $this->aggregator->addResults([$result]);
+
+        $this->assertEquals(2, $this->aggregator->getCycleErrors(1)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleErrors(2)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleErrors(99)->getValue());
+    }
+
+    public function test_get_cycle_unique_success_returns_correct_value(): void
+    {
+        $this->aggregator->startNewCycle();
+
+        $uniqueResult = $this->createResultRecord(success: 5, failed: 2, type: TaskType::UNIQUE);
+        $recurringResult = $this->createResultRecord(success: 3, failed: 1, type: TaskType::RECURRING);
+
+        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+
+        $this->assertEquals(5, $this->aggregator->getCycleUniqueSuccess(1)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleUniqueSuccess(2)->getValue());
+    }
+
+    public function test_get_cycle_unique_failed_returns_correct_value(): void
+    {
+        $this->aggregator->startNewCycle();
+
+        $uniqueResult = $this->createResultRecord(success: 5, failed: 2, type: TaskType::UNIQUE);
+        $recurringResult = $this->createResultRecord(success: 3, failed: 1, type: TaskType::RECURRING);
+
+        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+
+        $this->assertEquals(2, $this->aggregator->getCycleUniqueFailed(1)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleUniqueFailed(2)->getValue());
+    }
+
+    public function test_get_cycle_recurring_success_returns_correct_value(): void
+    {
+        $this->aggregator->startNewCycle();
+
+        $uniqueResult = $this->createResultRecord(success: 5, failed: 2, type: TaskType::UNIQUE);
+        $recurringResult = $this->createResultRecord(success: 3, failed: 1, type: TaskType::RECURRING);
+
+        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+
+        $this->assertEquals(3, $this->aggregator->getCycleRecurringSuccess(1)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleRecurringSuccess(2)->getValue());
+    }
+
+    public function test_get_cycle_recurring_failed_returns_correct_value(): void
+    {
+        $this->aggregator->startNewCycle();
+
+        $uniqueResult = $this->createResultRecord(success: 5, failed: 2, type: TaskType::UNIQUE);
+        $recurringResult = $this->createResultRecord(success: 3, failed: 1, type: TaskType::RECURRING);
+
+        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+
+        $this->assertEquals(1, $this->aggregator->getCycleRecurringFailed(1)->getValue());
+        $this->assertEquals(0, $this->aggregator->getCycleRecurringFailed(2)->getValue());
+    }
+
+    public function test_get_detailed_summary_returns_correct_structure(): void
+    {
+        $uniqueResult = $this->createResultRecord(success: 5, failed: 2, errors: 1, type: TaskType::UNIQUE);
+        $recurringResult = $this->createResultRecord(success: 3, failed: 1, errors: 0, type: TaskType::RECURRING);
+
+        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+
+        $summary = $this->aggregator->getDetailedSummary();
+
+        $this->assertArrayHasKey('total', $summary);
+        $this->assertArrayHasKey('unique', $summary);
+        $this->assertArrayHasKey('recurring', $summary);
+
+        $this->assertEquals(8, $summary['total']['success']);
+        $this->assertEquals(3, $summary['total']['failed']);
+        $this->assertEquals(1, $summary['total']['errors']);
+
+        $this->assertEquals(5, $summary['unique']['success']);
+        $this->assertEquals(2, $summary['unique']['failed']);
+
+        $this->assertEquals(3, $summary['recurring']['success']);
+        $this->assertEquals(1, $summary['recurring']['failed']);
+    }
+
+    public function test_reset_clears_all_data(): void
+    {
+        $this->aggregator->startNewCycle();
+
+        $result = $this->createResultRecord(success: 5, failed: 2, errors: 1, type: TaskType::UNIQUE);
+        $this->aggregator->addResults([$result]);
+
+        $this->assertEquals(1, $this->aggregator->getCycleCount());
+        $this->assertEquals(5, $this->aggregator->getTotalSuccess()->getValue());
+        $this->assertEquals(2, $this->aggregator->getTotalFailed()->getValue());
+        $this->assertEquals(1, $this->aggregator->getTotalErrors()->getValue());
+
+        $this->aggregator->reset();
+
+        $this->assertEquals(0, $this->aggregator->getCycleCount());
+        $this->assertEquals(0, $this->aggregator->getTotalSuccess()->getValue());
+        $this->assertEquals(0, $this->aggregator->getTotalFailed()->getValue());
+        $this->assertEquals(0, $this->aggregator->getTotalErrors()->getValue());
+        $this->assertEmpty($this->aggregator->getCycleHistory());
+    }
+
+    public function test_cycle_history_preserves_data_after_reset(): void
+    {
+        $this->aggregator->startNewCycle();
+        $result = $this->createResultRecord(success: 5, failed: 2);
+        $this->aggregator->addResults([$result]);
+
+        $historyBefore = $this->aggregator->getCycleHistory();
+        $this->assertNotEmpty($historyBefore);
+
+        $this->aggregator->reset();
+        $historyAfter = $this->aggregator->getCycleHistory();
+
+        $this->assertEmpty($historyAfter);
+        $this->assertNotSame($historyBefore, $historyAfter);
+    }
+
+    public function test_cycle_history_with_errors_in_cycle(): void
+    {
+        $this->aggregator->startNewCycle();
+        $result = $this->createResultRecord(success: 10, failed: 0, errors: 3);
+        $this->aggregator->addResults([$result]);
+
+        $history = $this->aggregator->getCycleHistory();
+
+        $this->assertEquals(10, $history[1]['success']);
+        $this->assertEquals(0, $history[1]['failed']);
+        $this->assertEquals(3, $history[1]['errors']);
+        $this->assertEquals(3, $this->aggregator->getCycleErrors(1)->getValue());
+    }
+
+    public function test_cycle_history_handles_empty_cycles(): void
+    {
+        $this->aggregator->startNewCycle();
+        $this->aggregator->addResults([]);
+
+        $history = $this->aggregator->getCycleHistory();
+
+        $this->assertArrayHasKey(1, $history);
+        $this->assertEquals(0, $history[1]['success']);
+        $this->assertEquals(0, $history[1]['failed']);
+        $this->assertEquals(0, $history[1]['errors']);
+    }
+
+    public function test_cycle_history_handles_multiple_add_results_per_cycle(): void
+    {
+        $this->aggregator->startNewCycle();
+
+        $result1 = $this->createResultRecord(success: 3, failed: 1, type: TaskType::UNIQUE);
+        $result2 = $this->createResultRecord(success: 2, failed: 0, type: TaskType::UNIQUE);
+        $result3 = $this->createResultRecord(success: 4, failed: 2, type: TaskType::RECURRING);
+
+        $this->aggregator->addResults([$result1]);
+        $this->aggregator->addResults([$result2]);
+        $this->aggregator->addResults([$result3]);
+
+        $history = $this->aggregator->getCycleHistory();
+
+        $this->assertEquals(9, $history[1]['success']);
+        $this->assertEquals(3, $history[1]['failed']);
+        $this->assertEquals(5, $history[1]['unique_success']);
+        $this->assertEquals(1, $history[1]['unique_failed']);
+        $this->assertEquals(4, $history[1]['recurring_success']);
+        $this->assertEquals(2, $history[1]['recurring_failed']);
     }
 }

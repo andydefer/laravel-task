@@ -2,184 +2,146 @@
 
 ## Description
 
-Le `ParallelExecutor` orchestre l'exécution parallèle des tâches en utilisant le forking de processus (`pcntl_fork`) avec communication inter-processus via des sockets Unix. Il sert de moteur d'exécution pour la directive `tasks:watch`.
+Exécuteur de tâches en parallèle utilisant `pcntl_fork()` pour répartir le traitement des tâches sur plusieurs workers. Permet d'exécuter simultanément plusieurs directives `tasks:process` avec des configurations différentes.
 
-## Hiérarchie / Implémentations
+## Hiérarchie
 
 ```
-ParallelExecutor (final)
-    └── Aucune interface implémentée
+ParallelExecutor
 ```
-
-**Classe finale :** Ne peut pas être étendue
 
 ## Rôle principal
 
-Ce service agit comme un orchestrateur d'exécution parallèle qui :
-
-1. **Fork des processus workers** pour exécuter des tâches en parallèle
-2. **Gère la communication inter-processus** via des paires de sockets Unix
-3. **Collecte les résultats** des workers et les agrège
-4. **Fonctionne en mode séquentiel** si `pcntl_fork` n'est pas disponible
-
-## API / Méthodes publiques
-
-### `execute(bool $uniqueOnly, bool $recurringOnly, ?LimitVO $limit, bool $verbose, bool $muted = false): array`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$uniqueOnly` | `bool` | Exécuter uniquement les tâches uniques |
-| `$recurringOnly` | `bool` | Exécuter uniquement les tâches récurrentes |
-| `$limit` | `LimitVO|null` | Nombre maximum de tâches à traiter par worker |
-| `$verbose` | `bool` | Activer les logs détaillés |
-| `$muted` | `bool` | Désactiver toute sortie (sauf erreurs critiques) |
-
-**Retourne :** `array<TaskExecutionResultRecord>` - Tableau des résultats d'exécution
-
-**Exceptions :** Aucune exception propagée (les erreurs sont capturées et journalisées)
-
-**Comportement :**
-1. Si `pcntl_fork` n'est pas disponible → exécution séquentielle
-2. Sinon → fork de `maxWorkers` processus
-3. Communication via sockets Unix pour récupérer les résultats
-4. Collecte et agrège les résultats
-
-**Exemple :**
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\Task\Services\Watchs\ParallelExecutor;
-use AndyDefer\Task\ValueObjects\LimitVO;
-
-$executor = new ParallelExecutor(4, $kernel, $output);
-
-$results = $executor->execute(
-    uniqueOnly: false,
-    recurringOnly: false,
-    limit: new LimitVO(10),
-    verbose: true,
-    muted: false
-);
-
-echo "✅ " . count($results) . " workers ont terminé\n";
-foreach ($results as $result) {
-    echo "  - " . $result->alias->getValue() . "\n";
-}
-```
+Orchestrer l'exécution parallèle des tâches en créant des processus enfants, en réinitialisant les connexions à la base de données pour éviter les conflits, et en collectant les résultats de chaque worker.
 
 ---
+
+## API / Méthodes publiques
 
 ### `__construct(int $maxWorkers, DirectiveKernel $kernel, OutputHandler $output)`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$maxWorkers` | `int` | Nombre maximum de workers parallèles (minimum: 1) |
-| `$kernel` | `DirectiveKernel` | Noyau de directives pour exécuter les sous-processus |
+| `$maxWorkers` | `int` | Nombre maximum de workers (minimum 1) |
+| `$kernel` | `DirectiveKernel` | Kernel de directives pour exécuter les commandes |
 | `$output` | `OutputHandler` | Gestionnaire de sortie pour les logs |
 
-**Comportement :** Assure que `$maxWorkers` est toujours ≥ 1
-
-## Méthodes privées
-
-### `executeSequentially(bool $uniqueOnly, bool $recurringOnly, ?LimitVO $limit, bool $verbose, bool $muted = false): array`
-
-**Utilisation :** Fallback lorsque `pcntl_fork` n'est pas disponible
-
-**Comportement :** Exécute les workers les uns après les autres dans le même processus
+**Exemple :**
+```php
+$executor = new ParallelExecutor(
+    4,
+    $kernel,
+    $outputHandler
+);
+```
 
 ---
 
-### `runWorker(int $workerId, bool $uniqueOnly, bool $recurringOnly, ?LimitVO $limit, bool $verbose, bool $muted = false): ?TaskExecutionResultRecord`
+### `execute(bool $uniqueOnly, bool $recurringOnly, ?LimitVO $limit, bool $verbose, bool $muted = false, ?TaskFqcnVOCollection $fqcns = null): array`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$workerId` | `int` | Identifiant unique du worker |
-| Autres | `bool`/`LimitVO` | Les mêmes que `execute()` |
+| `$uniqueOnly` | `bool` | Traiter uniquement les tâches uniques |
+| `$recurringOnly` | `bool` | Traiter uniquement les tâches récurrentes |
+| `$limit` | `LimitVO|null` | Nombre maximum de tâches par worker |
+| `$verbose` | `bool` | Mode verbose (logs détaillés) |
+| `$muted` | `bool` | Mode muet (pas de sortie) |
+| `$fqcns` | `TaskFqcnVOCollection|null` | Filtre optionnel par FQCN |
 
-**Retourne :** `TaskExecutionResultRecord|null` - Résultat de l'exécution ou null si aucun
+**Retourne :** `array<TaskExecutionResultRecord>` - Résultats des exécutions
 
 **Comportement :**
-1. Construit les arguments pour la directive `tasks:process`
-2. Ajoute `--mute` pour désactiver les sorties des workers
-3. Exécute le kernel avec les arguments
-4. Extrait le résultat du contexte du kernel
-5. Journalise le code de sortie
+1. Vérifie la disponibilité de `pcntl_fork()`
+2. Crée N workers en parallèle (processus enfants)
+3. Chaque worker exécute `tasks:process` avec les paramètres
+4. Les résultats sont transmis via des sockets UNIX
+5. Les connexions DB sont réinitialisées dans chaque enfant
+
+**Exemple :**
+```php
+$results = $executor->execute(
+    uniqueOnly: false,
+    recurringOnly: true,
+    limit: new LimitVO(50),
+    verbose: false,
+    muted: true,
+    fqcns: TaskFqcnVOCollection::from([TestRecurringTask::class])
+);
+
+foreach ($results as $result) {
+    echo "✅ Succès : " . $result->success->getValue() . "\n";
+}
+```
+
+---
+
+## Méthodes privées
+
+### `executeSequentially(bool $uniqueOnly, bool $recurringOnly, ?LimitVO $limit, bool $verbose, bool $muted = false, ?TaskFqcnVOCollection $fqcns = null): array`
+
+**Rôle :** Fallback lorsque `pcntl_fork()` n'est pas disponible. Exécute les workers de manière séquentielle.
+
+**Retourne :** `array<TaskExecutionResultRecord>` - Résultats des exécutions
+
+---
+
+### `runWorker(int $workerId, bool $uniqueOnly, bool $recurringOnly, ?LimitVO $limit, bool $verbose, bool $muted = false, ?TaskFqcnVOCollection $fqcns = null): ?TaskExecutionResultRecord`
+
+**Rôle :** Exécute un worker individuel.
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$workerId` | `int` | Identifiant du worker |
+| `$uniqueOnly` | `bool` | Traiter uniquement les tâches uniques |
+| `$recurringOnly` | `bool` | Traiter uniquement les tâches récurrentes |
+| `$limit` | `LimitVO|null` | Nombre maximum de tâches |
+| `$verbose` | `bool` | Mode verbose |
+| `$muted` | `bool` | Mode muet |
+| `$fqcns` | `TaskFqcnVOCollection|null` | Filtre FQCN |
+
+**Retourne :** `TaskExecutionResultRecord|null` - Résultat de l'exécution
+
+**Comportement :**
+1. Construit les arguments pour `tasks:process`
+2. Ajoute les FQCNs si présents
+3. Ajoute les flags
+4. Exécute la directive via le kernel
+5. Récupère le résultat depuis le contexte
+
+---
+
+### `resetDatabaseConnection(): void`
+
+**Rôle :** Réinitialise la connexion à la base de données pour éviter les conflits entre processus.
+
+**Comportement :**
+1. `DB::purge()` - Supprime toutes les connexions
+2. `DB::reconnect()` - Reconnecte avec une nouvelle connexion
+3. `DB::connection()->getPdo()` - Vérifie que la connexion fonctionne
 
 ---
 
 ## Cas d'utilisation
 
-### Cas 1 : Exécution parallèle avec 4 workers
+### Cas 1 : Exécution parallèle simple
 
 ```php
-<?php
+$executor = new ParallelExecutor(4, $kernel, $outputHandler);
 
-declare(strict_types=1);
-
-use AndyDefer\Task\Services\Watchs\ParallelExecutor;
-use AndyDefer\Directive\DirectiveKernel;
-use AndyDefer\Task\Handlers\OutputHandler;
-use AndyDefer\Task\ValueObjects\LimitVO;
-
-$kernel = DirectiveKernel::init($app);
-$output = new OutputHandler($console, $logger);
-
-// Créer un exécuteur avec 4 workers parallèles
-$executor = new ParallelExecutor(4, $kernel, $output);
-
-// Exécuter les tâches (uniques et récurrentes) avec une limite de 20 tâches
-$limit = new LimitVO(20);
 $results = $executor->execute(
     uniqueOnly: false,
     recurringOnly: false,
-    limit: $limit,
-    verbose: true,
-    muted: false
-);
-
-echo "🔍 Résultats :\n";
-foreach ($results as $result) {
-    $status = $result->success ? '✅' : '❌';
-    echo "  {$status} {$result->alias->getValue()}\n";
-}
-```
-
-### Cas 2 : Exécution séquentielle (fallback)
-
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\Task\Services\Watchs\ParallelExecutor;
-
-// Dans un environnement sans pcntl (ex: Windows)
-$executor = new ParallelExecutor(4, $kernel, $output);
-
-// L'exécuteur détecte automatiquement l'absence de pcntl
-// et bascule en mode séquentiel
-$results = $executor->execute(
-    uniqueOnly: true,
-    recurringOnly: false,
-    limit: null,
+    limit: new LimitVO(100),
     verbose: false,
     muted: true
 );
 
-// Les workers s'exécutent les uns après les autres
-// Le nombre de workers n'a pas d'impact sur la performance
+echo "✅ " . count($results) . " workers ont terminé\n";
 ```
 
-### Cas 3 : Exécution uniquement des tâches récurrentes
+### Cas 2 : Traitement uniquement des tâches récurrentes
 
 ```php
-<?php
-
-$executor = new ParallelExecutor(2, $kernel, $output);
-
-// Seules les tâches récurrentes seront exécutées
 $results = $executor->execute(
     uniqueOnly: false,
     recurringOnly: true,
@@ -187,147 +149,128 @@ $results = $executor->execute(
     verbose: true,
     muted: false
 );
-
-echo "📊 " . count($results) . " tâches récurrentes traitées\n";
 ```
 
-### Cas 4 : Mode silencieux pour les workers
+### Cas 3 : Filtrage par FQCN
 
 ```php
-<?php
+$fqcns = TaskFqcnVOCollection::from([
+    SyncUsersTask::class,
+    ImportProductsTask::class,
+]);
 
-$executor = new ParallelExecutor(8, $kernel, $output);
+$results = $executor->execute(
+    uniqueOnly: true,
+    recurringOnly: false,
+    limit: new LimitVO(100),
+    verbose: false,
+    muted: true,
+    fqcns: $fqcns
+);
+```
 
-// Les workers s'exécutent en silence
-// Seuls les logs du parent sont affichés
+### Cas 4 : Mode muet pour les environnements de production
+
+```php
 $results = $executor->execute(
     uniqueOnly: false,
     recurringOnly: false,
-    limit: null,
+    limit: new LimitVO(200),
     verbose: false,
-    muted: true  // ← Désactive les sorties des workers
+    muted: true
 );
-
-// Les résultats sont toujours collectés
-foreach ($results as $result) {
-    // Traiter les résultats...
-}
+// Aucune sortie console, seulement les résultats
 ```
+
+---
 
 ## Flux d'exécution
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ParallelExecutor::execute()                  │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-          ┌──────────────┴──────────────┐
-          │                             │
-          ▼                             ▼
-┌─────────────────────┐     ┌─────────────────────────────────────┐
-│ pcntl_fork dispo?   │     │ Fork non disponible                 │
-│ → OUI               │     │ → executeSequentially()             │
-└──────────┬──────────┘     │   Boucle séquentielle sur workers   │
-           │                └─────────────────────────────────────┘
-           ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Création des sockets Unix (socket_create_pair)                 │
-│  Pour chaque worker :                                           │
-│  1. Créer une paire de sockets (pipe[0], pipe[1])               │
-│  2. pcntl_fork()                                                │
-│     - Parent : ferme pipe[1], garde pipe[0] pour lecture        │
-│     - Enfant : ferme pipe[0], exécute runWorker()               │
-│  3. Enfant écrit le résultat dans pipe[1]                       │
-│  4. Parent lit pipe[0] et attend la fin du processus            │
-└────────────────────────┬────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  Collecte des résultats                                         │
-│  Pour chaque PID :                                              │
-│  1. pcntl_waitpid() - Attendre la fin                           │
-│  2. socket_read() - Lire les données                            │
-│  3. unserialize() - Désérialiser le résultat                    │
-│  4. Ajouter au tableau des résultats                            │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Communication inter-processus
+### Architecture parallèle
 
 ```
-┌─────────────┐                           ┌───────────────┐
-│  Processus  │                           │  Processus    │
-│   Parent    │                           │   Enfant      │
-│             │                           │               │
-│  ┌───────┐  │     socket_pair()         │  ┌───────┐    │ 
-│  │ pipe[0]│◄┼───────────────────────────┼──│ pipe[1]│   │
-│  │ (lecture)│ │                         │  │ (écriture) │
-│  └───────┘  │                           │  └───────┘    │
-│             │                           │               │
-│  1. fork() ─┼─────────────────────────► │  1. runWorker()
-│  2. close pipe[1]                       │  2. close pipe[0]
-│  3. pcntl_waitpid()                     │  3. socket_write(pipe[1], serialize($result))
-│  4. socket_read(pipe[0])                │  s4. socket_close(pipe[1])
-│  5. unserialize()                       │  5. exit(0)
-└─────────────┘                           └─────────────┘
+Processus Parent
+     │
+     ├── Fork → Worker 1 (processus enfant)
+     │         ├── Réinitialisation DB
+     │         ├── Exécution tasks:process
+     │         └── Résultat → Socket
+     │
+     ├── Fork → Worker 2 (processus enfant)
+     │         ├── Réinitialisation DB
+     │         ├── Exécution tasks:process
+     │         └── Résultat → Socket
+     │
+     └── Fork → Worker N (processus enfant)
+               ├── Réinitialisation DB
+               ├── Exécution tasks:process
+               └── Résultat → Socket
 ```
 
-**Protocole de communication :**
-- Données normales : `serialize(TaskExecutionResultRecord)` → "O:..."
-- Résultat nul : `'null'` → "null"
-- Erreur : `'error:' . $message` → "error:Failed to execute task"
+### Communication inter-processus
+
+```
+Worker (enfant)                       Parent
+      │                                   │
+      ├── Exécution                       │
+      ├── Serialize($result)              │
+      ├── socket_write($pipe, $data) ────→ socket_read($pipe)
+      │                                   │
+      ├── exit(0)                         ├── pcntl_waitpid()
+      │                                   ├── Unserialize($data)
+      │                                   └── Ajout au tableau de résultats
+```
+
+---
 
 ## Gestion des erreurs
 
-| Situation | Comportement | Message |
-|-----------|--------------|---------|
-| `pcntl_fork` non disponible | Exécution séquentielle | `⚠️ pcntl_fork() not available. Workers will run sequentially.` |
-| Échec `socket_create_pair` | Skip du worker | `❌ Failed to create socket pair for worker X` |
-| Échec `pcntl_fork` | Skip du worker | `❌ Failed to fork worker X` |
-| Erreur dans worker enfant | Écriture de `error:message` | `❌ Worker failed: message` |
-| Données corrompues | Ignorées | (aucun message) |
-| Résultat nul | Ignoré | (aucun message) |
+| Situation | Comportement |
+|-----------|--------------|
+| `pcntl_fork()` non disponible | Exécution séquentielle (fallback) |
+| `socket_create_pair()` échoue | Worker ignoré, erreur loggée |
+| `pcntl_fork()` échoue | Worker ignoré, erreur loggée |
+| Exception dans l'enfant | Message d'erreur transmis via socket |
+| Enfant se termine avec code != 0 | Erreur loggée, socket fermé |
+| Désérialisation échoue | Erreur loggée |
 
-**Note :** Aucune exception n'est propagée. Toutes les erreurs sont :
-1. Journalisées via le gestionnaire de sortie
-2. Le worker est ignoré et le processus continue
+---
 
 ## Performance
 
-| Opération | Complexité | Description |
-|-----------|-----------|-------------|
-| `execute()` | O(workers) | Boucle sur le nombre de workers |
-| `runWorker()` | O(n) | Dépend de la directive `tasks:process` |
-| Communication socket | O(1) | Transfert de données sérialisées |
+### Points d'attention
 
-**Facteurs d'impact :**
-- Nombre de workers : plus de workers = plus de parallélisme mais plus de surcharge
-- Surcharge de fork : chaque fork crée un nouveau processus (~2-5ms)
-- Communication socket : latence minime (~0.1ms par message)
-- Sérialisation : dépend de la taille des données
+| Aspect | Impact |
+|--------|--------|
+| Nombre de workers | Augmente le parallélisme mais aussi la charge |
+| Réinitialisation DB | Chaque worker purge/reconnecte |
+| Communication socket | Surcharge de sérialisation/désérialisation |
 
-**Recommandations :**
-- Worker count idéal : `cpu_cores * 1.5` à `cpu_cores * 2`
-- Éviter > 32 workers (surcharge de contexte)
-- Mode séquentiel : dégrade les performances linéairement
+### Recommandations
+
+```php
+// ✅ Nombre de workers adapté au CPU
+$workers = min(4, (int) shell_exec('nproc'));
+
+// ✅ Utiliser le mode muet en production
+$executor->execute(..., muted: true);
+
+// ✅ Limiter les tâches par worker
+$limit = new LimitVO(50); // Évite de surcharger
+```
+
+---
 
 ## Compatibilité
 
-| Version/Environnement | Support | Note |
-|-----------------------|---------|------|
-| PHP 8.1+ | ✅ | Avec extension `pcntl` |
-| PHP 8.0 | ✅ | Avec extension `pcntl` |
-| PHP 7.4 | ✅ | Avec extension `pcntl` |
-| Windows | ⚠️ | Pas de `pcntl`, mode séquentiel uniquement |
-| Linux | ✅ | Support complet |
-| macOS | ✅ | Support complet |
-| Serverless (Lambda) | ⚠️ | `pcntl_fork` souvent désactivé |
+| Version | Support |
+|---------|---------|
+| PHP 8.1+ | ✅ Complet |
+| PHP 8.2+ | ✅ Complet |
+| Linux/Unix | ✅ Complet (pcntl_fork requis) |
+| Windows | ⚠️ Fallback séquentiel |
 
-**Prérequis :**
-- Extension `pcntl` activée
-- Extension `sockets` activée
-- Environnement POSIX (Unix/Linux/macOS)
+---
 
 ## Exemple complet
 
@@ -337,102 +280,56 @@ foreach ($results as $result) {
 declare(strict_types=1);
 
 use AndyDefer\Task\Services\Watchs\ParallelExecutor;
-use AndyDefer\Directive\DirectiveKernel;
-use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\ValueObjects\LimitVO;
-use AndyDefer\Task\Records\TaskExecutionResultRecord;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 
-// 1. Initialisation du kernel et du gestionnaire de sortie
-$app = require __DIR__ . '/bootstrap/app.php';
-$kernel = DirectiveKernel::init($app);
-$output = new OutputHandler($console, $logger);
-
-// 2. Création de l'exécuteur avec 4 workers
-$executor = new ParallelExecutor(4, $kernel, $output);
-
-// 3. Configuration de l'exécution
-$limit = new LimitVO(100);
-$uniqueOnly = false;
-$recurringOnly = false;
-$verbose = true;
-$muted = false;
-
-$startTime = microtime(true);
-
-// 4. Exécution parallèle
-$results = $executor->execute(
-    $uniqueOnly,
-    $recurringOnly,
-    $limit,
-    $verbose,
-    $muted
+// 1. Création de l'exécuteur
+$executor = new ParallelExecutor(
+    maxWorkers: 4,
+    kernel: $kernel,
+    output: $outputHandler
 );
 
-$elapsed = microtime(true) - $startTime;
+// 2. Configuration des paramètres
+$fqcns = TaskFqcnVOCollection::from([
+    'App\\Tasks\\SyncUsersTask',
+    'App\\Tasks\\ImportProductsTask',
+]);
 
-// 5. Analyse des résultats
-$successCount = 0;
-$failureCount = 0;
-$skipCount = 0;
+$limit = new LimitVO(100);
+
+// 3. Exécution parallèle
+$results = $executor->execute(
+    uniqueOnly: false,
+    recurringOnly: true,
+    limit: $limit,
+    verbose: false,
+    muted: true,
+    fqcns: $fqcns
+);
+
+// 4. Agrégation des résultats
+$totalSuccess = 0;
+$totalFailed = 0;
 
 foreach ($results as $result) {
-    if ($result->success) {
-        if ($result->skipped ?? false) {
-            $skipCount++;
-        } else {
-            $successCount++;
-        }
-    } else {
-        $failureCount++;
-    }
+    $totalSuccess += $result->success->getValue();
+    $totalFailed += $result->failed->getValue();
 }
 
-// 6. Rapport final
-echo "\n📊 Rapport d'exécution :\n";
-echo "   ⏱️  Temps écoulé : " . number_format($elapsed, 2) . "s\n";
-echo "   🔢 Workers : 4\n";
-echo "   📦 Résultats collectés : " . count($results) . "\n";
-echo "   ✅ Succès : $successCount\n";
-echo "   ⏭️  Ignorés (skipped) : $skipCount\n";
-echo "   ❌ Échecs : $failureCount\n";
+echo "📊 Résultats agrégés :\n";
+echo "  ✅ Succès : " . $totalSuccess . "\n";
+echo "  ❌ Échecs : " . $totalFailed . "\n";
 
-// 7. Détail des résultats
-if ($verbose) {
-    echo "\n📋 Détail :\n";
-    foreach ($results as $i => $result) {
-        $status = $result->success ? '✅' : '❌';
-        if ($result->skipped ?? false) {
-            $status = '⏭️';
-        }
-        echo sprintf(
-            "  %s #%d: %s (%.2fms)\n",
-            $status,
-            $i + 1,
-            $result->alias->getValue(),
-            $result->execution_time_ms?->getValue() ?? 0
-        );
-        if ($result->error !== null) {
-            echo "     Erreur : " . $result->error->getValue() . "\n";
-        }
-    }
-}
-
-// 8. Mode silencieux
-echo "\n🔇 Exécution silencieuse :\n";
-$mutedResults = $executor->execute(
-    false,
-    false,
-    null,
-    false,
-    true  // ← mode muet
-);
-echo "   " . count($mutedResults) . " tâches traitées en silence\n";
+// 5. Vérification du nombre de workers
+echo "🔧 Workers exécutés : " . count($results) . "\n";
 ```
 
+---
+
 ## Voir aussi
-- `DirectiveKernel` - Noyau exécutant les directives
-- `OutputHandler` - Gestionnaire de sortie pour les logs
-- `TasksWatchDirective` - Directive utilisant cet exécuteur
+
+- `TasksProcessDirective` - Directive exécutée par les workers
+- `DirectiveKernel` - Kernel exécutant les directives
+- `OutputHandler` - Gestionnaire de sortie
 - `TaskExecutionResultRecord` - Résultat d'exécution
-- `pcntl_fork()` - Documentation PHP sur le forking
-- `socket_create_pair()` - Documentation PHP sur les sockets

@@ -25,7 +25,6 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        // ✅ Forcer l'exécution des migrations
         $this->runDatabaseMigrations();
 
         $this->testingService = new DirectiveTestingService(
@@ -57,6 +56,7 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('duration', $signature);
         $this->assertStringContainsString('limit', $signature);
         $this->assertStringContainsString('parallel', $signature);
+        $this->assertStringContainsString('fqcnNames*', $signature);
         $this->assertStringContainsString('--unique-only', $signature);
         $this->assertStringContainsString('--recurring-only', $signature);
         $this->assertStringContainsString('--verbose', $signature);
@@ -85,117 +85,217 @@ final class TasksWatchDirectiveTest extends IntegrationTestCase
 
     public function test_execute_with_interval_only(): void
     {
-        $response = $this->runDirective(['2', '4', '4']);
+        $response = $this->runDirective(['2', '3', '4']);
 
         $this->assertStringContainsString('Starting task watch', $response->output);
         $this->assertStringContainsString('Interval: 2s', $response->output);
-        $this->assertStringContainsString('Duration: 4s', $response->output);
+        $this->assertStringContainsString('Duration: 3s', $response->output);
         $this->assertStringContainsString('Press Ctrl+C to stop', $response->output);
     }
 
-    public function test_execute_with_duration(): void
+    /**
+     * Combine duration and limit tests
+     */
+    public function test_execute_with_duration_and_limit(): void
     {
-        $response = $this->runDirective(['2', '6']);
+        $response = $this->runDirective(['2', '3', '10']);
 
         $this->assertStringContainsString('Interval: 2s', $response->output);
-        $this->assertStringContainsString('Duration: 6s', $response->output);
-        $this->assertStringContainsString('Final Status', $response->output);
-    }
-
-    public function test_execute_with_limit(): void
-    {
-        $response = $this->runDirective(['2', '4', '10']);
-
+        $this->assertStringContainsString('Duration: 3s', $response->output);
         $this->assertStringContainsString('Limit: 10', $response->output);
         $this->assertStringContainsString('Final Status', $response->output);
     }
 
-    public function test_execute_with_parallel_workers(): void
+    /**
+     * Combine parallel workers and unique/recurring flags
+     */
+    public function test_execute_with_parallel_and_flags(): void
     {
-        $response = $this->runDirective(['2', '4', '10', '2']);
+        // Test avec parallel + unique-only
+        $response = $this->runDirective(['2', '3', '10', '2', '--unique-only']);
 
         $this->assertStringContainsString('Workers: 2', $response->output);
         $this->assertStringContainsString('Starting 2 parallel workers', $response->output);
+        $this->assertStringContainsString('Options: --unique-only', $response->output);
         $this->assertStringContainsString('Final Status', $response->output);
+
+        // Test avec parallel + recurring-only
+        $response2 = $this->runDirective(['2', '3', '10', '2', '--recurring-only']);
+
+        $this->assertStringContainsString('Workers: 2', $response2->output);
+        $this->assertStringContainsString('Options: --recurring-only', $response2->output);
+        $this->assertStringContainsString('Final Status', $response2->output);
+
+        // Test avec parallel + verbose
+        $response3 = $this->runDirective(['2', '3', '10', '2', '--verbose']);
+
+        $this->assertStringContainsString('Workers: 2', $response3->output);
+        $this->assertStringContainsString('Options: --verbose', $response3->output);
+        $this->assertStringContainsString('Final Status', $response3->output);
     }
 
-    public function test_execute_with_unique_only(): void
+    /**
+     * Combine all mute tests into one data provider
+     */
+    public function test_execute_with_mute_combinations(): void
     {
-        $response = $this->runDirective(['2', '4', '10', '1', '--unique-only']);
+        // Mute seul
+        $response = $this->runDirective(['2', '3', '10', '1', '--mute']);
+        $this->assertEmpty($response->output);
+        $this->assertSame(0, $response->exit_code->value);
+
+        // Mute + parallel
+        $response = $this->runDirective(['2', '3', '10', '3', '--mute']);
+        $this->assertEmpty($response->output);
+
+        // Mute + verbose
+        $response = $this->runDirective(['2', '3', '10', '1', '--verbose', '--mute']);
+        $this->assertEmpty($response->output);
+
+        // Mute + duration
+        $response = $this->runDirective(['2', '3', '--mute']);
+        $this->assertEmpty($response->output);
+
+        // Mute + all options
+        $response = $this->runDirective(['2', '3', '20', '4', '--unique-only', '--mute']);
+        $this->assertEmpty($response->output);
+
+        // Mute over multiple cycles
+        $response = $this->runDirective(['1', '3', '20', '2', '--mute']);
+        $this->assertEmpty($response->output);
+    }
+
+    // ==================== TESTS FQCN FILTER ====================
+
+    /**
+     * Combine FQCN filter tests using different notations and options
+     */
+    public function test_execute_with_fqcn_filter_combinations(): void
+    {
+        // Test avec dot notation
+        $response = $this->runDirective([
+            '2', '3', '10', '1',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]',
+        ]);
+
+        $this->assertStringContainsString('Starting task watch', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
+
+        // Test avec backslash notation
+        $response = $this->runDirective([
+            '2', '3', '10', '1',
+            '[AndyDefer\\Task\\Tests\\Fixtures\\Tasks\\TestUniqueTask]',
+        ]);
+
+        $this->assertStringContainsString('Starting task watch', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
+
+        // Test avec FQCN vide
+        $response = $this->runDirective([
+            '2', '3', '10', '1',
+            '[]',
+        ]);
+
+        $this->assertStringContainsString('Starting task watch', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
+
+        // Test avec FQCN invalide
+        $response = $this->runDirective([
+            '2', '3', '10', '1',
+            '[Invalid.Task.Class]',
+        ]);
+
+        $this->assertStringContainsString('Error', $response->output);
+        $this->assertSame(5, $response->exit_code->value);
+    }
+
+    public function test_execute_with_fqcn_filter_and_flags(): void
+    {
+        // Test avec FQCN + unique-only
+        $response = $this->runDirective([
+            '2', '3', '10', '1',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]',
+            '--unique-only',
+        ]);
 
         $this->assertStringContainsString('Options: --unique-only', $response->output);
         $this->assertStringContainsString('Final Status', $response->output);
-    }
 
-    public function test_execute_with_recurring_only(): void
-    {
-        $response = $this->runDirective(['2', '4', '10', '1', '--recurring-only']);
+        // Test avec FQCN + recurring-only
+        $response = $this->runDirective([
+            '2', '3', '10', '1',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestRecurringTask]',
+            '--recurring-only',
+        ]);
 
         $this->assertStringContainsString('Options: --recurring-only', $response->output);
         $this->assertStringContainsString('Final Status', $response->output);
-    }
 
-    public function test_execute_with_verbose_mode(): void
-    {
-        $response = $this->runDirective(['2', '4', '10', '1', '--verbose']);
+        // Test avec FQCN + verbose
+        $response = $this->runDirective([
+            '2', '3', '10', '1',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]',
+            '--verbose',
+        ]);
 
         $this->assertStringContainsString('Options: --verbose', $response->output);
         $this->assertStringContainsString('Final Status', $response->output);
-    }
 
-    public function test_execute_with_mute_option_should_not_output_anything(): void
-    {
-        $response = $this->runDirective(['2', '4', '10', '1', '--mute']);
-
-        $this->assertEmpty($response->output);
-    }
-
-    public function test_execute_with_mute_and_parallel_should_not_output_anything(): void
-    {
-        $response = $this->runDirective(['2', '4', '10', '3', '--mute']);
+        // Test avec FQCN + mute
+        $response = $this->runDirective([
+            '2', '3', '10', '1',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]',
+            '--mute',
+        ]);
 
         $this->assertEmpty($response->output);
     }
 
-    public function test_execute_with_mute_and_verbose_should_not_output_anything(): void
+    public function test_execute_with_fqcn_filter_parallel_and_options(): void
     {
-        $response = $this->runDirective(['2', '4', '10', '1', '--verbose', '--mute']);
+        // Test avec FQCN + parallel + verbose
+        $response = $this->runDirective([
+            '2', '3', '10', '3',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]',
+            '--verbose',
+        ]);
+
+        $this->assertStringContainsString('Workers: 3', $response->output);
+        $this->assertStringContainsString('Options: --verbose', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
+
+        // Test avec FQCN + parallel + mute
+        $response = $this->runDirective([
+            '2', '3', '10', '4',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]',
+            '--mute',
+        ]);
 
         $this->assertEmpty($response->output);
+
+        // Test avec FQCN + limit + parallel
+        $response = $this->runDirective([
+            '2', '3', '20', '4',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]',
+        ]);
+
+        $this->assertStringContainsString('Limit: 20', $response->output);
+        $this->assertStringContainsString('Workers: 4', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
     }
 
-    public function test_execute_with_mute_and_duration_should_not_output_anything(): void
+    public function test_execute_with_multiple_fqcn_filters_and_all_options(): void
     {
-        $response = $this->runDirective(['2', '8', '--mute']);
+        $response = $this->runDirective([
+            '2', '3', '30', '3',
+            '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask, AndyDefer.Task.Tests.Fixtures.Tasks.HelloUniqueTask]',
+            '--unique-only',
+            '--verbose',
+        ]);
 
-        $this->assertEmpty($response->output);
-    }
-
-    public function test_execute_with_mute_and_all_options_should_not_output_anything(): void
-    {
-        $response = $this->runDirective(['2', '6', '20', '4', '--unique-only', '--mute']);
-
-        $this->assertEmpty($response->output);
-    }
-
-    public function test_mute_compared_to_normal_execution(): void
-    {
-        $responseWithMute = $this->runDirective(['2', '4', '10', '1', '--mute']);
-
-        $this->assertEmpty($responseWithMute->output);
-    }
-
-    public function test_execute_with_mute_over_multiple_cycles_should_not_output_anything(): void
-    {
-        $response = $this->runDirective(['1', '5', '20', '2', '--mute']);
-
-        $this->assertEmpty($response->output);
-    }
-
-    public function test_execute_with_mute_returns_correct_exit_code(): void
-    {
-        $response = $this->runDirective(['2', '4', '10', '1', '--mute']);
-
-        $this->assertSame(0, $response->exit_code->value);
+        $this->assertStringContainsString('Limit: 30', $response->output);
+        $this->assertStringContainsString('Workers: 3', $response->output);
+        $this->assertStringContainsString('Options: --unique-only --verbose', $response->output);
+        $this->assertStringContainsString('Final Status', $response->output);
     }
 }

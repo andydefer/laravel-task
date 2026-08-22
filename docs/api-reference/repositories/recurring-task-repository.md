@@ -2,81 +2,43 @@
 
 ## Description
 
-Le `RecurringTaskRepository` gère le cycle de vie complet des tâches récurrentes, de leur création à leur terminaison, en passant par les transitions d'état automatiques basées sur le temps et le nombre d'échecs.
+Repository pour la gestion des tâches récurrentes. Fournit les opérations de persistance, de recherche par statut, de transitions d'état et de gestion des cycles d'exécution pour les tâches qui s'exécutent à intervalles réguliers.
 
-## Hiérarchie / Implémentations
+## Hiérarchie
 
 ```
 AbstractRepository<RecurringTask, RecurringTaskRecord>
     └── RecurringTaskRepository
-            └── RecurringTaskRepositoryInterface
+        └── RecurringTaskRepositoryInterface
 ```
-
-**Interfaces implémentées :**
-- `RecurringTaskRepositoryInterface` - Contrat principal du dépôt
-- Hérite des méthodes de `AbstractRepository`
 
 ## Rôle principal
 
-Ce dépôt agit comme l'interface unique entre la couche métier et la base de données pour toutes les opérations sur les tâches récurrentes. Il assure :
-
-1. **Transitions d'état automatiques** (WAITING → PLAYING → FINISHED/CANCELED)
-2. **Verrouillage des tâches** pour éviter les exécutions concurrentes
-3. **Gestion du taux d'échec** et annulation automatique
-4. **Journalisation des exécutions** via le `TaskExecutionDebugRepository`
-
-## API / Méthodes publiques
-
-### `findReadyToRun(?Iso8601DateTimeVO $now = null, ?LimitVO $limit = null): RecurringTaskReadyToRunResultRecord`
-
-| Paramètre | Type | Description |
-|-----------|------|-------------|
-| `$now` | `Iso8601DateTimeVO|null` | Instant de référence (utilise `now()` si null) |
-| `$limit` | `LimitVO|null` | Nombre maximum de tâches à retourner |
-
-**Retourne :** `RecurringTaskReadyToRunResultRecord` - Contient les tâches prêtes et le résultat des transitions d'état
-
-**Exceptions :** Aucune exception propagée (les erreurs sont journalisées et un résultat vide est retourné)
-
-**Comportement :**
-1. Applique les transitions d'état via `freshState()`
-2. Sélectionne les tâches en statut `PLAYING`
-3. Filtre les tâches dont `last_run_at` est null ou dont l'intervalle est écoulé
-4. Verrouille les lignes sélectionnées avec `lockForUpdate()` dans une transaction
-
-**Exemple :**
-```php
-<?php
-
-declare(strict_types=1);
-
-use AndyDefer\Task\Repositories\RecurringTaskRepository;
-use AndyDefer\Task\ValueObjects\LimitVO;
-
-$repository = app(RecurringTaskRepository::class);
-$result = $repository->findReadyToRun(null, new LimitVO(5));
-
-foreach ($result->tasks as $task) {
-    // Exécuter la tâche récurrente
-    echo $task->alias->getValue() . "\n";
-}
-
-echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing->getValue()}\n";
-```
+Gère le cycle de vie des tâches récurrentes : enregistrement, transitions d'état (WAITING → PLAYING → FINISHED/CANCELED), calcul des prochaines exécutions basé sur l'intervalle, et gestion des échecs avec tentatives.
 
 ---
+
+## États possibles
+
+| État | Description |
+|------|-------------|
+| `WAITING` | En attente de démarrage (`start_at` dans le futur) |
+| `PLAYING` | Active, prête à être exécutée à intervalles réguliers |
+| `PAUSED` | Suspendue temporairement (peut être reprise) |
+| `FINISHED` | Terminée (fin de la période `end_at` atteinte) |
+| `CANCELED` | Annulée définitivement |
+
+---
+
+## API / Méthodes publiques
 
 ### `findWaiting(LimitVO $limit = new LimitVO): Collection`
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$limit` | `LimitVO` | Nombre maximum de tâches à retourner (défaut: infini) |
+| `$limit` | `LimitVO` | Nombre maximum de résultats |
 
-**Retourne :** `Collection<int, RecurringTask>` - Collection de modèles Eloquent
-
-**Comportement :**
-1. Applique `freshState()` pour mettre à jour les états
-2. Filtre les tâches avec le statut `WAITING`
+**Retourne :** `Collection<int, RecurringTask>` - Collection des tâches en attente
 
 ---
 
@@ -84,9 +46,9 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$limit` | `LimitVO` | Nombre maximum de tâches à retourner |
+| `$limit` | `LimitVO` | Nombre maximum de résultats |
 
-**Retourne :** `Collection<int, RecurringTask>` - Tâches actuellement en cours d'exécution
+**Retourne :** `Collection<int, RecurringTask>` - Collection des tâches actives
 
 ---
 
@@ -94,9 +56,9 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$limit` | `LimitVO` | Nombre maximum de tâches à retourner |
+| `$limit` | `LimitVO` | Nombre maximum de résultats |
 
-**Retourne :** `Collection<int, RecurringTask>` - Tâches mises en pause
+**Retourne :** `Collection<int, RecurringTask>` - Collection des tâches en pause
 
 ---
 
@@ -104,9 +66,9 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$limit` | `LimitVO` | Nombre maximum de tâches à retourner |
+| `$limit` | `LimitVO` | Nombre maximum de résultats |
 
-**Retourne :** `Collection<int, RecurringTask>` - Tâches terminées (fin naturelle)
+**Retourne :** `Collection<int, RecurringTask>` - Collection des tâches terminées
 
 ---
 
@@ -114,9 +76,39 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$limit` | `LimitVO` | Nombre maximum de tâches à retourner |
+| `$limit` | `LimitVO` | Nombre maximum de résultats |
 
-**Retourne :** `Collection<int, RecurringTask>` - Tâches annulées (trop d'échecs)
+**Retourne :** `Collection<int, RecurringTask>` - Collection des tâches annulées
+
+---
+
+### `findReadyToRun(?Iso8601DateTimeVO $now = null, ?LimitVO $limit = null, ?TaskFqcnVOCollection $fqcns = null): RecurringTaskReadyToRunResultRecord`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$now` | `Iso8601DateTimeVO|null` | Date/heure de référence (défaut: maintenant) |
+| `$limit` | `LimitVO|null` | Nombre maximum de résultats |
+| `$fqcns` | `TaskFqcnVOCollection|null` | Filtre optionnel par FQCN |
+
+**Retourne :** `RecurringTaskReadyToRunResultRecord` - Résultat contenant les tâches prêtes et l'état frais
+
+**Comportement :**
+1. Met à jour l'état des tâches (`freshState()`)
+2. Sélectionne les tâches en statut `PLAYING`
+3. Filtre par FQCN si fourni
+4. Filtre les tâches dont `last_run_at + interval_seconds <= now`
+5. Applique la limite si fournie
+
+**Exemple :**
+```php
+$now = new Iso8601DateTimeVO;
+$result = $repository->findReadyToRun($now, new LimitVO(10));
+
+$tasks = $result->tasks;
+$freshState = $result->fresh_state;
+
+echo "WAITING → PLAYING: " . $freshState->waiting_to_playing->getValue() . "\n";
+```
 
 ---
 
@@ -124,11 +116,9 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$alias` | `TaskAliasVO` | Alias unique de la tâche |
+| `$alias` | `TaskAliasVO` | Alias de la tâche (format `recurring@{uuid}`) |
 
-**Retourne :** `RecurringTask|null` - Le modèle ou null si non trouvé
-
-**Comportement :** Applique `freshState()` avant la recherche
+**Retourne :** `RecurringTask|null` - La tâche trouvée ou `null`
 
 ---
 
@@ -136,11 +126,11 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `RecurringTaskRecord` | Enregistrement contenant les données à mettre à jour |
+| `$task` | `RecurringTaskRecord` | Record de la tâche |
 
-**Retourne :** `bool` - `true` si la mise à jour a réussi
+**Retourne :** `bool` - `true` si le changement d'état a réussi
 
-**Transitions :** `WAITING` → `PLAYING`
+**Effet :** Statut → `PLAYING`
 
 ---
 
@@ -148,11 +138,11 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `RecurringTaskRecord` | Enregistrement contenant les données à mettre à jour |
+| `$task` | `RecurringTaskRecord` | Record de la tâche |
 
-**Retourne :** `bool` - `true` si la mise à jour a réussi
+**Retourne :** `bool` - `true` si le changement d'état a réussi
 
-**Transitions :** `PLAYING` → `PAUSED`
+**Effet :** Statut → `PAUSED`
 
 ---
 
@@ -160,11 +150,11 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `RecurringTaskRecord` | Enregistrement contenant les données à mettre à jour |
+| `$task` | `RecurringTaskRecord` | Record de la tâche |
 
-**Retourne :** `bool` - `true` si la mise à jour a réussi
+**Retourne :** `bool` - `true` si le changement d'état a réussi
 
-**Transitions :** Retour à `WAITING` (ex: reprise après pause)
+**Effet :** Statut → `WAITING`
 
 ---
 
@@ -172,13 +162,11 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `RecurringTaskRecord` | Enregistrement contenant les données à mettre à jour |
+| `$task` | `RecurringTaskRecord` | Record de la tâche |
 
-**Retourne :** `bool` - `true` si la mise à jour a réussi
+**Retourne :** `bool` - `true` si le changement d'état a réussi
 
-**Transitions :** `PLAYING` → `FINISHED`
-
-**Détails :** Définit automatiquement `finished_at` à `now()`
+**Effet :** Statut → `FINISHED`, `finished_at` = maintenant
 
 ---
 
@@ -186,13 +174,11 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `RecurringTaskRecord` | Enregistrement contenant les données à mettre à jour |
+| `$task` | `RecurringTaskRecord` | Record de la tâche |
 
-**Retourne :** `bool` - `true` si la mise à jour a réussi
+**Retourne :** `bool` - `true` si le changement d'état a réussi
 
-**Transitions :** `PLAYING` → `CANCELED`
-
-**Détails :** Définit `cancelled_at` et `finished_at` à `now()`
+**Effet :** Statut → `CANCELED`, `finished_at` = maintenant, `cancelled_at` = maintenant
 
 ---
 
@@ -200,214 +186,345 @@ echo "Transitions: WAITING→PLAYING: {$result->fresh_state->waiting_to_playing-
 
 | Paramètre | Type | Description |
 |-----------|------|-------------|
-| `$task` | `RecurringTaskRecord` | Enregistrement contenant les données à mettre à jour |
-| `$success` | `bool` | Indique si l'exécution a réussi |
-| `$error` | `DescriptionVO|null` | Message d'erreur en cas d'échec |
+| `$task` | `RecurringTaskRecord` | Record de la tâche |
+| `$success` | `bool` | Succès de l'exécution |
+| `$error` | `DescriptionVO|null` | Message d'erreur si échec |
 
 **Retourne :** `bool` - `true` si la mise à jour a réussi
 
 **Comportement :**
-1. Met à jour `last_run_at` à `now()`
-2. Réinitialise `failed_attempts` à 0 si succès
-3. Incrémente `failed_attempts` si échec
-4. Enregistre un debug via `TaskExecutionDebugRepository`
+- Met à jour `last_run_at` = maintenant
+- Si succès : réinitialise `failed_attempts` à 0
+- Si échec : incrémente `failed_attempts` de 1
+- Ajoute des informations de débogage
 
 ---
 
-### `countWaiting(): CounterVO`
-### `countPlaying(): CounterVO`
-### `countPaused(): CounterVO`
-### `countFinished(): CounterVO`
-### `countCanceled(): CounterVO`
+### Méthodes de comptage
 
-| Retourne | Description |
-|----------|-------------|
-| `CounterVO` | Nombre de tâches dans le statut correspondant |
+Chaque méthode de comptage accepte un filtre FQCN optionnel :
 
-**Comportement :** Applique `freshState()` avant de compter pour garantir des données à jour
+```php
+public function countWaiting(?TaskFqcnVOCollection $fqcns = null): CounterVO
+public function countPlaying(?TaskFqcnVOCollection $fqcns = null): CounterVO
+public function countPaused(?TaskFqcnVOCollection $fqcns = null): CounterVO
+public function countFinished(?TaskFqcnVOCollection $fqcns = null): CounterVO
+public function countCanceled(?TaskFqcnVOCollection $fqcns = null): CounterVO
+```
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$fqcns` | `TaskFqcnVOCollection|null` | Filtre optionnel par FQCN |
+
+**Retourne :** `CounterVO` - Le nombre de tâches
+
+**Exemple :**
+```php
+$fqcns = TaskFqcnVOCollection::from([TestRecurringTask::class]);
+$count = $repository->countPlaying($fqcns);
+echo "Tâches actives: " . $count->getValue();
+```
+
+---
+
+### `applyFilters(Builder $query, AbstractRecord $filters): void`
+
+| Paramètre | Type | Description |
+|-----------|------|-------------|
+| `$query` | `Builder` | La requête Eloquent |
+| `$filters` | `AbstractRecord` | Les filtres à appliquer |
+
+**Retourne :** `void`
+
+**Filtres supportés :**
+- `alias` : Filtre par alias exact
+- `fqcn` : Filtre par classe complète
+- `status` : Filtre par statut
+- `start_at_from` / `start_at_to` : Plage de début
+- `end_at_from` / `end_at_to` : Plage de fin
+- `last_run_at_from` / `last_run_at_to` : Plage de dernière exécution
+- `cancelled_at_from` / `cancelled_at_to` : Plage d'annulation
+- `failed_attempts` : Nombre exact d'échecs
+- `max_failed_attempts` : Nombre maximal d'échecs
+
+---
+
+## Méthodes privées
+
+### `freshState(?Iso8601DateTimeVO $now = null): FreshStateResultRecord`
+
+**Rôle :** Met à jour les états des tâches en fonction du temps actuel.
+
+**Transitions effectuées :**
+1. `WAITING` avec `start_at <= now` → `PLAYING`
+2. `PLAYING` avec `end_at <= now` → `FINISHED`
+3. `PLAYING` avec `failed_attempts >= max_failed_attempts` → `CANCELED`
+
+**Retourne :** `FreshStateResultRecord` - Compteurs des transitions effectuées
+
+**Exemple :**
+```php
+$now = new Iso8601DateTimeVO;
+$result = $repository->freshState($now);
+// $result->waiting_to_playing : nombre de tâches WAITING devenues PLAYING
+// $result->playing_to_finished : nombre de tâches PLAYING devenues FINISHED
+// $result->playing_to_canceled : nombre de tâches PLAYING devenues CANCELED
+```
 
 ---
 
 ## Cas d'utilisation
 
-### Cas 1 : Exécution d'un lot de tâches récurrentes avec verrouillage
+### Cas 1 : Récupération des tâches prêtes avec filtrage FQCN
 
 ```php
-<?php
+$now = new Iso8601DateTimeVO;
+$limit = new LimitVO(50);
+$fqcns = TaskFqcnVOCollection::from([TestRecurringTask::class]);
 
-declare(strict_types=1);
+$result = $repository->findReadyToRun($now, $limit, $fqcns);
 
-use AndyDefer\Task\Repositories\RecurringTaskRepository;
-use AndyDefer\Task\ValueObjects\LimitVO;
+foreach ($result->tasks as $task) {
+    // Traiter la tâche...
+    $this->processTask($task);
+}
+```
 
-$repository = app(RecurringTaskRepository::class);
+### Cas 2 : Cycle de vie d'une tâche récurrente
 
-// Récupère jusqu'à 10 tâches prêtes à être exécutées
-$result = $repository->findReadyToRun(null, new LimitVO(10));
+```php
+// 1. Enregistrer une tâche
+$config = RecurringTaskConfigRecord::from([
+    'type' => TaskType::RECURRING->value,
+    'description' => 'Sync users',
+    'interval_seconds' => 3600,
+    'start_at' => Carbon::now()->addHours(2),
+    'end_at' => Carbon::now()->addDays(7),
+    'max_attempts' => 3,
+]);
 
-// Les tâches sont automatiquement verrouillées (lockForUpdate)
-// Aucun autre processus ne peut les récupérer simultanément
+$alias = $service->register($fqcn, $payload, $config);
+$task = $repository->findByAlias($alias);
 
-foreach ($result->tasks as $taskRecord) {
-    try {
-        // Exécuter la logique métier
-        $success = executeTask($taskRecord);
-        
-        // Mettre à jour après exécution
-        $repository->updateAfterRun($taskRecord, $success);
-    } catch (Throwable $e) {
-        $repository->updateAfterRun(
-            $taskRecord, 
-            false, 
-            new DescriptionVO($e->getMessage())
-        );
+// 2. Exécuter la tâche
+$record = $this->modelToRecord($task);
+$result = $repository->updateAfterRun($record, true);
+
+// 3. Terminer prématurément
+$repository->moveToFinished($record);
+```
+
+### Cas 3 : Gestion des échecs
+
+```php
+// Exécuter une tâche qui peut échouer
+$record = $this->modelToRecord($task);
+
+try {
+    $this->executeTask($task);
+    $repository->updateAfterRun($record, true);
+} catch (Throwable $e) {
+    $repository->updateAfterRun($record, false, new DescriptionVO($e->getMessage()));
+    
+    // Vérifier si la tâche a été annulée
+    $updatedTask = $repository->findByAlias($record->alias);
+    if ($updatedTask->getStatus() === RecurringTaskStatus::CANCELED) {
+        echo "Tâche annulée après trop d'échecs\n";
     }
 }
 ```
 
-### Cas 2 : Surveillance des transitions d'état
+### Cas 4 : Mise à jour de l'intervalle
 
 ```php
-<?php
+$record = $this->modelToRecord($task);
+$existingTask = $repository->findByAlias($record->alias);
 
-declare(strict_types=1);
-
-use AndyDefer\Task\Repositories\RecurringTaskRepository;
-
-$repository = app(RecurringTaskRepository::class);
-
-// Le freshState est appelé automatiquement par les finders
-$playingTasks = $repository->findPlaying(new LimitVO(100));
-
-// Les transitions suivantes ont été appliquées automatiquement :
-// - WAITING → PLAYING (start_at <= now)
-// - PLAYING → FINISHED (end_at <= now)
-// - PLAYING → CANCELED (failed_attempts >= max_failed_attempts)
-
-foreach ($playingTasks as $task) {
-    echo "Tâche en cours : {$task->getAlias()->getValue()}\n";
-}
-
-// Compter les tâches dans chaque état
-echo "En attente : " . $repository->countWaiting()->getValue() . "\n";
-echo "En cours : " . $repository->countPlaying()->getValue() . "\n";
-echo "Terminées : " . $repository->countFinished()->getValue() . "\n";
-echo "Annulées : " . $repository->countCanceled()->getValue() . "\n";
+$repository->update(
+    $existingTask->getId()->getValue(),
+    RecurringTaskRecord::from([
+        'alias' => $record->alias,
+        'fqcn' => $record->fqcn,
+        'payload' => $record->payload,
+        'interval_seconds' => 7200, // Nouvel intervalle
+        'start_at' => $record->start_at,
+        'end_at' => $record->end_at,
+        'status' => $record->status,
+        'last_run_at' => $record->last_run_at,
+        'failed_attempts' => $record->failed_attempts,
+        'max_failed_attempts' => $record->max_failed_attempts,
+    ])
+);
 ```
 
-### Cas 3 : Gestion d'une tâche unique par alias
+### Cas 5 : Filtrage avancé avec `applyFilters`
 
 ```php
-<?php
+$filters = RecurringTaskFiltersRecord::from([
+    'status' => RecurringTaskStatus::PLAYING,
+    'failed_attempts' => new CounterVO(2),
+    'start_at_from' => new Iso8601DateTimeVO('2026-01-01T00:00:00+00:00'),
+]);
 
-declare(strict_types=1);
-
-use AndyDefer\Task\Repositories\RecurringTaskRepository;
-use AndyDefer\Task\ValueObjects\TaskAliasVO;
-
-$repository = app(RecurringTaskRepository::class);
-
-$alias = new TaskAliasVO('monitoring-task');
-
-// Récupérer une tâche spécifique
-$task = $repository->findByAlias($alias);
-
-if ($task === null) {
-    echo "Tâche non trouvée\n";
-    return;
-}
-
-// Vérifier le statut actuel
-echo "Statut : " . $task->getStatus()->value . "\n";
-echo "Tentatives échouées : " . $task->getFailedAttempts()->getValue() . "\n";
-
-// Si la tâche est en erreur, la repasser en attente
-if ($task->getStatus() === RecurringTaskStatus::CANCELED) {
-    $record = $task->toRecord();
-    $repository->moveToWaiting($record);
-    echo "Tâche remise en attente\n";
-}
+$results = $repository->findBy(
+    FindByRecord::from(['filters' => $filters])
+);
 ```
+
+---
+
+## Flux d'exécution
+
+### Diagramme des transitions d'état
+
+```
+┌─────────┐
+│ WAITING │
+└────┬────┘
+     │ start_at <= now
+     ▼
+┌─────────┐      ┌───────────┐
+│ PLAYING │──────│ FINISHED  │ (end_at <= now)
+└────┬────┘      └───────────┘
+     │
+     │ failed_attempts >= max_failed_attempts
+     ▼
+┌───────────┐
+│ CANCELED  │
+└───────────┘
+
+┌─────────┐      ┌─────────┐
+│ PLAYING │──────│ PAUSED  │ (pause manuelle)
+└─────────┘      └─────────┘
+     │
+     │ resume
+     ▼
+┌─────────┐
+│ PLAYING │
+└─────────┘
+```
+
+### Détermination des tâches prêtes
+
+```
+1. freshState() est appelée
+   ↓
+2. Mise à jour des états selon le temps
+   ↓
+3. Sélection des tâches PLAYING
+   ↓
+4. Filtrage FQCN si fourni
+   ↓
+5. Pour chaque tâche PLAYING :
+   ↓
+   last_run_at = null ?
+   │   ├── Oui → Éligible (première exécution)
+   │   └── Non → last_run_at + interval_seconds <= now ?
+   │       ├── Oui → Éligible
+   │       └── Non → Ignorée
+   ↓
+6. Retour des tâches éligibles
+```
+
+---
 
 ## Gestion des erreurs
 
-| Situation | Exception interne | Message journalisé |
-|-----------|-------------------|-------------------|
-| Échec de `freshState()` | `Throwable` | `recurring_task_fresh_state_error` |
-| Échec de `findWaiting()` | `Throwable` | `recurring_task_find_waiting_error` |
-| Échec de `findPlaying()` | `Throwable` | `recurring_task_find_playing_error` |
-| Échec de `findPaused()` | `Throwable` | `recurring_task_find_paused_error` |
-| Échec de `findFinished()` | `Throwable` | `recurring_task_find_finished_error` |
-| Échec de `findCanceled()` | `Throwable` | `recurring_task_find_canceled_error` |
-| Échec de `findReadyToRun()` | `Throwable` | `recurring_task_find_ready_to_run_error` |
-| Échec de `findByAlias()` | `Throwable` | `recurring_task_find_by_alias_error` |
-| Échec de `moveToPlaying()` | `Throwable` | `recurring_task_move_to_playing_error` |
-| Échec de `moveToPaused()` | `Throwable` | `recurring_task_move_to_paused_error` |
-| Échec de `moveToWaiting()` | `Throwable` | `recurring_task_move_to_waiting_error` |
-| Échec de `moveToFinished()` | `Throwable` | `recurring_task_move_to_finished_error` |
-| Échec de `moveToCanceled()` | `Throwable` | `recurring_task_move_to_canceled_error` |
-| Échec de `updateAfterRun()` | `Throwable` | `recurring_task_update_after_run_error` |
-| Échec de `countWaiting()` | `Throwable` | `recurring_task_count_waiting_error` |
-| Échec de `countPlaying()` | `Throwable` | `recurring_task_count_playing_error` |
+| Situation | Log | Message |
+|-----------|-----|---------|
+| `freshState` exception | `error` | `recurring_task_fresh_state_error` |
+| `findWaiting` exception | `error` | `recurring_task_find_waiting_error` |
+| `findPlaying` exception | `error` | `recurring_task_find_playing_error` |
+| `findPaused` exception | `error` | `recurring_task_find_paused_error` |
+| `findFinished` exception | `error` | `recurring_task_find_finished_error` |
+| `findCanceled` exception | `error` | `recurring_task_find_canceled_error` |
+| `findReadyToRun` exception | `error` | `recurring_task_find_ready_to_run_error` |
+| `moveToPlaying` exception | `error` | `recurring_task_move_to_playing_error` |
+| `moveToPaused` exception | `error` | `recurring_task_move_to_paused_error` |
+| `moveToWaiting` exception | `error` | `recurring_task_move_to_waiting_error` |
+| `moveToFinished` exception | `error` | `recurring_task_move_to_finished_error` |
+| `moveToCanceled` exception | `error` | `recurring_task_move_to_canceled_error` |
+| `updateAfterRun` exception | `error` | `recurring_task_update_after_run_error` |
 
-**Note :** Aucune exception n'est propagée à l'appelant. Toutes les erreurs sont :
-1. Journalisées via le logger avec le type d'erreur
-2. Traitées avec une valeur de retour par défaut (Collection vide, false, CounterVO(0))
+---
 
 ## Intégration
 
-```
-┌─────────────────────────────┐
-│   RecurringTaskService      │
-│   (Service métier)          │
-└────────────┬────────────────┘
-             │ utilise
-             ▼
-┌─────────────────────────────┐
-│   RecurringTaskRepository   │ ← implémente → RecurringTaskRepositoryInterface
-│   (Dépôt courant)           │
-└────────────┬────────────────┘
-             │ utilise
-             ▼
-┌─────────────────────────────┐
-│   TaskExecutionDebugRepo    │
-│   (Journal des exécutions)  │
-└─────────────────────────────┘
-```
+### Avec `RecurringTaskService`
 
-**Dépendances injectées :**
-- `TaskExecutionDebugRepositoryInterface` - Pour la journalisation des exécutions
-- `LoggerInterface` - Pour la journalisation des erreurs
+Le repository est utilisé par `RecurringTaskService` pour :
 
-**Classes parentes utilisées :**
-- `AbstractRepository` - Gère les opérations CRUD de base
+1. **Enregistrement** : `create()` pour persister une nouvelle tâche récurrente
+2. **Exécution** : `findReadyToRun()` pour récupérer les tâches à exécuter
+3. **Mise à jour** : `updateAfterRun()` après chaque exécution
+4. **Transitions** : `moveToPlaying()`, `moveToPaused()`, `moveToFinished()`, `moveToCanceled()`
+5. **Comptage** : `countWaiting()`, `countPlaying()`, etc.
+
+### Avec `TaskExecutionDebugRepository`
+
+Le repository délègue l'ajout des informations de débogage au `TaskExecutionDebugRepository`.
+
+---
 
 ## Performance
 
-| Opération | Complexité | Cache | Verrou |
-|-----------|-----------|-------|--------|
-| `findReadyToRun()` | O(n) avec n = limit | ❌ | `lockForUpdate()` |
-| `findBy*()` | O(n) avec n = limit | ❌ | ❌ |
-| `count*()` | O(1) (COUNT query) | ❌ | ❌ |
-| `moveTo*()` | O(1) (UPDATE by ID) | ❌ | ❌ |
-| `updateAfterRun()` | O(1) + O(1) debug | ❌ | ❌ |
+### Points d'attention
 
-**Recommandations :**
-- Utiliser un `limit` approprié pour `findReadyToRun()` pour éviter les surcharges
-- Les transactions sont limitées à `findReadyToRun()` pour minimiser la durée des verrous
-- Les count() effectuent un `freshState()` complet avant de compter, ce qui peut être coûteux sur de grands volumes
+| Opération | Complexité | Risque |
+|-----------|------------|--------|
+| `freshState` | O(n) | ⚠️ Itère sur toutes les tâches |
+| `findReadyToRun` | O(n) | ⚠️ Filtrage en mémoire |
+| `countPlaying` | O(1) avec index | ✅ Indexé sur `status` |
+
+### Optimisations
+
+- Les requêtes de comptage utilisent les index sur `status`
+- Le filtrage FQCN utilise `whereIn` (indexé sur `fqcn`)
+- `freshState` utilise `update()` en lot pour `playing_to_canceled`
+
+### Recommandations
+
+```php
+// ✅ Utiliser un limit pour réduire le nombre de tâches traitées
+$result = $repository->findReadyToRun($now, new LimitVO(50));
+
+// ✅ Utiliser l'option FQCN pour réduire le jeu de résultats
+$fqcns = TaskFqcnVOCollection::from([$specificTaskClass]);
+$result = $repository->findReadyToRun($now, $limit, $fqcns);
+```
+
+### Index recommandés
+
+```sql
+-- Pour findReadyToRun
+CREATE INDEX idx_recurring_tasks_ready ON recurring_tasks (status, interval_seconds);
+
+-- Pour countPlaying
+CREATE INDEX idx_recurring_tasks_status ON recurring_tasks (status);
+
+-- Pour le filtrage FQCN
+CREATE INDEX idx_recurring_tasks_fqcn ON recurring_tasks (fqcn);
+
+-- Pour freshState
+CREATE INDEX idx_recurring_tasks_start_at ON recurring_tasks (status, start_at);
+CREATE INDEX idx_recurring_tasks_end_at ON recurring_tasks (status, end_at);
+```
+
+---
 
 ## Compatibilité
 
 | Version | Support |
 |---------|---------|
-| PHP 8.1+ | ✅ Complet (types union, mixed) |
-| PHP 8.0 | ✅ Complet |
+| PHP 8.1+ | ✅ Complet |
+| PHP 8.2+ | ✅ Complet |
 | Laravel 10+ | ✅ Complet |
-| Laravel 9 | ✅ Complet |
-| SQLite | ✅ (utilise `strftime` pour les calculs) |
-| MySQL | ✅ |
-| PostgreSQL | ⚠️ (adaptation `strftime` nécessaire) |
+| Laravel 11+ | ✅ Complet |
+| MySQL 5.7+ | ✅ Complet |
+| PostgreSQL 12+ | ✅ Complet |
+| SQLite 3.35+ | ✅ Complet |
+
+---
 
 ## Exemple complet
 
@@ -417,59 +534,72 @@ if ($task->getStatus() === RecurringTaskStatus::CANCELED) {
 declare(strict_types=1);
 
 use AndyDefer\Task\Repositories\RecurringTaskRepository;
+use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
-use AndyDefer\Task\ValueObjects\TaskAliasVO;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
+use AndyDefer\Task\Enums\ExecutionStatus;
 use AndyDefer\Task\ValueObjects\DescriptionVO;
 
-// 1. Instanciation du dépôt
+// 1. Instanciation du repository
 $repository = app(RecurringTaskRepository::class);
 
-// 2. Récupération des tâches prêtes avec verrouillage
-$limit = new LimitVO(5);
-$result = $repository->findReadyToRun(null, $limit);
+// 2. Compter les tâches actives
+$playingCount = $repository->countPlaying();
+echo "Tâches actives : " . $playingCount->getValue() . "\n";
 
-echo "Tâches récupérées : " . $result->tasks->count() . "\n";
-echo "Transitions effectuées :\n";
-echo "  WAITING → PLAYING : " . $result->fresh_state->waiting_to_playing->getValue() . "\n";
-echo "  PLAYING → FINISHED : " . $result->fresh_state->playing_to_finished->getValue() . "\n";
-echo "  PLAYING → CANCELED : " . $result->fresh_state->playing_to_canceled->getValue() . "\n";
+// 3. Compter avec filtre FQCN
+$fqcns = TaskFqcnVOCollection::from([TestRecurringTask::class]);
+$filteredCount = $repository->countPlaying($fqcns);
+echo "Tâches actives (TestRecurringTask) : " . $filteredCount->getValue() . "\n";
 
-// 3. Traitement des tâches
+// 4. Mettre à jour l'état des tâches
+$freshState = $repository->freshState();
+echo "WAITING → PLAYING : " . $freshState->waiting_to_playing->getValue() . "\n";
+echo "PLAYING → FINISHED : " . $freshState->playing_to_finished->getValue() . "\n";
+echo "PLAYING → CANCELED : " . $freshState->playing_to_canceled->getValue() . "\n";
+
+// 5. Récupérer les tâches prêtes
+$now = new Iso8601DateTimeVO;
+$limit = new LimitVO(10);
+$result = $repository->findReadyToRun($now, $limit, $fqcns);
+
 foreach ($result->tasks as $task) {
+    echo "Exécution de : " . $task->getAlias()->getValue() . "\n";
+    
+    $record = $this->modelToRecord($task);
+    
     try {
-        // Simuler l'exécution
-        $success = true;
+        // 6. Traiter la tâche
+        $task->process();
         
-        // Mise à jour du statut après exécution
-        $updated = $repository->updateAfterRun($task, $success);
+        // 7. Mettre à jour après succès
+        $repository->updateAfterRun($record, true);
+        echo "✅ Tâche exécutée avec succès\n";
         
-        if ($updated) {
-            echo "✅ Tâche " . $task->alias->getValue() . " exécutée\n";
-        }
     } catch (Throwable $e) {
-        // Gestion d'erreur avec journalisation automatique
-        $repository->updateAfterRun(
-            $task, 
-            false, 
-            new DescriptionVO($e->getMessage())
-        );
-        echo "❌ Échec : " . $e->getMessage() . "\n";
+        // 8. Mettre à jour après échec
+        $repository->updateAfterRun($record, false, new DescriptionVO($e->getMessage()));
+        echo "❌ Tâche échouée : " . $e->getMessage() . "\n";
     }
 }
 
-// 4. Vérification du statut final
-echo "\n📊 Statut final :\n";
-echo "  En attente : " . $repository->countWaiting()->getValue() . "\n";
-echo "  En cours : " . $repository->countPlaying()->getValue() . "\n";
-echo "  Terminées : " . $repository->countFinished()->getValue() . "\n";
-echo "  Annulées : " . $repository->countCanceled()->getValue() . "\n";
+// 9. Statistiques finales
+echo "📊 Statistiques finales :\n";
+echo "  WAITING : " . $repository->countWaiting()->getValue() . "\n";
+echo "  PLAYING : " . $repository->countPlaying()->getValue() . "\n";
+echo "  PAUSED : " . $repository->countPaused()->getValue() . "\n";
+echo "  FINISHED : " . $repository->countFinished()->getValue() . "\n";
+echo "  CANCELED : " . $repository->countCanceled()->getValue() . "\n";
 ```
 
+---
+
 ## Voir aussi
-- `AbstractRepository` - Classe parente pour les opérations CRUD
-- `RecurringTask` - Modèle Eloquent associé
-- `RecurringTaskRecord` - Data Transfer Object associé
-- `RecurringTaskStatus` - Énumération des états possibles
-- `TaskExecutionDebugRepository` - Journalisation des exécutions
-- `RecurringTaskService` - Service métier utilisant ce dépôt
-- `UniqueTaskRepository` - Dépôt similaire pour les tâches uniques
+
+- `UniqueTaskRepository` - Repository pour les tâches uniques
+- `TaskExecutionDebugRepository` - Gestion des logs de débogage
+- `AbstractRepository` - Classe de base des repositories
+- `RecurringTaskService` - Service de gestion des tâches récurrentes
+- `RecurringTaskStatus` - Énumération des statuts possibles
+- `RecurringTaskFiltersRecord` - Record de filtrage

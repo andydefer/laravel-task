@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Records;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractRecord;
+use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
 use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\ValueObjects\CounterVO;
@@ -30,5 +31,27 @@ final class TaskExecutionResultRecord extends AbstractRecord
         public readonly TaskErrorRecordCollection $errors,
         public readonly bool $has_failures,
         public readonly TaskType $type,
+        /**
+         * Optional breakdown of success counts by task type.
+         * Example: {'unique': 100, 'recurring': 100}
+         *
+         * @var StrictAssociative<string, int>|null
+         */
+        public readonly ?StrictAssociative $type_counts = null,
+        /**
+         * Optional breakdown of failure counts by task type.
+         * Example: {'unique': 2, 'recurring': 1}
+         *
+         * @var StrictAssociative<string, int>|null
+         */
+        public readonly ?StrictAssociative $failed_counts = null,
+        /**
+         * Whether this result contains unique tasks.
+         */
+        public readonly bool $has_unique = false,
+        /**
+         * Whether this result contains recurring tasks.
+         */
+        public readonly bool $has_recurring = false,
     ) {}
 }

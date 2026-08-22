@@ -7,11 +7,15 @@ namespace AndyDefer\Task\Tests\Integration\Services\Watchs;
 use AndyDefer\ConsoleWriter\Console\Contracts\ConsoleInterface;
 use AndyDefer\Directive\DirectiveKernel;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Records\TaskExecutionResultRecord;
 use AndyDefer\Task\Services\Watchs\ParallelExecutor;
+use AndyDefer\Task\Tests\Fixtures\Tasks\HelloUniqueTask;
+use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
 use AndyDefer\Task\ValueObjects\LimitVO;
+use AndyDefer\Task\ValueObjects\TaskFqcnVO;
 use PHPUnit\Framework\MockObject\MockObject;
 
 /**
@@ -102,6 +106,19 @@ final class ParallelExecutorTest extends IntegrationTestCase
             $kernel,
             $outputHandler
         );
+    }
+
+    /**
+     * Creates a TaskFqcnVOCollection from an array of FQCN strings.
+     */
+    private function createFqcnCollection(array $fqcns): TaskFqcnVOCollection
+    {
+        $collection = new TaskFqcnVOCollection;
+        foreach ($fqcns as $fqcn) {
+            $collection->add(new TaskFqcnVO($fqcn));
+        }
+
+        return $collection;
     }
 
     /**
@@ -277,5 +294,161 @@ final class ParallelExecutorTest extends IntegrationTestCase
         );
 
         $this->assertIsArray($results);
+    }
+
+    // ==================== TESTS WITH FQCN FILTER ====================
+
+    public function test_execute_with_fqcn_filter(): void
+    {
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $results = $this->executor->execute(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            muted: false,
+            fqcns: $fqcns
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
+    }
+
+    public function test_execute_with_fqcn_filter_and_limit(): void
+    {
+        $limit = new LimitVO(10);
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class, HelloUniqueTask::class]);
+
+        $results = $this->executor->execute(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: $limit,
+            verbose: false,
+            muted: false,
+            fqcns: $fqcns
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
+    }
+
+    public function test_execute_with_fqcn_filter_and_unique_only(): void
+    {
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $results = $this->executor->execute(
+            uniqueOnly: true,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            muted: false,
+            fqcns: $fqcns
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
+    }
+
+    public function test_execute_with_fqcn_filter_and_recurring_only(): void
+    {
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $results = $this->executor->execute(
+            uniqueOnly: false,
+            recurringOnly: true,
+            limit: null,
+            verbose: false,
+            muted: false,
+            fqcns: $fqcns
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
+    }
+
+    public function test_execute_with_empty_fqcn_filter(): void
+    {
+        $fqcns = new TaskFqcnVOCollection;
+
+        $results = $this->executor->execute(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            muted: false,
+            fqcns: $fqcns
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
+    }
+
+    public function test_execute_with_null_fqcn_filter(): void
+    {
+        $results = $this->executor->execute(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            muted: false,
+            fqcns: null
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
+    }
+
+    public function test_execute_with_fqcn_filter_single_worker(): void
+    {
+        $executor = $this->createExecutor(1);
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $results = $executor->execute(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: false,
+            muted: false,
+            fqcns: $fqcns
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
+    }
+
+    public function test_execute_with_fqcn_filter_and_muted(): void
+    {
+        $executor = $this->createMutedExecutor(2);
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $results = $executor->execute(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: true,
+            muted: true,
+            fqcns: $fqcns
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
+    }
+
+    public function test_execute_with_fqcn_filter_and_verbose(): void
+    {
+        $fqcns = $this->createFqcnCollection([TestUniqueTask::class]);
+
+        $results = $this->executor->execute(
+            uniqueOnly: false,
+            recurringOnly: false,
+            limit: null,
+            verbose: true,
+            muted: false,
+            fqcns: $fqcns
+        );
+
+        $this->assertIsArray($results);
+        $this->assertAllResultsAreValid($results);
     }
 }

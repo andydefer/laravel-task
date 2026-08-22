@@ -9,6 +9,7 @@ use AndyDefer\Directive\AbstractDirective;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Handlers\SignalHandler;
 use AndyDefer\Task\Helpers\JsonlResultHelper;
@@ -45,6 +46,7 @@ final class TasksWatchDirective extends AbstractDirective
                     {duration=?}#"Total execution duration in seconds (unlimited if omitted)" 
                     {limit=100}#"Maximum tasks to process per cycle" 
                     {parallel=?}#"Number of parallel workers (1 by default)" 
+                    {fqcnNames*}#"List of FQCNs to process (e.g. [App.Tasks.SomeTask, App.Tasks.OtherTask])"
                     {--unique-only}#"Process only unique tasks" 
                     {--recurring-only}#"Process only recurring tasks" 
                     {--verbose}#"Show detailed execution logs" 
@@ -100,6 +102,12 @@ final class TasksWatchDirective extends AbstractDirective
                     $this->aggregator->addResults($cycleResults);
                 }
 
+                // Afficher les résultats du cycle
+                $this->displayCycleSummary($cycleNumber);
+
+                // Afficher la progression globale
+                $this->displayGlobalProgress();
+
                 $this->displayRemainingTasks();
 
                 $elapsedTime = microtime(true) - $cycleStartTime;
@@ -114,6 +122,9 @@ final class TasksWatchDirective extends AbstractDirective
                     $hasFailures = true;
                 }
             }
+
+            // Afficher le résumé détaillé final
+            $this->displayFinalSummary();
 
             $this->displayFinalRemaining();
 
@@ -190,14 +201,177 @@ final class TasksWatchDirective extends AbstractDirective
         $recurringOnly = $this->isFlagActive('recurring-only');
         $verbose = $this->isFlagActive('verbose');
         $limit = $this->getLimit();
+        $fqcns = $this->getFqcnFilters();
 
         return $this->parallelExecutor->execute(
             uniqueOnly: $uniqueOnly,
             recurringOnly: $recurringOnly,
             limit: $limit,
             verbose: $verbose,
-            muted: $this->output->isMuted()
+            muted: $this->output->isMuted(),
+            fqcns: $fqcns
         );
+    }
+
+    private function getFqcnFilters(): TaskFqcnVOCollection
+    {
+        $fqcnNames = $this->getVariadic('fqcnNames');
+
+        if (empty($fqcnNames)) {
+            return new TaskFqcnVOCollection;
+        }
+
+        $cleanedFqcns = array_map(function ($fqcn) {
+            $fqcn = str_replace('.', '\\', $fqcn);
+
+            return trim($fqcn, '\\');
+        }, $fqcnNames);
+
+        return TaskFqcnVOCollection::from($cleanedFqcns);
+    }
+
+    /**
+     * Affiche un résumé du cycle terminé.
+     */
+    private function displayCycleSummary(int $cycleNumber): void
+    {
+        if ($this->output->isMuted()) {
+            return;
+        }
+
+        $success = $this->aggregator->getCycleSuccess($cycleNumber)->getValue();
+        $failed = $this->aggregator->getCycleFailed($cycleNumber)->getValue();
+        $errors = $this->aggregator->getCycleErrors($cycleNumber)->getValue();
+
+        $total = $success + $failed;
+
+        if ($total === 0) {
+            $this->output->line("  Cycle #{$cycleNumber}: No tasks processed");
+
+            return;
+        }
+
+        $status = $failed > 0 || $errors > 0 ? '⚠️' : '✅';
+        $this->output->line(
+            sprintf(
+                '  %s Cycle #%d: %d tasks (%d success, %d failed, %d errors)',
+                $status,
+                $cycleNumber,
+                $total,
+                $success,
+                $failed,
+                $errors
+            )
+        );
+
+        // En mode verbose, afficher les détails par type
+        if ($this->output->isVerbose()) {
+            $uniqueSuccess = $this->aggregator->getCycleUniqueSuccess($cycleNumber)->getValue();
+            $uniqueFailed = $this->aggregator->getCycleUniqueFailed($cycleNumber)->getValue();
+            $recurringSuccess = $this->aggregator->getCycleRecurringSuccess($cycleNumber)->getValue();
+            $recurringFailed = $this->aggregator->getCycleRecurringFailed($cycleNumber)->getValue();
+
+            $uniqueTotal = $uniqueSuccess + $uniqueFailed;
+            $recurringTotal = $recurringSuccess + $recurringFailed;
+
+            $this->output->line(
+                sprintf(
+                    '    Unique: %d/%d | Recurring: %d/%d',
+                    $uniqueSuccess,
+                    $uniqueTotal > 0 ? $uniqueTotal : 0,
+                    $recurringSuccess,
+                    $recurringTotal > 0 ? $recurringTotal : 0
+                )
+            );
+        }
+    }
+
+    /**
+     * Affiche la progression globale des cycles.
+     */
+    private function displayGlobalProgress(): void
+    {
+        if ($this->output->isMuted()) {
+            return;
+        }
+
+        $totalSuccess = $this->aggregator->getTotalSuccess()->getValue();
+        $totalFailed = $this->aggregator->getTotalFailed()->getValue();
+        $totalErrors = $this->aggregator->getTotalErrors()->getValue();
+        $cycleCount = $this->aggregator->getCycleCount();
+
+        $total = $totalSuccess + $totalFailed;
+
+        if ($total === 0) {
+            return;
+        }
+
+        $this->output->line(
+            sprintf(
+                '  📊 Total: %d tasks (%d success, %d failed, %d errors) over %d cycles',
+                $total,
+                $totalSuccess,
+                $totalFailed,
+                $totalErrors,
+                $cycleCount
+            )
+        );
+    }
+
+    /**
+     * Affiche le résumé détaillé final.
+     */
+    private function displayFinalSummary(): void
+    {
+        if ($this->output->isMuted()) {
+            return;
+        }
+
+        $summary = $this->aggregator->getDetailedSummary();
+
+        $this->output->line();
+        $this->output->title('📊 Final Execution Summary');
+        $this->output->line();
+
+        $this->output->line('📌 Totals:');
+        $this->output->line(sprintf('   ✅ Success  : %d', $summary['total']['success']));
+        $this->output->line(sprintf('   ❌ Failed   : %d', $summary['total']['failed']));
+        $this->output->line(sprintf('   ⚠️ Errors   : %d', $summary['total']['errors']));
+        $this->output->line();
+
+        $this->output->line('🔄 Unique tasks:');
+        $this->output->line(sprintf('   ✅ Success  : %d', $summary['unique']['success']));
+        $this->output->line(sprintf('   ❌ Failed   : %d', $summary['unique']['failed']));
+        $this->output->line();
+
+        $this->output->line('🔁 Recurring tasks:');
+        $this->output->line(sprintf('   ✅ Success  : %d', $summary['recurring']['success']));
+        $this->output->line(sprintf('   ❌ Failed   : %d', $summary['recurring']['failed']));
+        $this->output->line();
+
+        // Afficher l'historique des cycles en mode verbose
+        if ($this->output->isVerbose()) {
+            $history = $this->aggregator->getCycleHistory();
+            if (count($history) > 1) {
+                $this->output->line('📈 Cycle history:');
+                foreach ($history as $cycle => $data) {
+                    $total = $data['success'] + $data['failed'];
+                    $status = $data['failed'] > 0 || $data['errors'] > 0 ? '⚠️' : '✅';
+                    $this->output->line(
+                        sprintf(
+                            '   %s Cycle #%d: %d tasks (success: %d, failed: %d, errors: %d)',
+                            $status,
+                            $cycle,
+                            $total,
+                            $data['success'],
+                            $data['failed'],
+                            $data['errors']
+                        )
+                    );
+                }
+                $this->output->line();
+            }
+        }
     }
 
     private function displayRemainingTasks(): void

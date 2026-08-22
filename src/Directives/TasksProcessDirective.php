@@ -11,6 +11,7 @@ use AndyDefer\Directive\AbstractDirective;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\DomainStructures\Utils\MapCollection;
+use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
 use AndyDefer\Task\Enums\TaskType;
@@ -50,6 +51,7 @@ final class TasksProcessDirective extends AbstractDirective
     {
         return 'tasks:process 
                     {limit=infinite}#"Maximum number of tasks to process (infinite for no limit)" 
+                    {fqcnNames*}#"List of FQCNs to process (e.g. [App.Tasks.SomeTask, App.Tasks.OtherTask])"
                     {--unique-only}#"Process only unique tasks" 
                     {--recurring-only}#"Process only recurring tasks" 
                     {--verbose}#"Show detailed output including errors" 
@@ -101,6 +103,8 @@ final class TasksProcessDirective extends AbstractDirective
                 return $validationResult;
             }
 
+            $fqcnFilters = $this->getFqcnFilters();
+
             $uniqueOnly = $this->isFlagActive('unique-only');
             $recurringOnly = $this->isFlagActive('recurring-only');
 
@@ -108,7 +112,7 @@ final class TasksProcessDirective extends AbstractDirective
                 $this->renderStart();
             }
 
-            $this->totalTasks = $this->calculateTotalTasks($uniqueOnly, $recurringOnly);
+            $this->totalTasks = $this->calculateTotalTasks($uniqueOnly, $recurringOnly, $fqcnFilters);
 
             $this->contextSet('task_process.total', $this->totalTasks);
             $this->contextSet('task_process.processed', 0);
@@ -116,9 +120,9 @@ final class TasksProcessDirective extends AbstractDirective
             $this->contextSet('task_process.type', 'all');
 
             $hasFailures = match (true) {
-                $uniqueOnly => $this->processUniqueTasks(),
-                $recurringOnly => $this->processRecurringTasks(),
-                default => $this->processBothTypes(),
+                $uniqueOnly => $this->processUniqueTasks($fqcnFilters),
+                $recurringOnly => $this->processRecurringTasks($fqcnFilters),
+                default => $this->processBothTypes($fqcnFilters),
             };
 
             $this->contextSet('task_process.running', false);
@@ -145,13 +149,13 @@ final class TasksProcessDirective extends AbstractDirective
         }
     }
 
-    private function processUniqueTasks(): bool
+    private function processUniqueTasks(TaskFqcnVOCollection $fqcns): bool
     {
         $type = TaskType::UNIQUE;
         $this->currentType = $type;
         $service = $this->getService($type);
 
-        $this->currentTypeTotal = $this->getTotalTasks($type);
+        $this->currentTypeTotal = $this->getTotalTasks($type, $fqcns);
         $limit = $this->limit;
         if ($limit !== null && $limit < $this->currentTypeTotal) {
             $this->currentTypeTotal = $limit;
@@ -168,8 +172,8 @@ final class TasksProcessDirective extends AbstractDirective
         $callback = $this->createProgressCallback($type);
 
         $result = $this->limit !== null
-            ? $service->process(new LimitVO($this->limit), $callback)
-            : $service->process(new LimitVO, $callback);
+            ? $service->process(new LimitVO($this->limit), $callback, $fqcns)
+            : $service->process(new LimitVO, $callback, $fqcns);
 
         if (! $this->isMuted() && $this->progress->isActive()) {
             $this->progress->finish('✅ '.$this->getTaskTypeLabel($type).' tasks processed');
@@ -187,13 +191,13 @@ final class TasksProcessDirective extends AbstractDirective
         return $result->failed->isPositive();
     }
 
-    private function processRecurringTasks(): bool
+    private function processRecurringTasks(TaskFqcnVOCollection $fqcns): bool
     {
         $type = TaskType::RECURRING;
         $this->currentType = $type;
         $service = $this->getService($type);
 
-        $this->currentTypeTotal = $this->getTotalTasks($type);
+        $this->currentTypeTotal = $this->getTotalTasks($type, $fqcns);
         $limit = $this->limit;
         if ($limit !== null && $limit < $this->currentTypeTotal) {
             $this->currentTypeTotal = $limit;
@@ -210,8 +214,8 @@ final class TasksProcessDirective extends AbstractDirective
         $callback = $this->createProgressCallback($type);
 
         $result = $this->limit !== null
-            ? $service->process(new LimitVO($this->limit), $callback)
-            : $service->process(new LimitVO, $callback);
+            ? $service->process(new LimitVO($this->limit), $callback, $fqcns)
+            : $service->process(new LimitVO, $callback, $fqcns);
 
         if (! $this->isMuted() && $this->progress->isActive()) {
             $this->progress->finish('✅ '.$this->getTaskTypeLabel($type).' tasks processed');
@@ -229,10 +233,10 @@ final class TasksProcessDirective extends AbstractDirective
         return $result->failed->isPositive();
     }
 
-    private function processBothTypes(): bool
+    private function processBothTypes(TaskFqcnVOCollection $fqcns): bool
     {
-        $totalUnique = $this->getTotalTasks(TaskType::UNIQUE);
-        $totalRecurring = $this->getTotalTasks(TaskType::RECURRING);
+        $totalUnique = $this->getTotalTasks(TaskType::UNIQUE, $fqcns);
+        $totalRecurring = $this->getTotalTasks(TaskType::RECURRING, $fqcns);
         $this->totalTasks = $totalUnique + $totalRecurring;
 
         // === UNIQUE TASKS ===
@@ -244,7 +248,7 @@ final class TasksProcessDirective extends AbstractDirective
             $this->progress->start('Unique tasks', $totalUnique);
         }
 
-        $uniqueResult = $this->processTasksWithoutRendering(TaskType::UNIQUE);
+        $uniqueResult = $this->processTasksWithoutRendering(TaskType::UNIQUE, $fqcns);
 
         if (! $this->isMuted() && $this->progress->isActive()) {
             $this->progress->finish('✅ Unique tasks processed');
@@ -259,7 +263,7 @@ final class TasksProcessDirective extends AbstractDirective
             $this->progress->start('Recurring tasks', $totalRecurring);
         }
 
-        $recurringResult = $this->processTasksWithoutRendering(TaskType::RECURRING);
+        $recurringResult = $this->processTasksWithoutRendering(TaskType::RECURRING, $fqcns);
 
         if (! $this->isMuted() && $this->progress->isActive()) {
             $this->progress->finish('✅ Recurring tasks processed');
@@ -278,14 +282,14 @@ final class TasksProcessDirective extends AbstractDirective
         return $hasFailures;
     }
 
-    private function processTasksWithoutRendering(TaskType $type): ProcessResultRecord
+    private function processTasksWithoutRendering(TaskType $type, TaskFqcnVOCollection $fqcns): ProcessResultRecord
     {
         $service = $this->getService($type);
         $callback = $this->createProgressCallback($type);
 
         return $this->limit !== null
-            ? $service->process(new LimitVO($this->limit), $callback)
-            : $service->process(new LimitVO, $callback);
+            ? $service->process(new LimitVO($this->limit), $callback, $fqcns)
+            : $service->process(new LimitVO, $callback, $fqcns);
     }
 
     private function createProgressCallback(TaskType $type): callable
@@ -312,6 +316,25 @@ final class TasksProcessDirective extends AbstractDirective
         };
     }
 
+    private function getFqcnFilters(): TaskFqcnVOCollection
+    {
+        $fqcnNames = $this->getVariadic('fqcnNames');
+
+        if (empty($fqcnNames)) {
+            return new TaskFqcnVOCollection;
+        }
+
+        $cleanedFqcns = array_map(function ($fqcn) {
+            $fqcn = str_replace('.', '\\', $fqcn);
+
+            return trim($fqcn, '\\');
+        }, $fqcnNames);
+
+        $collection = TaskFqcnVOCollection::from($cleanedFqcns);
+
+        return $collection;
+    }
+
     private function getService(TaskType $type): UniqueTaskServiceInterface|RecurringTaskServiceInterface
     {
         $container = $this->getApplication();
@@ -334,27 +357,27 @@ final class TasksProcessDirective extends AbstractDirective
         };
     }
 
-    private function getTotalTasks(TaskType $type): int
+    private function getTotalTasks(TaskType $type, TaskFqcnVOCollection $fqcns): int
     {
         $service = $this->getService($type);
 
         return match ($type) {
-            TaskType::UNIQUE => $service->countPending()->getValue(),
-            TaskType::RECURRING => $service->countPlaying()->getValue(),
+            TaskType::UNIQUE => $service->countPending($fqcns)->getValue(),
+            TaskType::RECURRING => $service->countPlaying($fqcns)->getValue(),
         };
     }
 
-    private function calculateTotalTasks(bool $uniqueOnly, bool $recurringOnly): int
+    private function calculateTotalTasks(bool $uniqueOnly, bool $recurringOnly, TaskFqcnVOCollection $fqcns): int
     {
         if ($uniqueOnly) {
-            return $this->getTotalTasks(TaskType::UNIQUE);
+            return $this->getTotalTasks(TaskType::UNIQUE, $fqcns);
         }
 
         if ($recurringOnly) {
-            return $this->getTotalTasks(TaskType::RECURRING);
+            return $this->getTotalTasks(TaskType::RECURRING, $fqcns);
         }
 
-        return $this->getTotalTasks(TaskType::UNIQUE) + $this->getTotalTasks(TaskType::RECURRING);
+        return $this->getTotalTasks(TaskType::UNIQUE, $fqcns) + $this->getTotalTasks(TaskType::RECURRING, $fqcns);
     }
 
     private function validateOptions(): ExitCode

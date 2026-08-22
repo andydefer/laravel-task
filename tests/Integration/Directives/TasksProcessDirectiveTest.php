@@ -21,6 +21,7 @@ use AndyDefer\Task\Repositories\TaskExecutionDebugRepository;
 use AndyDefer\Task\Repositories\UniqueTaskRepository;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
+use AndyDefer\Task\Tests\Fixtures\Tasks\HelloUniqueTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestRecurringTask;
 use AndyDefer\Task\Tests\Fixtures\Tasks\TestUniqueTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
@@ -95,7 +96,8 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
         ?\DateTimeInterface $scheduledAt = null,
         int $gracePeriodSeconds = 86400,
         int $attempts = 0,
-        int $maxAttempts = 3
+        int $maxAttempts = 3,
+        string $fqcn = TestUniqueTask::class
     ): void {
         $scheduledAt = $scheduledAt ?? Carbon::now()->subHours(2);
         $id = $id ?? $this->getUuidForAlias($alias);
@@ -103,7 +105,7 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
         $record = UniqueTaskRecord::from([
             'id' => new UuidVO($id),
             'alias' => $this->generateAliasFromName($alias, $id),
-            'fqcn' => new UniqueTaskFqcnVO(TestUniqueTask::class),
+            'fqcn' => new UniqueTaskFqcnVO($fqcn),
             'payload' => StrictDataObject::from(['test' => 'unique']),
             'scheduled_at' => new Iso8601DateTimeVO($scheduledAt->format('Y-m-d\TH:i:sP')),
             'grace_period_seconds' => new DurationVO($gracePeriodSeconds),
@@ -121,15 +123,15 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
         $id = $this->getUuidForAlias($alias);
 
         $record = UniqueTaskRecord::from([
-            'id' => $id,
+            'id' => new UuidVO($id),
             'alias' => $this->generateAliasFromName($alias, $id),
-            'fqcn' => FailingTask::class,
-            'payload' => ['test' => 'failing'],
-            'scheduled_at' => Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP'),
-            'grace_period_seconds' => 86400,
-            'status' => UniqueTaskStatus::PENDING->value,
-            'attempts' => 2,
-            'max_attempts' => 3,
+            'fqcn' => new UniqueTaskFqcnVO(FailingTask::class),
+            'payload' => StrictDataObject::from(['test' => 'failing']),
+            'scheduled_at' => new Iso8601DateTimeVO(Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP')),
+            'grace_period_seconds' => new DurationVO(86400),
+            'status' => UniqueTaskStatus::PENDING,
+            'attempts' => new CounterVO(2),
+            'max_attempts' => new MaxFailedAttemptsVO(3),
         ]);
 
         $this->uniqueRepository->create($record);
@@ -140,7 +142,8 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
         RecurringTaskStatus $status = RecurringTaskStatus::PLAYING,
         ?\DateTimeInterface $startAt = null,
         ?\DateTimeInterface $lastRunAt = null,
-        int $intervalSeconds = 3600
+        int $intervalSeconds = 3600,
+        string $fqcn = TestRecurringTask::class
     ): void {
         $startAt = $startAt ?? Carbon::now()->subHours(2);
         $lastRunAt = $lastRunAt ?? null;
@@ -150,16 +153,16 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
             'type' => TaskType::RECURRING->value,
             'description' => 'Test recurring task',
             'interval_seconds' => $intervalSeconds,
-            'start_at' => $startAt->format('Y-m-d\TH:i:sP'),
-            'end_at' => Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP'),
+            'start_at' => $startAt,
+            'end_at' => Carbon::now()->addDays(7),
             'max_attempts' => 3,
         ]);
 
         $service = $this->app->make(RecurringTaskServiceInterface::class);
-        $fqcn = new RecurringTaskFqcnVO(TestRecurringTask::class);
+        $fqcnVO = new RecurringTaskFqcnVO($fqcn);
         $payload = StrictDataObject::from(['test' => 'recurring']);
 
-        $aliasVO = $service->register($fqcn, $payload, $config);
+        $aliasVO = $service->register($fqcnVO, $payload, $config);
 
         $task = $this->recurringRepository->findByAlias($aliasVO);
         if ($task) {
@@ -176,13 +179,12 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
 
     private function createFailingRecurringTask(): void
     {
-
         $config = RecurringTaskConfigRecord::from([
             'type' => TaskType::RECURRING->value,
             'description' => 'Failing recurring task',
             'interval_seconds' => 3000,
-            'start_at' => Carbon::now()->subHours(2)->format('Y-m-d\TH:i:sP'),
-            'end_at' => Carbon::now()->addDays(7)->format('Y-m-d\TH:i:sP'),
+            'start_at' => Carbon::now()->subHours(2),
+            'end_at' => Carbon::now()->addDays(7),
             'max_attempts' => 3,
         ]);
 
@@ -217,6 +219,7 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('--recurring-only', $signature);
         $this->assertStringContainsString('--verbose', $signature);
         $this->assertStringContainsString('limit=infinite', $signature);
+        $this->assertStringContainsString('fqcnNames*', $signature);
     }
 
     public function test_get_description_returns_string(): void
@@ -317,6 +320,7 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('Limit', $response->output);
         $this->assertStringContainsString('infinite (no limit)', $response->output);
     }
+
     // ==================== TESTS: Context Storage ====================
 
     public function test_context_stores_unique_result(): void
@@ -433,19 +437,16 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
     {
         $this->createUniqueTask('unique-1');
 
-        // Première exécution
         $response1 = $this->service->runDirective(TasksProcessDirective::class, ['--unique-only']);
         $this->assertSame(ExitCode::SUCCESS, $response1->exit_code);
 
         $context1 = $this->service->getKernel()->getContext();
 
-        // Deuxième exécution
         $response2 = $this->service->runDirective(TasksProcessDirective::class, ['--unique-only']);
         $this->assertSame(ExitCode::SUCCESS, $response2->exit_code);
 
         $context2 = $this->service->getKernel()->getContext();
 
-        // Vérifier que les deux résultats sont dans le contexte
         $uniqueKeys1 = [];
         $uniqueKeys2 = [];
 
@@ -461,7 +462,6 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
             }
         }
 
-        // Le contexte 2 devrait avoir un élément de plus que le contexte 1
         $this->assertGreaterThan(count($uniqueKeys1), count($uniqueKeys2));
     }
 
@@ -582,5 +582,210 @@ final class TasksProcessDirectiveTest extends IntegrationTestCase
         $this->assertStringContainsString('✅ Recurring Success', $response->output);
         $this->assertStringContainsString('❌ Recurring Failed', $response->output);
         $this->assertStringContainsString('📊 Total Processed', $response->output);
+    }
+
+    // ==================== TESTS: FQCN Filter ====================
+
+    public function test_execute_with_fqcn_filter_using_dot_notation(): void
+    {
+        $this->createUniqueTask('unique-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+        $this->createUniqueTask('unique-2', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, FailingTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]', '--unique-only']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_multiple_fqcn_filters_using_dot_notation(): void
+    {
+        $this->createUniqueTask('unique-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+        $this->createUniqueTask('unique-2', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, HelloUniqueTask::class);
+        $this->createUniqueTask('unique-3', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, FailingTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask, AndyDefer.Task.Tests.Fixtures.Tasks.HelloUniqueTask]', '--unique-only']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_fqcn_filter_and_limit(): void
+    {
+        for ($i = 1; $i <= 5; $i++) {
+            $this->createUniqueTask("unique-{$i}", null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+        }
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['3', '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]', '--unique-only']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('Limit', $response->output);
+        $this->assertStringContainsString('3', $response->output);
+        $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_fqcn_filter_and_unique_only(): void
+    {
+        $this->createUniqueTask('unique-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]', '--unique-only']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_fqcn_filter_and_recurring_only(): void
+    {
+        $this->createRecurringTask('recurring-1', RecurringTaskStatus::PLAYING, null, null, 3600, TestRecurringTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[AndyDefer.Task.Tests.Fixtures.Tasks.TestRecurringTask]', '--recurring-only']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('=== Recurring Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_empty_fqcn_filter_executes_all_tasks_including_failures(): void
+    {
+        $this->createUniqueTask('unique-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+        $this->createUniqueTask('unique-2', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, FailingTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[]', '--unique-only']
+        );
+
+        // ✅ Le test attend FAILURE car une tâche a échoué
+        $this->assertSame(ExitCode::FAILURE, $response->exit_code);
+        $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_fqcn_filter_and_verbose(): void
+    {
+        $this->createUniqueTask('unique-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+        $this->createUniqueTask('unique-2', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, FailingTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]', '--unique-only', '--verbose']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_fqcn_filter_and_mute(): void
+    {
+        $this->createUniqueTask('unique-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]', '--unique-only', '--mute']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+
+        $this->assertEmpty(trim($response->output));
+    }
+
+    public function test_execute_with_fqcn_filter_using_backslash_notation(): void
+    {
+        $this->createUniqueTask('unique-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[AndyDefer\\Task\\Tests\\Fixtures\\Tasks\\TestUniqueTask]', '--unique-only']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_recurring_fqcn_filter_using_dot_notation(): void
+    {
+        $this->createRecurringTask('recurring-1', RecurringTaskStatus::PLAYING, null, null, 3600, TestRecurringTask::class);
+        $this->createRecurringTask('recurring-2', RecurringTaskStatus::PLAYING, null, null, 3600, FailingRecurringTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[AndyDefer.Task.Tests.Fixtures.Tasks.TestRecurringTask]', '--recurring-only']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('=== Recurring Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_fqcn_filter_limit_and_verbose(): void
+    {
+        for ($i = 1; $i <= 5; $i++) {
+            $this->createUniqueTask("unique-{$i}", null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+        }
+        $this->createUniqueTask('failing-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, FailingTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['3', '[AndyDefer.Task.Tests.Fixtures.Tasks.TestUniqueTask]', '--unique-only', '--verbose']
+        );
+
+        $this->assertSame(ExitCode::SUCCESS, $response->exit_code);
+        $this->assertStringContainsString('Limit', $response->output);
+        $this->assertStringContainsString('3', $response->output);
+        $this->assertStringContainsString('=== Unique Batch Results ===', $response->output);
+        $this->assertStringContainsString('✅ Success', $response->output);
+        $this->assertStringContainsString('❌ Failed', $response->output);
+        $this->assertStringContainsString('📦 Total', $response->output);
+    }
+
+    public function test_execute_with_invalid_fqcn_filter_ignores_it(): void
+    {
+        $this->createUniqueTask('unique-1', null, UniqueTaskStatus::PENDING, null, 86400, 0, 3, TestUniqueTask::class);
+
+        $response = $this->service->runDirective(
+            TasksProcessDirective::class,
+            ['[Invalid.Task.Class]', '--unique-only']
+        );
+
+        $this->assertSame(ExitCode::RUNTIME_ERROR, $response->exit_code);
+        $this->assertStringContainsString('Task class "Invalid\Task\Class" does not exist', $response->output);
     }
 }
