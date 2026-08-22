@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AndyDefer\Task\Services\Watchs;
 
+use AndyDefer\Task\Contracts\Services\Watchs\CycleCalculatorInterface;
 use AndyDefer\Task\ValueObjects\DurationVO;
 
 /**
@@ -15,7 +16,7 @@ use AndyDefer\Task\ValueObjects\DurationVO;
  * A cycle runs at t=0, t=interval, t=2*interval, etc. The total number of
  * cycles is (duration / interval) + 1 (to include the initial cycle).
  */
-final class CycleCalculator
+final class CycleCalculator implements CycleCalculatorInterface
 {
     private DurationVO $interval;
 
@@ -34,9 +35,7 @@ final class CycleCalculator
     }
 
     /**
-     * Get the interval between cycles.
-     *
-     * @return DurationVO The interval in seconds
+     * {@inheritDoc}
      */
     public function getInterval(): DurationVO
     {
@@ -44,9 +43,7 @@ final class CycleCalculator
     }
 
     /**
-     * Get the total execution duration.
-     *
-     * @return DurationVO|null The duration, or null if unlimited
+     * {@inheritDoc}
      */
     public function getDuration(): ?DurationVO
     {
@@ -54,18 +51,7 @@ final class CycleCalculator
     }
 
     /**
-     * Calculate the total number of cycles.
-     *
-     * With interval=3s and duration=30s:
-     * - Cycle #1: t=0s
-     * - Cycle #2: t=3s
-     * - ...
-     * - Cycle #10: t=27s
-     * - Cycle #11: t=30s
-     *
-     * Total cycles = floor(duration / interval) + 1
-     *
-     * @return int The total number of cycles, or PHP_INT_MAX if unlimited
+     * {@inheritDoc}
      */
     public function getTotalCycles(): int
     {
@@ -79,12 +65,7 @@ final class CycleCalculator
     }
 
     /**
-     * Calculate the estimated total execution duration.
-     *
-     * This is the duration required to complete all cycles, which may be
-     * slightly less than the configured duration due to flooring.
-     *
-     * @return float The estimated duration in seconds
+     * {@inheritDoc}
      */
     public function getEstimatedDuration(): float
     {
@@ -96,10 +77,7 @@ final class CycleCalculator
     }
 
     /**
-     * Calculate the number of cycles remaining.
-     *
-     * @param  int  $currentCycle  The current cycle number (1-indexed)
-     * @return int The number of cycles remaining, minimum 0
+     * {@inheritDoc}
      */
     public function getRemainingCycles(int $currentCycle): int
     {
@@ -109,11 +87,7 @@ final class CycleCalculator
     }
 
     /**
-     * Determine whether the watch loop should continue.
-     *
-     * @param  int  $currentCycle  The current cycle number (1-indexed)
-     * @param  bool  $shouldStop  Whether a stop signal has been received
-     * @return bool True if the loop should continue
+     * {@inheritDoc}
      */
     public function shouldContinue(int $currentCycle, bool $shouldStop): bool
     {
@@ -129,10 +103,7 @@ final class CycleCalculator
     }
 
     /**
-     * Calculate the wait time before the next cycle.
-     *
-     * @param  int  $currentCycle  The current cycle number (1-indexed)
-     * @return DurationVO The wait time in seconds, or 0 if this is the last cycle
+     * {@inheritDoc}
      */
     public function getNextWaitTime(int $currentCycle): DurationVO
     {

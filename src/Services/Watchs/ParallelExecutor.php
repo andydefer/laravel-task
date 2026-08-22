@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Services\Watchs;
 
 use AndyDefer\Directive\DirectiveKernel;
-use AndyDefer\DomainStructures\Utils\StrictAssociative;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
+use AndyDefer\Task\Collections\TaskExecutionResultRecordCollection;
 use AndyDefer\Task\Collections\TaskFqcnVOCollection;
+use AndyDefer\Task\Contracts\Services\Watchs\ParallelExecutorInterface;
 use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Records\TaskExecutionResultRecord;
-use AndyDefer\Task\ValueObjects\CounterVO;
 use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
 use AndyDefer\Task\ValueObjects\LimitVO;
-use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
 use Illuminate\Support\Facades\DB;
 use Throwable;
@@ -25,7 +24,7 @@ use Throwable;
  * Creates multiple worker processes to run the tasks:process directive
  * simultaneously, aggregating results from all workers.
  */
-final class ParallelExecutor
+final class ParallelExecutor implements ParallelExecutorInterface
 {
     private int $maxWorkers;
 
@@ -44,15 +43,7 @@ final class ParallelExecutor
     }
 
     /**
-     * Executes tasks in parallel with the specified configuration.
-     *
-     * @param  bool  $uniqueOnly  Whether to process only unique tasks
-     * @param  bool  $recurringOnly  Whether to process only recurring tasks
-     * @param  LimitVO|null  $limit  Maximum tasks per worker
-     * @param  bool  $verbose  Whether to show detailed logs
-     * @param  bool  $muted  Whether to suppress console output
-     * @param  TaskFqcnVOCollection|null  $fqcns  Optional FQCN filter
-     * @return array<TaskExecutionResultRecord> Results from all workers
+     * {@inheritDoc}
      */
     public function execute(
         bool $uniqueOnly,
@@ -61,7 +52,7 @@ final class ParallelExecutor
         bool $verbose,
         bool $muted = false,
         ?TaskFqcnVOCollection $fqcns = null
-    ): array {
+    ): TaskExecutionResultRecordCollection {
         $results = [];
 
         $this->output->info("🚀 Starting {$this->maxWorkers} parallel workers...");
@@ -160,7 +151,7 @@ final class ParallelExecutor
             }
         }
 
-        return $results;
+        return TaskExecutionResultRecordCollection::from($results);
     }
 
     /**
@@ -172,7 +163,7 @@ final class ParallelExecutor
      * @param  bool  $verbose  Whether to show detailed logs
      * @param  bool  $muted  Whether to suppress console output
      * @param  TaskFqcnVOCollection|null  $fqcns  Optional FQCN filter
-     * @return array<TaskExecutionResultRecord> Results from all workers
+     * @return TaskExecutionResultRecordCollection Results from all workers
      */
     private function executeSequentially(
         bool $uniqueOnly,
@@ -181,7 +172,7 @@ final class ParallelExecutor
         bool $verbose,
         bool $muted = false,
         ?TaskFqcnVOCollection $fqcns = null
-    ): array {
+    ): TaskExecutionResultRecordCollection {
         $results = [];
 
         for ($i = 1; $i <= $this->maxWorkers; $i++) {
@@ -197,7 +188,7 @@ final class ParallelExecutor
             }
         }
 
-        return $results;
+        return TaskExecutionResultRecordCollection::from($results);
     }
 
     /**
@@ -333,15 +324,15 @@ final class ParallelExecutor
             'id' => $uuid,
             'started_at' => $now,
             'ended_at' => $now,
-            'duration_ms' => new MillisecondsVO(0),
-            'success' => new CounterVO($totalSuccess),
-            'failed' => new CounterVO($totalFailed),
-            'total' => new CounterVO($totalSuccess + $totalFailed),
+            'duration_ms' => (0),
+            'success' => ($totalSuccess),
+            'failed' => ($totalFailed),
+            'total' => ($totalSuccess + $totalFailed),
             'errors' => $allErrors,
             'has_failures' => $totalFailed > 0 || $allErrors->count() > 0,
             'type' => $type,
-            'type_counts' => new StrictAssociative($typeCounts),
-            'failed_counts' => new StrictAssociative($failedCounts),
+            'type_counts' => ($typeCounts),
+            'failed_counts' => ($failedCounts),
             'has_unique' => $hasUnique,
             'has_recurring' => $hasRecurring,
         ]);

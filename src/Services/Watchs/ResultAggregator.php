@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Services\Watchs;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\Task\Collections\CycleHistoryRecordCollection;
+use AndyDefer\Task\Collections\TaskExecutionResultRecordCollection;
+use AndyDefer\Task\Contracts\Services\Watchs\ResultAggregatorInterface;
 use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Records\CycleHistoryRecord;
 use AndyDefer\Task\Records\DetailedSummaryRecord;
@@ -20,12 +23,9 @@ use AndyDefer\Task\ValueObjects\CounterVO;
  * multiple execution cycles and task types (unique and recurring).
  * Maintains per-cycle history for detailed analysis.
  */
-final class ResultAggregator
+final class ResultAggregator implements ResultAggregatorInterface
 {
-    /**
-     * @var array<int, CycleHistoryRecord>
-     */
-    private array $cycleHistory = [];
+    private CycleHistoryRecordCollection $cycleHistory;
 
     private int $cycleCount = 0;
 
@@ -43,35 +43,35 @@ final class ResultAggregator
 
     private int $recurringFailed = 0;
 
+    public function __construct()
+    {
+        $this->cycleHistory = new CycleHistoryRecordCollection;
+    }
+
     /**
-     * Start a new execution cycle.
-     *
-     * Increments the cycle counter and initializes history for the new cycle.
+     * {@inheritDoc}
      */
     public function startNewCycle(): void
     {
         $this->cycleCount++;
 
-        $this->cycleHistory[$this->cycleCount] = new CycleHistoryRecord(
-            success: 0,
-            failed: 0,
-            errors: 0,
-            unique_success: 0,
-            unique_failed: 0,
-            recurring_success: 0,
-            recurring_failed: 0,
+        $this->cycleHistory->add(
+            new CycleHistoryRecord(
+                success: 0,
+                failed: 0,
+                errors: 0,
+                unique_success: 0,
+                unique_failed: 0,
+                recurring_success: 0,
+                recurring_failed: 0,
+            )
         );
     }
 
     /**
-     * Add results from a set of task executions.
-     *
-     * Extracts success, failure, and error counts from each result record
-     * and aggregates them by task type.
-     *
-     * @param  array<TaskExecutionResultRecord>  $results  The execution results to aggregate
+     * {@inheritDoc}
      */
-    public function addResults(array $results): void
+    public function addResults(TaskExecutionResultRecordCollection $results): void
     {
         $cycleSuccess = 0;
         $cycleFailed = 0;
@@ -136,25 +136,26 @@ final class ResultAggregator
             }
         }
 
-        if (isset($this->cycleHistory[$this->cycleCount])) {
-            $history = $this->cycleHistory[$this->cycleCount];
+        if ($this->cycleCount > 0) {
+            $history = $this->cycleHistory->last();
 
-            $this->cycleHistory[$this->cycleCount] = new CycleHistoryRecord(
-                success: $history->success + $cycleSuccess,
-                failed: $history->failed + $cycleFailed,
-                errors: $history->errors + $cycleErrors,
-                unique_success: $history->unique_success + $cycleUniqueSuccess,
-                unique_failed: $history->unique_failed + $cycleUniqueFailed,
-                recurring_success: $history->recurring_success + $cycleRecurringSuccess,
-                recurring_failed: $history->recurring_failed + $cycleRecurringFailed,
+            $this->cycleHistory->offsetSet(
+                $this->cycleCount - 1,
+                new CycleHistoryRecord(
+                    success: $history->success + $cycleSuccess,
+                    failed: $history->failed + $cycleFailed,
+                    errors: $history->errors + $cycleErrors,
+                    unique_success: $history->unique_success + $cycleUniqueSuccess,
+                    unique_failed: $history->unique_failed + $cycleUniqueFailed,
+                    recurring_success: $history->recurring_success + $cycleRecurringSuccess,
+                    recurring_failed: $history->recurring_failed + $cycleRecurringFailed,
+                )
             );
         }
     }
 
     /**
-     * Get the total number of cycles executed.
-     *
-     * @return int The cycle count
+     * {@inheritDoc}
      */
     public function getCycleCount(): int
     {
@@ -162,9 +163,7 @@ final class ResultAggregator
     }
 
     /**
-     * Get the total number of successful task executions.
-     *
-     * @return CounterVO The total success count
+     * {@inheritDoc}
      */
     public function getTotalSuccess(): CounterVO
     {
@@ -172,9 +171,7 @@ final class ResultAggregator
     }
 
     /**
-     * Get the total number of failed task executions.
-     *
-     * @return CounterVO The total failure count
+     * {@inheritDoc}
      */
     public function getTotalFailed(): CounterVO
     {
@@ -182,9 +179,7 @@ final class ResultAggregator
     }
 
     /**
-     * Get the total number of errors encountered.
-     *
-     * @return CounterVO The total error count
+     * {@inheritDoc}
      */
     public function getTotalErrors(): CounterVO
     {
@@ -192,9 +187,7 @@ final class ResultAggregator
     }
 
     /**
-     * Get the number of successful unique task executions.
-     *
-     * @return CounterVO The unique task success count
+     * {@inheritDoc}
      */
     public function getUniqueSuccess(): CounterVO
     {
@@ -202,9 +195,7 @@ final class ResultAggregator
     }
 
     /**
-     * Get the number of failed unique task executions.
-     *
-     * @return CounterVO The unique task failure count
+     * {@inheritDoc}
      */
     public function getUniqueFailed(): CounterVO
     {
@@ -212,9 +203,7 @@ final class ResultAggregator
     }
 
     /**
-     * Get the number of successful recurring task executions.
-     *
-     * @return CounterVO The recurring task success count
+     * {@inheritDoc}
      */
     public function getRecurringSuccess(): CounterVO
     {
@@ -222,9 +211,7 @@ final class ResultAggregator
     }
 
     /**
-     * Get the number of failed recurring task executions.
-     *
-     * @return CounterVO The recurring task failure count
+     * {@inheritDoc}
      */
     public function getRecurringFailed(): CounterVO
     {
@@ -232,114 +219,98 @@ final class ResultAggregator
     }
 
     /**
-     * Get the success count for a specific cycle.
-     *
-     * @param  int  $cycleNumber  The cycle number (1-indexed)
-     * @return CounterVO The success count for that cycle
+     * {@inheritDoc}
      */
     public function getCycleSuccess(int $cycleNumber): CounterVO
     {
-        if (! isset($this->cycleHistory[$cycleNumber])) {
+        $index = $cycleNumber - 1;
+        if (! $this->cycleHistory->offsetExists($index)) {
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]->success);
+        return new CounterVO($this->cycleHistory->offsetGet($index)->success);
     }
 
     /**
-     * Get the failure count for a specific cycle.
-     *
-     * @param  int  $cycleNumber  The cycle number (1-indexed)
-     * @return CounterVO The failure count for that cycle
+     * {@inheritDoc}
      */
     public function getCycleFailed(int $cycleNumber): CounterVO
     {
-        if (! isset($this->cycleHistory[$cycleNumber])) {
+        $index = $cycleNumber - 1;
+        if (! $this->cycleHistory->offsetExists($index)) {
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]->failed);
+        return new CounterVO($this->cycleHistory->offsetGet($index)->failed);
     }
 
     /**
-     * Get the error count for a specific cycle.
-     *
-     * @param  int  $cycleNumber  The cycle number (1-indexed)
-     * @return CounterVO The error count for that cycle
+     * {@inheritDoc}
      */
     public function getCycleErrors(int $cycleNumber): CounterVO
     {
-        if (! isset($this->cycleHistory[$cycleNumber])) {
+        $index = $cycleNumber - 1;
+        if (! $this->cycleHistory->offsetExists($index)) {
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]->errors);
+        return new CounterVO($this->cycleHistory->offsetGet($index)->errors);
     }
 
     /**
-     * Get the unique task success count for a specific cycle.
-     *
-     * @param  int  $cycleNumber  The cycle number (1-indexed)
-     * @return CounterVO The unique task success count for that cycle
+     * {@inheritDoc}
      */
     public function getCycleUniqueSuccess(int $cycleNumber): CounterVO
     {
-        if (! isset($this->cycleHistory[$cycleNumber])) {
+        $index = $cycleNumber - 1;
+        if (! $this->cycleHistory->offsetExists($index)) {
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]->unique_success);
+        return new CounterVO($this->cycleHistory->offsetGet($index)->unique_success);
     }
 
     /**
-     * Get the unique task failure count for a specific cycle.
-     *
-     * @param  int  $cycleNumber  The cycle number (1-indexed)
-     * @return CounterVO The unique task failure count for that cycle
+     * {@inheritDoc}
      */
     public function getCycleUniqueFailed(int $cycleNumber): CounterVO
     {
-        if (! isset($this->cycleHistory[$cycleNumber])) {
+        $index = $cycleNumber - 1;
+        if (! $this->cycleHistory->offsetExists($index)) {
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]->unique_failed);
+        return new CounterVO($this->cycleHistory->offsetGet($index)->unique_failed);
     }
 
     /**
-     * Get the recurring task success count for a specific cycle.
-     *
-     * @param  int  $cycleNumber  The cycle number (1-indexed)
-     * @return CounterVO The recurring task success count for that cycle
+     * {@inheritDoc}
      */
     public function getCycleRecurringSuccess(int $cycleNumber): CounterVO
     {
-        if (! isset($this->cycleHistory[$cycleNumber])) {
+        $index = $cycleNumber - 1;
+        if (! $this->cycleHistory->offsetExists($index)) {
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]->recurring_success);
+        return new CounterVO($this->cycleHistory->offsetGet($index)->recurring_success);
     }
 
     /**
-     * Get the recurring task failure count for a specific cycle.
-     *
-     * @param  int  $cycleNumber  The cycle number (1-indexed)
-     * @return CounterVO The recurring task failure count for that cycle
+     * {@inheritDoc}
      */
     public function getCycleRecurringFailed(int $cycleNumber): CounterVO
     {
-        if (! isset($this->cycleHistory[$cycleNumber])) {
+        $index = $cycleNumber - 1;
+        if (! $this->cycleHistory->offsetExists($index)) {
             return new CounterVO(0);
         }
 
-        return new CounterVO($this->cycleHistory[$cycleNumber]->recurring_failed);
+        return new CounterVO($this->cycleHistory->offsetGet($index)->recurring_failed);
     }
 
     /**
-     * Check if any failures or errors have been recorded.
-     *
-     * @return bool True if there are failures or errors
+     * {@inheritDoc}
      */
     public function hasFailures(): bool
     {
@@ -347,11 +318,7 @@ final class ResultAggregator
     }
 
     /**
-     * Get a detailed summary of all aggregated results.
-     *
-     * Returns a DetailedSummaryRecord with breakdowns by task type.
-     *
-     * @return DetailedSummaryRecord The detailed summary
+     * {@inheritDoc}
      */
     public function getDetailedSummary(): DetailedSummaryRecord
     {
@@ -373,21 +340,19 @@ final class ResultAggregator
     }
 
     /**
-     * Get the complete cycle history.
-     *
-     * @return array<int, CycleHistoryRecord>
+     * {@inheritDoc}
      */
-    public function getCycleHistory(): array
+    public function getCycleHistory(): CycleHistoryRecordCollection
     {
         return $this->cycleHistory;
     }
 
     /**
-     * Reset all aggregated data.
+     * {@inheritDoc}
      */
     public function reset(): void
     {
-        $this->cycleHistory = [];
+        $this->cycleHistory = new CycleHistoryRecordCollection;
         $this->cycleCount = 0;
         $this->totalSuccess = 0;
         $this->totalFailed = 0;

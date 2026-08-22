@@ -9,6 +9,7 @@ use AndyDefer\Directive\AbstractDirective;
 use AndyDefer\Directive\Enums\ExitCode;
 use AndyDefer\DomainStructures\Collections\Utility\StringTypedCollection;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\Task\Collections\TaskExecutionResultRecordCollection;
 use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Handlers\SignalHandler;
@@ -16,7 +17,6 @@ use AndyDefer\Task\Helpers\JsonlResultHelper;
 use AndyDefer\Task\Helpers\SessionHelper;
 use AndyDefer\Task\Models\RecurringTask;
 use AndyDefer\Task\Models\UniqueTask;
-use AndyDefer\Task\Records\TaskExecutionResultRecord;
 use AndyDefer\Task\Services\Watchs\CycleCalculator;
 use AndyDefer\Task\Services\Watchs\ParallelExecutor;
 use AndyDefer\Task\Services\Watchs\ResultAggregator;
@@ -214,9 +214,9 @@ final class TasksWatchDirective extends AbstractDirective
     /**
      * Executes a single cycle of task processing.
      *
-     * @return array<TaskExecutionResultRecord> The execution results
+     * @return TaskExecutionResultRecordCollection The execution results
      */
-    private function executeCycle(): array
+    private function executeCycle(): TaskExecutionResultRecordCollection
     {
         $uniqueOnly = $this->isFlagActive('unique-only');
         $recurringOnly = $this->isFlagActive('recurring-only');

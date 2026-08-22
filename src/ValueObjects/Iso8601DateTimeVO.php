@@ -6,6 +6,7 @@ namespace AndyDefer\Task\ValueObjects;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use Carbon\Carbon;
+use Carbon\Exceptions\InvalidFormatException;
 use InvalidArgumentException;
 
 /**
@@ -27,41 +28,26 @@ final class Iso8601DateTimeVO extends AbstractValueObject
             return;
         }
 
-        // Try to parse from ISO format
-        $carbon = Carbon::createFromFormat(self::ISO_FORMAT, $value);
-        if ($carbon !== false) {
-            $this->carbon = $carbon;
-
-            return;
-        }
-
-        // Try to parse from database format
-        $carbon = Carbon::createFromFormat(self::DB_FORMAT, $value);
-        if ($carbon !== false) {
-            $this->carbon = $carbon;
-
-            return;
-        }
-
-        // Try generic parse
         try {
-            $this->carbon = new Carbon($value);
-        } catch (\Exception $e) {
-            throw new InvalidArgumentException("Invalid datetime value: {$value}");
+            $this->carbon = Carbon::createFromFormat(self::ISO_FORMAT, $value);
+
+            return;
+        } catch (InvalidFormatException $e) {
+            try {
+                $this->carbon = Carbon::createFromFormat(self::DB_FORMAT, $value);
+
+                return;
+            } catch (InvalidFormatException $e) {
+                throw new InvalidArgumentException("Invalid datetime value: {$value}");
+            }
         }
     }
 
-    /**
-     * Get the value in database format (Y-m-d H:i:s).
-     */
     public function getValue(): string
     {
         return $this->carbon->format(self::DB_FORMAT);
     }
 
-    /**
-     * Get the value in ISO 8601 format.
-     */
     public function toIso8601(): string
     {
         return $this->carbon->format(self::ISO_FORMAT);

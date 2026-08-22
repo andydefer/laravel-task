@@ -9,6 +9,7 @@ use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\Enums\LogLevel;
 use AndyDefer\Logger\Records\LogDataRecord;
 use AndyDefer\Logger\Records\LogRecord;
+use AndyDefer\Task\Contracts\Handlers\OutputHandlerInterface;
 
 /**
  * Centralizes console output and logging for task directives.
@@ -16,7 +17,7 @@ use AndyDefer\Logger\Records\LogRecord;
  * Handles both muted and verbose modes. When muted, all console output
  * is suppressed and only logs are written.
  */
-final class OutputHandler
+final class OutputHandler implements OutputHandlerInterface
 {
     private ConsoleInterface $console;
 
@@ -38,6 +39,9 @@ final class OutputHandler
         $this->isVerbose = $isVerbose;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function info(string $message, array $payload = []): self
     {
         if (! $this->isMuted) {
@@ -48,6 +52,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function success(string $message, array $payload = []): self
     {
         if (! $this->isMuted) {
@@ -58,6 +65,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function error(string $message, array $payload = []): self
     {
         if (! $this->isMuted) {
@@ -68,6 +78,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function warning(string $message, array $payload = []): self
     {
         if (! $this->isMuted) {
@@ -78,6 +91,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function debug(string $message, array $payload = []): self
     {
         if ($this->isVerbose && ! $this->isMuted) {
@@ -88,6 +104,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function title(string $message, array $payload = []): self
     {
         if (! $this->isMuted) {
@@ -98,6 +117,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function line(string $message = ''): self
     {
         if (! $this->isMuted) {
@@ -111,6 +133,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function raw(string $line): self
     {
         if (! $this->isMuted) {
@@ -121,6 +146,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function keyValue(array|object $data, string $valueColor = 'green'): self
     {
         if (! $this->isMuted) {
@@ -131,6 +159,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function json(array|string $data, int $maxDepth = 3): self
     {
         if (! $this->isMuted) {
@@ -144,6 +175,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function alert(string $message, string $type = 'info', array $payload = []): self
     {
         if (! $this->isMuted) {
@@ -161,7 +195,7 @@ final class OutputHandler
     }
 
     /**
-     * Display remaining tasks count.
+     * {@inheritDoc}
      */
     public function remainingTasks(int $uniquePending, int $recurringPlaying, int $recurringWaiting): self
     {
@@ -181,7 +215,7 @@ final class OutputHandler
     }
 
     /**
-     * Log a cycle summary with success/failed/total counts.
+     * {@inheritDoc}
      */
     public function cycleSummary(int $cycleNumber, int $success, int $failed, int $total): self
     {
@@ -203,7 +237,7 @@ final class OutputHandler
     }
 
     /**
-     * Log a detailed cycle summary with breakdown by task type in JSON format.
+     * {@inheritDoc}
      */
     public function cycleSummaryDetailed(
         int $cycleNumber,
@@ -245,7 +279,7 @@ final class OutputHandler
     }
 
     /**
-     * Display final summary with detailed breakdown in JSON format.
+     * {@inheritDoc}
      */
     public function finalSummary(
         int $totalCycles,
@@ -302,6 +336,9 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function log(LogLevel $level, string $message, array $payload = []): self
     {
         $logData = LogDataRecord::from([
@@ -323,18 +360,24 @@ final class OutputHandler
         return $this;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function isMuted(): bool
     {
         return $this->isMuted;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function isVerbose(): bool
     {
         return $this->isVerbose;
     }
 
     /**
-     * Creates a child OutputHandler with the same configuration.
+     * {@inheritDoc}
      */
     public function withContext(array $context): self
     {

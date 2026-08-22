@@ -14,6 +14,7 @@ use AndyDefer\Logger\Configs\LoggerConfig;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\LoggerService;
 use AndyDefer\PhpServices\Services\FileSystemService;
+use AndyDefer\Task\Contracts\Handlers\OutputHandlerInterface;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Processors\RecurringTaskProcessorInterface;
@@ -26,8 +27,12 @@ use AndyDefer\Task\Contracts\Runners\UniqueTaskRunnerInterface;
 use AndyDefer\Task\Contracts\Services\RecurringTaskServiceInterface;
 use AndyDefer\Task\Contracts\Services\TaskExecutionDebugServiceInterface;
 use AndyDefer\Task\Contracts\Services\UniqueTaskServiceInterface;
+use AndyDefer\Task\Contracts\Services\Watchs\CycleCalculatorInterface;
+use AndyDefer\Task\Contracts\Services\Watchs\ParallelExecutorInterface;
+use AndyDefer\Task\Contracts\Services\Watchs\ResultAggregatorInterface;
 use AndyDefer\Task\Contracts\Validators\RecurringTaskValidatorInterface;
 use AndyDefer\Task\Contracts\Validators\UniqueTaskValidatorInterface;
+use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Loggers\RecurringTaskLogger;
 use AndyDefer\Task\Loggers\UniqueTaskLogger;
 use AndyDefer\Task\Processors\RecurringTaskProcessor;
@@ -40,8 +45,12 @@ use AndyDefer\Task\Runners\UniqueTaskRunner;
 use AndyDefer\Task\Services\RecurringTaskService;
 use AndyDefer\Task\Services\TaskExecutionDebugService;
 use AndyDefer\Task\Services\UniqueTaskService;
+use AndyDefer\Task\Services\Watchs\CycleCalculator;
+use AndyDefer\Task\Services\Watchs\ParallelExecutor;
+use AndyDefer\Task\Services\Watchs\ResultAggregator;
 use AndyDefer\Task\Validators\RecurringTaskValidator;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
+use AndyDefer\Task\ValueObjects\DurationVO;
 use Illuminate\Config\Repository;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
@@ -94,6 +103,20 @@ final class TaskServiceProvider extends ServiceProvider
             }
         );
         $this->app->alias(Console::class, 'console.writer');
+
+        // ✅ OUTPUT HANDLER
+        $this->app->singleton(
+            abstract: OutputHandlerInterface::class,
+            concrete: function (Application $app) {
+                return new OutputHandler(
+                    console: $app->make(Console::class),
+                    logger: $app->make(LoggerInterface::class),
+                    isMuted: false,
+                    isVerbose: false
+                );
+            }
+        );
+        $this->app->alias(OutputHandlerInterface::class, OutputHandler::class);
 
         // ✅ REPOSITORIES
         $this->app->singleton(
@@ -263,6 +286,37 @@ final class TaskServiceProvider extends ServiceProvider
             }
         );
         $this->app->alias(RecurringTaskServiceInterface::class, RecurringTaskService::class);
+
+        // ✅ WATCH SERVICES
+        $this->app->singleton(
+            abstract: ResultAggregatorInterface::class,
+            concrete: function () {
+                return new ResultAggregator;
+            }
+        );
+        $this->app->alias(ResultAggregatorInterface::class, ResultAggregator::class);
+
+        $this->app->singleton(
+            abstract: CycleCalculatorInterface::class,
+            concrete: function (Application $app) {
+                return new CycleCalculator(
+                    interval: $app->make(DurationVO::class, ['value' => 60])
+                );
+            }
+        );
+        $this->app->alias(CycleCalculatorInterface::class, CycleCalculator::class);
+
+        $this->app->singleton(
+            abstract: ParallelExecutorInterface::class,
+            concrete: function (Application $app) {
+                return new ParallelExecutor(
+                    maxWorkers: 4,
+                    kernel: $app->make(DirectiveKernel::class),
+                    output: $app->make(OutputHandlerInterface::class)
+                );
+            }
+        );
+        $this->app->alias(ParallelExecutorInterface::class, ParallelExecutor::class);
 
         // ✅ BOUND KERNEL
         $this->app->singleton(

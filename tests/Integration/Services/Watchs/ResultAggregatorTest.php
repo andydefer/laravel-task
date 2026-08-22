@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace AndyDefer\Task\Tests\Integration\Services\Watchs;
 
 use AndyDefer\DomainStructures\Utils\StrictAssociative;
+use AndyDefer\Task\Collections\CycleHistoryRecordCollection;
 use AndyDefer\Task\Collections\TaskErrorRecordCollection;
+use AndyDefer\Task\Collections\TaskExecutionResultRecordCollection;
 use AndyDefer\Task\Enums\TaskType;
 use AndyDefer\Task\Records\CycleHistoryRecord;
 use AndyDefer\Task\Records\DetailedSummaryRecord;
@@ -16,10 +18,8 @@ use AndyDefer\Task\Records\TaskExecutionResultRecord;
 use AndyDefer\Task\Services\Watchs\ResultAggregator;
 use AndyDefer\Task\Tests\Fixtures\Tasks\FailingTask;
 use AndyDefer\Task\Tests\IntegrationTestCase;
-use AndyDefer\Task\ValueObjects\CounterVO;
-use AndyDefer\Task\ValueObjects\Iso8601DateTimeVO;
-use AndyDefer\Task\ValueObjects\MillisecondsVO;
 use AndyDefer\Task\ValueObjects\UuidVO;
+use Carbon\Carbon;
 
 final class ResultAggregatorTest extends IntegrationTestCase
 {
@@ -54,14 +54,16 @@ final class ResultAggregatorTest extends IntegrationTestCase
             );
         }
 
+        $now = Carbon::now()->format('Y-m-d\TH:i:sP');
+
         return TaskExecutionResultRecord::from([
             'id' => UuidVO::generate()->getValue(),
-            'started_at' => new Iso8601DateTimeVO,
-            'ended_at' => new Iso8601DateTimeVO,
-            'duration_ms' => new MillisecondsVO(100),
-            'success' => new CounterVO($success),
-            'failed' => new CounterVO($failed),
-            'total' => new CounterVO($success + $failed),
+            'started_at' => $now,
+            'ended_at' => $now,
+            'duration_ms' => 100,
+            'success' => $success,
+            'failed' => $failed,
+            'total' => $success + $failed,
             'errors' => $errorsCollection,
             'has_failures' => $failed > 0 || $errors > 0,
             'type' => $type,
@@ -76,6 +78,11 @@ final class ResultAggregatorTest extends IntegrationTestCase
         ]);
     }
 
+    private function createCollection(array $records): TaskExecutionResultRecordCollection
+    {
+        return TaskExecutionResultRecordCollection::from($records);
+    }
+
     public function test_initial_state(): void
     {
         $this->assertEquals(0, $this->aggregator->getTotalSuccess()->getValue());
@@ -87,7 +94,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $this->assertEquals(0, $this->aggregator->getUniqueFailed()->getValue());
         $this->assertEquals(0, $this->aggregator->getRecurringSuccess()->getValue());
         $this->assertEquals(0, $this->aggregator->getRecurringFailed()->getValue());
-        $this->assertEmpty($this->aggregator->getCycleHistory());
+        $this->assertEmpty($this->aggregator->getCycleHistory()->toArray());
     }
 
     public function test_start_new_cycle_increments_cycle_count(): void
@@ -104,10 +111,11 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $this->aggregator->startNewCycle();
 
         $history = $this->aggregator->getCycleHistory();
-        $this->assertArrayHasKey(1, $history);
+        $this->assertInstanceOf(CycleHistoryRecordCollection::class, $history);
+        $this->assertCount(1, $history);
 
         /** @var CycleHistoryRecord $record */
-        $record = $history[1];
+        $record = $history->first();
 
         $this->assertInstanceOf(CycleHistoryRecord::class, $record);
         $this->assertEquals(0, $record->success);
@@ -128,7 +136,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
             type: TaskType::UNIQUE
         );
 
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertEquals(5, $this->aggregator->getTotalSuccess()->getValue());
         $this->assertEquals(2, $this->aggregator->getTotalFailed()->getValue());
@@ -149,7 +157,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
             type: TaskType::RECURRING
         );
 
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertEquals(3, $this->aggregator->getTotalSuccess()->getValue());
         $this->assertEquals(1, $this->aggregator->getTotalFailed()->getValue());
@@ -177,7 +185,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
             type: TaskType::RECURRING
         );
 
-        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+        $this->aggregator->addResults($this->createCollection([$uniqueResult, $recurringResult]));
 
         $this->assertEquals(8, $this->aggregator->getTotalSuccess()->getValue());
         $this->assertEquals(3, $this->aggregator->getTotalFailed()->getValue());
@@ -194,7 +202,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $result2 = $this->createResultRecord(success: 2, failed: 0, type: TaskType::UNIQUE);
         $result3 = $this->createResultRecord(success: 4, failed: 2, type: TaskType::RECURRING);
 
-        $this->aggregator->addResults([$result1, $result2, $result3]);
+        $this->aggregator->addResults($this->createCollection([$result1, $result2, $result3]));
 
         $this->assertEquals(9, $this->aggregator->getTotalSuccess()->getValue());
         $this->assertEquals(3, $this->aggregator->getTotalFailed()->getValue());
@@ -208,9 +216,8 @@ final class ResultAggregatorTest extends IntegrationTestCase
     public function test_add_results_ignores_non_result_records(): void
     {
         $result = $this->createResultRecord(success: 3, failed: 1);
-        $invalid = ['not' => 'a record'];
 
-        $this->aggregator->addResults([$result, $invalid]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertEquals(3, $this->aggregator->getTotalSuccess()->getValue());
         $this->assertEquals(1, $this->aggregator->getTotalFailed()->getValue());
@@ -221,7 +228,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
     {
         $result = $this->createResultRecord(success: 5, failed: 0, errors: 2);
 
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertTrue($this->aggregator->hasFailures());
         $this->assertEquals(2, $this->aggregator->getTotalErrors()->getValue());
@@ -231,7 +238,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
     {
         $result = $this->createResultRecord(success: 5, failed: 0, errors: 0);
 
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertFalse($this->aggregator->hasFailures());
         $this->assertEquals(0, $this->aggregator->getTotalErrors()->getValue());
@@ -241,7 +248,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
     {
         $result = $this->createResultRecord(success: 5, failed: 2);
 
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertEquals(0, $this->aggregator->getCycleCount());
 
@@ -251,24 +258,19 @@ final class ResultAggregatorTest extends IntegrationTestCase
 
     public function test_multiple_cycles_with_results(): void
     {
-        // Cycle #1
         $this->aggregator->startNewCycle();
         $result1 = $this->createResultRecord(success: 3, failed: 1);
-        $this->aggregator->addResults([$result1]);
+        $this->aggregator->addResults($this->createCollection([$result1]));
         $this->assertEquals(1, $this->aggregator->getCycleCount());
 
-        // Cycle #2
         $this->aggregator->startNewCycle();
         $result2 = $this->createResultRecord(success: 2, failed: 0);
-        $this->aggregator->addResults([$result2]);
+        $this->aggregator->addResults($this->createCollection([$result2]));
         $this->assertEquals(2, $this->aggregator->getCycleCount());
 
-        // Totaux cumulés
         $this->assertEquals(5, $this->aggregator->getTotalSuccess()->getValue());
         $this->assertEquals(1, $this->aggregator->getTotalFailed()->getValue());
     }
-
-    // ==================== TESTS CYCLE HISTORY ====================
 
     public function test_cycle_history_stores_results_per_cycle(): void
     {
@@ -277,52 +279,46 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $result1 = $this->createResultRecord(success: 3, failed: 1, type: TaskType::UNIQUE);
         $result2 = $this->createResultRecord(success: 2, failed: 0, type: TaskType::RECURRING);
 
-        $this->aggregator->addResults([$result1, $result2]);
+        $this->aggregator->addResults($this->createCollection([$result1, $result2]));
 
         $history = $this->aggregator->getCycleHistory();
-
-        $this->assertArrayHasKey(1, $history);
+        $this->assertInstanceOf(CycleHistoryRecordCollection::class, $history);
+        $this->assertCount(1, $history);
 
         /** @var CycleHistoryRecord $record */
-        $record = $history[1];
+        $record = $history->first();
 
         $this->assertInstanceOf(CycleHistoryRecord::class, $record);
 
-        // ✅ Totaux
         $this->assertEquals(5, $record->success);
         $this->assertEquals(1, $record->failed);
         $this->assertEquals(0, $record->errors);
 
-        // ✅ Uniques
         $this->assertEquals(3, $record->unique_success);
         $this->assertEquals(1, $record->unique_failed);
 
-        // ✅ Récurrents
         $this->assertEquals(2, $record->recurring_success);
         $this->assertEquals(0, $record->recurring_failed);
     }
 
     public function test_cycle_history_maintains_multiple_cycles(): void
     {
-        // Cycle #1
         $this->aggregator->startNewCycle();
         $result1 = $this->createResultRecord(success: 3, failed: 1, type: TaskType::UNIQUE);
-        $this->aggregator->addResults([$result1]);
+        $this->aggregator->addResults($this->createCollection([$result1]));
 
-        // Cycle #2
         $this->aggregator->startNewCycle();
         $result2 = $this->createResultRecord(success: 2, failed: 0, type: TaskType::RECURRING);
-        $this->aggregator->addResults([$result2]);
+        $this->aggregator->addResults($this->createCollection([$result2]));
 
         $history = $this->aggregator->getCycleHistory();
-
-        $this->assertArrayHasKey(1, $history);
-        $this->assertArrayHasKey(2, $history);
+        $this->assertInstanceOf(CycleHistoryRecordCollection::class, $history);
+        $this->assertCount(2, $history);
 
         /** @var CycleHistoryRecord $record1 */
-        $record1 = $history[1];
+        $record1 = $history->offsetGet(0);
         /** @var CycleHistoryRecord $record2 */
-        $record2 = $history[2];
+        $record2 = $history->offsetGet(1);
 
         $this->assertInstanceOf(CycleHistoryRecord::class, $record1);
         $this->assertInstanceOf(CycleHistoryRecord::class, $record2);
@@ -338,7 +334,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
     {
         $this->aggregator->startNewCycle();
         $result = $this->createResultRecord(success: 5, failed: 2);
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertEquals(5, $this->aggregator->getCycleSuccess(1)->getValue());
         $this->assertEquals(0, $this->aggregator->getCycleSuccess(2)->getValue());
@@ -349,7 +345,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
     {
         $this->aggregator->startNewCycle();
         $result = $this->createResultRecord(success: 5, failed: 3);
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertEquals(3, $this->aggregator->getCycleFailed(1)->getValue());
         $this->assertEquals(0, $this->aggregator->getCycleFailed(2)->getValue());
@@ -360,7 +356,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
     {
         $this->aggregator->startNewCycle();
         $result = $this->createResultRecord(success: 5, failed: 0, errors: 2);
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertEquals(2, $this->aggregator->getCycleErrors(1)->getValue());
         $this->assertEquals(0, $this->aggregator->getCycleErrors(2)->getValue());
@@ -374,7 +370,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $uniqueResult = $this->createResultRecord(success: 5, failed: 2, type: TaskType::UNIQUE);
         $recurringResult = $this->createResultRecord(success: 3, failed: 1, type: TaskType::RECURRING);
 
-        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+        $this->aggregator->addResults($this->createCollection([$uniqueResult, $recurringResult]));
 
         $this->assertEquals(5, $this->aggregator->getCycleUniqueSuccess(1)->getValue());
         $this->assertEquals(0, $this->aggregator->getCycleUniqueSuccess(2)->getValue());
@@ -387,7 +383,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $uniqueResult = $this->createResultRecord(success: 5, failed: 2, type: TaskType::UNIQUE);
         $recurringResult = $this->createResultRecord(success: 3, failed: 1, type: TaskType::RECURRING);
 
-        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+        $this->aggregator->addResults($this->createCollection([$uniqueResult, $recurringResult]));
 
         $this->assertEquals(2, $this->aggregator->getCycleUniqueFailed(1)->getValue());
         $this->assertEquals(0, $this->aggregator->getCycleUniqueFailed(2)->getValue());
@@ -400,7 +396,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $uniqueResult = $this->createResultRecord(success: 5, failed: 2, type: TaskType::UNIQUE);
         $recurringResult = $this->createResultRecord(success: 3, failed: 1, type: TaskType::RECURRING);
 
-        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+        $this->aggregator->addResults($this->createCollection([$uniqueResult, $recurringResult]));
 
         $this->assertEquals(3, $this->aggregator->getCycleRecurringSuccess(1)->getValue());
         $this->assertEquals(0, $this->aggregator->getCycleRecurringSuccess(2)->getValue());
@@ -413,7 +409,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $uniqueResult = $this->createResultRecord(success: 5, failed: 2, type: TaskType::UNIQUE);
         $recurringResult = $this->createResultRecord(success: 3, failed: 1, type: TaskType::RECURRING);
 
-        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+        $this->aggregator->addResults($this->createCollection([$uniqueResult, $recurringResult]));
 
         $this->assertEquals(1, $this->aggregator->getCycleRecurringFailed(1)->getValue());
         $this->assertEquals(0, $this->aggregator->getCycleRecurringFailed(2)->getValue());
@@ -424,7 +420,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $uniqueResult = $this->createResultRecord(success: 5, failed: 2, errors: 1, type: TaskType::UNIQUE);
         $recurringResult = $this->createResultRecord(success: 3, failed: 1, errors: 0, type: TaskType::RECURRING);
 
-        $this->aggregator->addResults([$uniqueResult, $recurringResult]);
+        $this->aggregator->addResults($this->createCollection([$uniqueResult, $recurringResult]));
 
         /** @var DetailedSummaryRecord $summary */
         $summary = $this->aggregator->getDetailedSummary();
@@ -450,7 +446,7 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $this->aggregator->startNewCycle();
 
         $result = $this->createResultRecord(success: 5, failed: 2, errors: 1, type: TaskType::UNIQUE);
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $this->assertEquals(1, $this->aggregator->getCycleCount());
         $this->assertEquals(5, $this->aggregator->getTotalSuccess()->getValue());
@@ -463,22 +459,22 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $this->assertEquals(0, $this->aggregator->getTotalSuccess()->getValue());
         $this->assertEquals(0, $this->aggregator->getTotalFailed()->getValue());
         $this->assertEquals(0, $this->aggregator->getTotalErrors()->getValue());
-        $this->assertEmpty($this->aggregator->getCycleHistory());
+        $this->assertEmpty($this->aggregator->getCycleHistory()->toArray());
     }
 
     public function test_cycle_history_preserves_data_after_reset(): void
     {
         $this->aggregator->startNewCycle();
         $result = $this->createResultRecord(success: 5, failed: 2);
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $historyBefore = $this->aggregator->getCycleHistory();
-        $this->assertNotEmpty($historyBefore);
+        $this->assertNotEmpty($historyBefore->toArray());
 
         $this->aggregator->reset();
         $historyAfter = $this->aggregator->getCycleHistory();
 
-        $this->assertEmpty($historyAfter);
+        $this->assertEmpty($historyAfter->toArray());
         $this->assertNotSame($historyBefore, $historyAfter);
     }
 
@@ -486,14 +482,14 @@ final class ResultAggregatorTest extends IntegrationTestCase
     {
         $this->aggregator->startNewCycle();
         $result = $this->createResultRecord(success: 10, failed: 0, errors: 3);
-        $this->aggregator->addResults([$result]);
+        $this->aggregator->addResults($this->createCollection([$result]));
 
         $history = $this->aggregator->getCycleHistory();
-
-        $this->assertArrayHasKey(1, $history);
+        $this->assertInstanceOf(CycleHistoryRecordCollection::class, $history);
+        $this->assertCount(1, $history);
 
         /** @var CycleHistoryRecord $record */
-        $record = $history[1];
+        $record = $history->first();
 
         $this->assertInstanceOf(CycleHistoryRecord::class, $record);
 
@@ -506,14 +502,14 @@ final class ResultAggregatorTest extends IntegrationTestCase
     public function test_cycle_history_handles_empty_cycles(): void
     {
         $this->aggregator->startNewCycle();
-        $this->aggregator->addResults([]);
+        $this->aggregator->addResults($this->createCollection([]));
 
         $history = $this->aggregator->getCycleHistory();
-
-        $this->assertArrayHasKey(1, $history);
+        $this->assertInstanceOf(CycleHistoryRecordCollection::class, $history);
+        $this->assertCount(1, $history);
 
         /** @var CycleHistoryRecord $record */
-        $record = $history[1];
+        $record = $history->first();
 
         $this->assertInstanceOf(CycleHistoryRecord::class, $record);
 
@@ -530,16 +526,16 @@ final class ResultAggregatorTest extends IntegrationTestCase
         $result2 = $this->createResultRecord(success: 2, failed: 0, type: TaskType::UNIQUE);
         $result3 = $this->createResultRecord(success: 4, failed: 2, type: TaskType::RECURRING);
 
-        $this->aggregator->addResults([$result1]);
-        $this->aggregator->addResults([$result2]);
-        $this->aggregator->addResults([$result3]);
+        $this->aggregator->addResults($this->createCollection([$result1]));
+        $this->aggregator->addResults($this->createCollection([$result2]));
+        $this->aggregator->addResults($this->createCollection([$result3]));
 
         $history = $this->aggregator->getCycleHistory();
-
-        $this->assertArrayHasKey(1, $history);
+        $this->assertInstanceOf(CycleHistoryRecordCollection::class, $history);
+        $this->assertCount(1, $history);
 
         /** @var CycleHistoryRecord $record */
-        $record = $history[1];
+        $record = $history->first();
 
         $this->assertInstanceOf(CycleHistoryRecord::class, $record);
 

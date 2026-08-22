@@ -7,6 +7,7 @@ namespace AndyDefer\Task\Tests\Integration\Services\Watchs;
 use AndyDefer\ConsoleWriter\Console\Contracts\ConsoleInterface;
 use AndyDefer\Directive\DirectiveKernel;
 use AndyDefer\Logger\Contracts\LoggerInterface;
+use AndyDefer\Task\Collections\TaskExecutionResultRecordCollection;
 use AndyDefer\Task\Collections\TaskFqcnVOCollection;
 use AndyDefer\Task\Handlers\OutputHandler;
 use AndyDefer\Task\Records\TaskExecutionResultRecord;
@@ -18,12 +19,6 @@ use AndyDefer\Task\ValueObjects\LimitVO;
 use AndyDefer\Task\ValueObjects\TaskFqcnVO;
 use PHPUnit\Framework\MockObject\MockObject;
 
-/**
- * Integration tests for the ParallelExecutor service.
- *
- * Validates parallel task execution with various configurations including
- * worker count, task limits, filtering options, and output verbosity.
- */
 final class ParallelExecutorTest extends IntegrationTestCase
 {
     /** @var ConsoleInterface&MockObject */
@@ -48,8 +43,8 @@ final class ParallelExecutorTest extends IntegrationTestCase
         $this->outputHandler = new OutputHandler(
             $this->console,
             $this->logger,
-            false, // isMuted
-            false  // isVerbose
+            false,
+            false
         );
 
         $this->kernel = DirectiveKernel::init($this->app);
@@ -60,9 +55,6 @@ final class ParallelExecutorTest extends IntegrationTestCase
         );
     }
 
-    /**
-     * Creates a configured executor with the specified worker count.
-     */
     private function createExecutor(int $workers): ParallelExecutor
     {
         $console = $this->createMockConsole();
@@ -84,9 +76,6 @@ final class ParallelExecutorTest extends IntegrationTestCase
         );
     }
 
-    /**
-     * Creates a muted executor with the specified worker count.
-     */
     private function createMutedExecutor(int $workers): ParallelExecutor
     {
         $console = $this->createMockConsole();
@@ -95,8 +84,8 @@ final class ParallelExecutorTest extends IntegrationTestCase
         $outputHandler = new OutputHandler(
             $console,
             $logger,
-            true,  // isMuted
-            false  // isVerbose
+            true,
+            false
         );
 
         $kernel = DirectiveKernel::init($this->app);
@@ -108,9 +97,6 @@ final class ParallelExecutorTest extends IntegrationTestCase
         );
     }
 
-    /**
-     * Creates a TaskFqcnVOCollection from an array of FQCN strings.
-     */
     private function createFqcnCollection(array $fqcns): TaskFqcnVOCollection
     {
         $collection = new TaskFqcnVOCollection;
@@ -121,15 +107,10 @@ final class ParallelExecutorTest extends IntegrationTestCase
         return $collection;
     }
 
-    /**
-     * Validates that all non-null results are TaskExecutionResultRecord instances.
-     */
-    private function assertAllResultsAreValid(array $results): void
+    private function assertAllResultsAreValid(TaskExecutionResultRecordCollection $results): void
     {
         foreach ($results as $result) {
-            if ($result !== null) {
-                $this->assertInstanceOf(TaskExecutionResultRecord::class, $result);
-            }
+            $this->assertInstanceOf(TaskExecutionResultRecord::class, $result);
         }
     }
 
@@ -144,7 +125,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             verbose: false
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
 
     public function test_execute_with_multiple_workers(): void
@@ -156,7 +137,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             verbose: false
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
 
     public function test_execute_with_limit(): void
@@ -170,7 +151,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             verbose: false
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
 
     public function test_execute_with_unique_only(): void
@@ -182,7 +163,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             verbose: false
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
 
     public function test_execute_with_recurring_only(): void
@@ -194,7 +175,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             verbose: false
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
 
     public function test_execute_returns_array_of_result_records(): void
@@ -206,7 +187,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             verbose: false
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -219,7 +200,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             verbose: true
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
 
     public function test_execute_with_muted_mode(): void
@@ -234,7 +215,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             muted: true
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
 
     public function test_max_workers_is_at_least_one(): void
@@ -262,7 +243,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             verbose: false
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -278,7 +259,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             muted: true
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
 
     public function test_execute_with_multiple_workers_and_muted(): void
@@ -293,10 +274,8 @@ final class ParallelExecutorTest extends IntegrationTestCase
             muted: true
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
     }
-
-    // ==================== TESTS WITH FQCN FILTER ====================
 
     public function test_execute_with_fqcn_filter(): void
     {
@@ -311,7 +290,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: $fqcns
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -329,7 +308,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: $fqcns
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -346,7 +325,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: $fqcns
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -363,7 +342,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: $fqcns
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -380,7 +359,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: $fqcns
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -395,7 +374,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: null
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -413,7 +392,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: $fqcns
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -431,7 +410,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: $fqcns
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 
@@ -448,7 +427,7 @@ final class ParallelExecutorTest extends IntegrationTestCase
             fqcns: $fqcns
         );
 
-        $this->assertIsArray($results);
+        $this->assertInstanceOf(TaskExecutionResultRecordCollection::class, $results);
         $this->assertAllResultsAreValid($results);
     }
 }
