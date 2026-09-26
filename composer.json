@@ -15,7 +15,7 @@
         "ramsey/uuid": "^4.7",
         "andydefer/laravel-logger": "^3.9.37",
         "andydefer/laravel-repository": "^2.17.21",
-        "andydefer/laravel-directive": "^3.66.46",
+        "andydefer/laravel-directive": "^3.66.47",
         "zaber-dev/laravel-lock": "^1.0"
     },
     "require-dev": {
