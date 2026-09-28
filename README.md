@@ -22,10 +22,11 @@
 10. [Gestion des tâches](#gestion-des-tâches)
 11. [Directive `tasks:list` — Lister les tâches](#directive-taskslist--lister-les-tâches)
 12. [Directive `tasks:search` — Rechercher une tâche par alias](#directive-taskssearch--rechercher-une-tâche-par-alias)
-13. [Mode test et fixtures](#mode-test-et-fixtures)
-14. [Cas d'usage concrets](#cas-dusage-concrets)
-15. [Intégration avec les cron jobs](#intégration-avec-les-cron-jobs)
-16. [Bonnes pratiques](#bonnes-pratiques)
+13. [Circuit Breaker — Protéger les appels critiques](#circuit-breaker--protéger-les-appels-critiques)
+14. [Mode test et fixtures](#mode-test-et-fixtures)
+15. [Cas d'usage concrets](#cas-dusage-concrets)
+16. [Intégration avec les cron jobs](#intégration-avec-les-cron-jobs)
+17. [Bonnes pratiques](#bonnes-pratiques)
 
 ---
 
@@ -64,6 +65,7 @@ php artisan migrate
 | État et historique | ❌ | ❌ | ✅ |
 | Exécution parallèle | ❌ | ✅ | ✅ |
 | Fonctionne sur hébergement SHARED | ✅ | ❌ | ✅ |
+| Circuit breaker intégré | ❌ | ❌ | ✅ |
 
 ---
 
@@ -843,6 +845,145 @@ Un alias n'est jamais recherché deux fois : la première correspondance gagne.
 
 ---
 
+## Circuit Breaker — Protéger les appels critiques
+
+Le package embarque un **circuit breaker** prêt à l'emploi, basé sur le cache Laravel. Il protège n'importe quelle opération dont l'échec répété est coûteux : appel HTTP, accès base de données, lecture de fichier partagé, requête sur un service interne.
+
+### Principe
+
+```
+CLOSED ──── (≥ failureThreshold échecs) ────▶ OPEN
+OPEN   ──── (≥ openSeconds écoulées) ──────▶ HALF_OPEN
+HALF_OPEN ─ (≥ successThreshold succès) ───▶ CLOSED
+HALF_OPEN ─ (1 échec) ─────────────────────▶ OPEN
+```
+
+- **CLOSED** : fonctionnement normal. Les échecs sont comptés.
+- **OPEN** : toute exécution est refusée par `CircuitOpenException`.
+- **HALF_OPEN** : après `openSeconds`, quelques essais sont autorisés. `successThreshold` succès consécutifs referment le circuit.
+
+### Utilisation dans une tâche
+
+Ajoute le trait `WithCircuitBreaker` à ta tâche :
+
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tasks;
+
+use AndyDefer\Task\Abstract\AbstractUniqueTask;
+use AndyDefer\Task\CircuitBreaker\Concerns\WithCircuitBreaker;
+use AndyDefer\Task\ValueObjects\DescriptionVO;
+
+final class SendFcmNotificationTask extends AbstractUniqueTask
+{
+    use WithCircuitBreaker;
+
+    protected function process(): void
+    {
+        $this->withBreaker('firebase.fcm', function (): void {
+            // Appel à l'API HTTP v1 de FCM
+        });
+
+        $this->info(new DescriptionVO('FCM notification sent.'));
+    }
+}
+```
+
+> **Opt-in** : les tâches qui n'utilisent pas le trait ne sont pas affectées. Aucune signature, aucun constructeur, aucun contrat d'interface n'est modifié.
+
+### Utilisation directe
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use AndyDefer\Task\CircuitBreaker\CircuitBreaker;
+use AndyDefer\Task\CircuitBreaker\ValueObjects\CircuitBreakerKeyVO;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
+
+$breaker = CircuitBreaker::create(
+    new CircuitBreakerKeyVO('webhook.partner-x'),
+    app(CacheRepository::class),
+    failureThreshold: 5,
+    successThreshold: 2,
+    openSeconds: 60,
+);
+
+$payload = $breaker->execute(function (): array {
+    return Http::timeout(5)->get('https://partner.example.com/hook')->json();
+});
+```
+
+### Choix de la clé
+
+La clé identifie la **ressource protégée**, pas la tâche. Deux appels avec la même clé partagent le même breaker.
+
+| Clé suggérée | Ressource protégée |
+|--------------|-------------------|
+| `firebase.fcm` | API Firebase Cloud Messaging |
+| `webpush.mozilla` | Service Push de Mozilla |
+| `db.replica-eu` | Réplique DB Europe |
+| `storage.s3` | Bucket S3 |
+| `webhook.partner-x` | Webhook partenaire X |
+| `mail.smtp` | Serveur SMTP |
+
+### Gestion des erreurs
+
+```php
+use AndyDefer\Task\CircuitBreaker\Exceptions\CircuitOpenException;
+
+try {
+    $breaker->execute(fn () => $this->callExternalApi());
+} catch (CircuitOpenException $e) {
+    // Le circuit est ouvert : ne pas insister.
+    logger()->warning($e->getMessage());
+}
+```
+
+### Comportement en cas d'échec
+
+- Toute exception levée par le callback est **propagée** après incrément du compteur d'échecs.
+- L'exception d'origine n'est **jamais** remplacée par une exception du breaker.
+- Le compteur d'échecs est **réinitialisé** à chaque succès en état `CLOSED`.
+
+### API
+
+| Méthode | Description |
+|---------|-------------|
+| `CircuitBreaker::create(...)` | Construit un breaker (seuils clampés à ≥ 1) |
+| `execute(callable $callback)` | Exécute protégé par le breaker |
+| `state(): CircuitBreakerState` | État courant (`CLOSED`, `OPEN`, `HALF_OPEN`) |
+| `recordSuccess()` | Enregistre un succès manuellement |
+| `recordFailure()` | Enregistre un échec manuellement |
+| `reset()` | Force l'état à `CLOSED` et efface les compteurs |
+
+### Configuration
+
+Aucune configuration obligatoire. Le breaker utilise le store de cache par défaut. Pour cibler un store spécifique :
+
+```php
+$breaker = CircuitBreaker::create(
+    new CircuitBreakerKeyVO('my.resource'),
+    Cache::store('redis'),
+    failureThreshold: 5,
+    successThreshold: 2,
+    openSeconds: 60,
+);
+```
+
+### Points d'attention
+
+- **Backend de cache** : `redis` et `database` offrent des incréments atomiques. `array` est local au processus.
+- **Concurrence** : deux workers peuvent incrémenter simultanément ; le seuil peut être franchi avec une tolérance de quelques unités.
+- **Aucun verrou** : le breaker est conçu pour être tolérant aux races bénignes.
+- **Clés de cache** : préfixées par `task:circuit:` pour éviter les collisions.
+
+---
+
 ## Cas d'usage concrets
 
 ### 1. SaaS - Abonnements et facturation
@@ -968,7 +1109,7 @@ class AbandonedCartService
 }
 ```
 
-### 3. Intégrations API - Webhooks avec retry
+### 3. Intégrations API - Webhooks avec retry et circuit breaker
 
 ```php
 <?php
@@ -991,6 +1132,7 @@ class WebhookService
     public function sendWebhook($event, $data): string
     {
         // ✅ Appel API avec retry automatique
+        // La tâche elle-même utilisera WithCircuitBreaker pour protéger l'appel.
         $config = UniqueTaskConfigRecord::from([
             'scheduled_at' => new Iso8601DateTimeVO(now()->addSeconds(5)),
             'max_attempts' => new MaxAttemptsVO(5),
@@ -1220,6 +1362,24 @@ $payload = StrictDataObject::from([
 ./bin/task tasks:process 100
 ./bin/task tasks:watch 30 300 50
 ```
+
+### ✅ Protéger les appels critiques avec un circuit breaker
+
+```php
+final class SendFcmNotificationTask extends AbstractUniqueTask
+{
+    use WithCircuitBreaker;
+
+    protected function process(): void
+    {
+        $this->withBreaker('firebase.fcm', function (): void {
+            // Appel protégé
+        });
+    }
+}
+```
+
+**Une clé = une ressource protégée.** Ne pas mélanger plusieurs ressources sous la même clé. Ne pas réutiliser la même clé entre deux services distincts.
 
 ---
 ## Licence
