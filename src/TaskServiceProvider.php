@@ -14,6 +14,8 @@ use AndyDefer\Logger\Configs\LoggerConfig;
 use AndyDefer\Logger\Contracts\LoggerInterface;
 use AndyDefer\Logger\LoggerService;
 use AndyDefer\PhpServices\Services\FileSystemService;
+use AndyDefer\Task\CircuitBreaker\CircuitBreakerFactory;
+use AndyDefer\Task\CircuitBreaker\Contracts\CircuitBreakerFactoryInterface;
 use AndyDefer\Task\Contracts\Handlers\OutputHandlerInterface;
 use AndyDefer\Task\Contracts\Loggers\RecurringTaskLoggerInterface;
 use AndyDefer\Task\Contracts\Loggers\UniqueTaskLoggerInterface;
@@ -52,6 +54,7 @@ use AndyDefer\Task\Validators\RecurringTaskValidator;
 use AndyDefer\Task\Validators\UniqueTaskValidator;
 use AndyDefer\Task\ValueObjects\DurationVO;
 use Illuminate\Config\Repository;
+use Illuminate\Contracts\Cache\Repository as CacheRepository;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Support\ServiceProvider;
@@ -72,6 +75,20 @@ final class TaskServiceProvider extends ServiceProvider
         });
 
         $this->registerLogger();
+
+        $this->app->singleton(
+            abstract: CircuitBreakerFactoryInterface::class,
+            concrete: function (Application $app) {
+                return new CircuitBreakerFactory(
+                    cache: $app->make(CacheRepository::class),
+                );
+            }
+        );
+
+        $this->app->alias(
+            CircuitBreakerFactoryInterface::class,
+            CircuitBreakerFactory::class,
+        );
 
         // ✅ SERVICES DE BASE
         $this->app->singleton(
