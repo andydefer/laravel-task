@@ -20,10 +20,12 @@
 8. [Surveillance continue](#surveillance-continue)
 9. [Exécution parallèle](#exécution-parallèle)
 10. [Gestion des tâches](#gestion-des-tâches)
-11. [Mode test et fixtures](#mode-test-et-fixtures)
-12. [Cas d'usage concrets](#cas-dusage-concrets)
-13. [Intégration avec les cron jobs](#intégration-avec-les-cron-jobs)
-14. [Bonnes pratiques](#bonnes-pratiques)
+11. [Directive `tasks:list` — Lister les tâches](#directive-taskslist--lister-les-tâches)
+12. [Directive `tasks:search` — Rechercher une tâche par alias](#directive-taskssearch--rechercher-une-tâche-par-alias)
+13. [Mode test et fixtures](#mode-test-et-fixtures)
+14. [Cas d'usage concrets](#cas-dusage-concrets)
+15. [Intégration avec les cron jobs](#intégration-avec-les-cron-jobs)
+16. [Bonnes pratiques](#bonnes-pratiques)
 
 ---
 
@@ -92,12 +94,14 @@ $exitCode = $kernel->run(['directive', 'tasks:process']);
 
 ### Les directives
 
-Le package fournit trois directives principales :
+Le package fournit cinq directives principales :
 
 | Directive | Description | Utilisation |
 |-----------|-------------|-------------|
 | `tasks:process` | Exécution unique en lot | `./bin/task tasks:process` |
 | `tasks:watch` | Surveillance continue | `./bin/task tasks:watch` |
+| `tasks:list` | Liste les tâches persistées | `./bin/task tasks:list` |
+| `tasks:search` | Recherche par alias | `./bin/task tasks:search` |
 | `fixture:register-tasks` | Création de tâches de test | `./bin/task fixture:register-tasks` |
 
 ### Filtrage par FQCN (Arguments variadiques)
@@ -646,6 +650,196 @@ class TaskManager
     }
 }
 ```
+
+---
+
+## Directive `tasks:list` — Lister les tâches
+
+La directive `tasks:list` affiche les tâches uniques et récurrentes persistées dans un tableau, avec filtres par type, statut et FQCN.
+
+### Signature
+
+```
+tasks:list
+    {limit=50}#"Maximum number of tasks to display"
+    {fqcns*}#"Filter by fully qualified class names (dots instead of backslashes)"
+    {kinds*>[unique,recurring]}#"Task kinds to display"
+    {unique_statuses*>[pending,completed,in_progress,failed,canceled]}#"Unique task statuses to include"
+    {recurring_statuses*>[waiting,playing,paused,finished,canceled]}#"Recurring task statuses to include"
+```
+
+| Argument | Type | Défaut | Description |
+|----------|------|--------|-------------|
+| `limit` | `int` | `50` | Nombre maximum de tâches par statut |
+| `fqcns` | `array<string>` | `[]` | Filtre par FQCN (notation pointée) |
+| `kinds` | `array<string>` | `[unique,recurring]` | Types à afficher |
+| `unique_statuses` | `array<string>` | Tous | Statuts de tâches uniques |
+| `recurring_statuses` | `array<string>` | Tous | Statuts de tâches récurrentes |
+
+### Alias
+
+- `tasks:ls`
+- `t:ls`
+
+### Ordre des arguments positionnels
+
+Les variadics sont **positionnels**. Pour ignorer un variadic, passer `[]`.
+
+| Position | Argument |
+|----------|----------|
+| 1 | `limit` |
+| 2 | `fqcns` |
+| 3 | `kinds` |
+| 4 | `unique_statuses` |
+| 5 | `recurring_statuses` |
+
+### Utilisation
+
+```bash
+# Lister les 50 premières tâches (uniques + récurrentes)
+./bin/task tasks:list
+
+# Lister uniquement les tâches récurrentes
+./bin/task tasks:list 50 [] [recurring]
+
+# Lister les tâches uniques en échec
+./bin/task tasks:list 50 [] [unique] [failed]
+
+# Lister les tâches récurrentes en playing
+./bin/task tasks:list 50 [] [recurring] [] [playing]
+
+# Filtrer par FQCN
+./bin/task tasks:list 50 [App.Tasks.MyUniqueTask]
+
+# Combiner FQCN, type et statut
+./bin/task tasks:list 20 [App.Tasks.MyUniqueTask] [unique] [pending]
+
+# Limiter à 10 résultats
+./bin/task tasks:list 10
+
+# Alias
+./bin/task t:ls
+```
+
+### Colonnes de sortie
+
+| Colonne | Source unique | Source récurrente |
+|---------|---------------|-------------------|
+| `Kind` | `unique` | `recurring` |
+| `Alias` | `alias` | `alias` |
+| `FQCN` | `fqcn` | `fqcn` |
+| `Status` | `status` | `status` |
+| `Next / Last run` | `scheduled_at` | `last_run_at` sinon `start_at` |
+| `Attempts` | `attempts` | `failed_attempts` |
+
+### Comportement
+
+- **Filtrage FQCN** : en mémoire, après récupération des résultats. Chaque tâche est comparée par égalité stricte.
+- **Conversion FQCN** : `App.Tasks.MyTask` → `App\Tasks\MyTask`.
+- **Limite** : appliquée **par statut**, pas globalement.
+- **Aucun résultat** : affiche `⚠️ No data to display`.
+
+### Exemple de sortie
+
+```
+🗂️ Tasks
+┌───────────┬────────────────────┬─────────────────┬──────────┬──────────────────────┬──────────┐
+│ Kind      │ Alias              │ FQCN            │ Status   │ Next / Last run      │ Attempts │
+├───────────┼────────────────────┼─────────────────┼──────────┼──────────────────────┼──────────┤
+│ unique    │ unique@0192f3a1-...│ App\FooTask     │ pending  │ 2026-06-23T10:00:00Z │ 0        │
+│ recurring │ recurring@0192f3a2-│ App\BarTask     │ playing  │ 2026-06-23T11:00:00Z │ 0        │
+└───────────┴────────────────────┴─────────────────┴──────────┴──────────────────────┴──────────┘
+```
+
+---
+
+## Directive `tasks:search` — Rechercher une tâche par alias
+
+La directive `tasks:search` permet de retrouver une ou plusieurs tâches par leur alias. Elle cherche d'abord dans les tâches uniques, puis dans les tâches récurrentes.
+
+### Signature
+
+```
+tasks:search {aliases*}#"Task aliases to search"
+```
+
+| Argument | Type | Obligatoire | Description |
+|----------|------|-------------|-------------|
+| `aliases` | `array<string>` | ✅ | Liste d'alias à rechercher |
+
+Les alias sont fournis sous forme de variadic : `[alias1, alias2, ...]`.
+
+### Alias
+
+- `tasks:find`
+- `t:find`
+
+### Utilisation
+
+```bash
+# Rechercher une tâche unique
+./bin/task tasks:search [unique@0192f3a1-...]
+
+# Rechercher une tâche récurrente
+./bin/task tasks:search [recurring@0192f3a2-...]
+
+# Rechercher plusieurs tâches en une fois
+./bin/task tasks:search [unique@0192f3a1-..., recurring@0192f3a2-...]
+
+# Rechercher un alias introuvable (retourne FAILURE)
+./bin/task tasks:search [unknown@00000000-0000-0000-0000-000000000000]
+
+# Alias
+./bin/task tasks:find [unique@0192f3a1-...]
+./bin/task t:find [unique@0192f3a1-...]
+```
+
+### Ordre de recherche
+
+| Priorité | Service | Condition |
+|----------|---------|-----------|
+| 1 | `UniqueTaskServiceInterface::find()` | Si retour non-null, l'alias est considéré trouvé |
+| 2 | `RecurringTaskServiceInterface::find()` | Consulté uniquement si le précédent retourne `null` |
+
+Un alias n'est jamais recherché deux fois : la première correspondance gagne.
+
+### Comportement
+
+| Cas | ExitCode | Sortie |
+|-----|----------|--------|
+| Toutes les alias trouvées | `SUCCESS` | Tableau des tâches |
+| Certaines alias non trouvées | `FAILURE` | Tableau + avertissements |
+| Aucune alias trouvée | `FAILURE` | Erreur + avertissements |
+| Aucun alias fourni | (exception kernel) | `At least one alias is required.` |
+
+### Colonnes de sortie
+
+| Colonne | Source unique | Source récurrente |
+|---------|---------------|-------------------|
+| `Kind` | `unique` | `recurring` |
+| `Alias` | `alias` | `alias` |
+| `FQCN` | `fqcn` | `fqcn` |
+| `Status` | `status` | `status` |
+| `Next / Last run` | `scheduled_at` | `last_run_at` sinon `start_at` |
+| `Attempts` | `attempts` | `failed_attempts` |
+
+### Exemple de sortie
+
+```
+🔎 Tasks
+┌───────────┬─────────────────────────┬───────────────┬──────────┬──────────────────────┬──────────┐
+│ Kind      │ Alias                   │ FQCN          │ Status   │ Next / Last run      │ Attempts │
+├───────────┼─────────────────────────┼───────────────┼──────────┼──────────────────────┼──────────┤
+│ unique    │ unique@0192f3a1-...     │ App\FooTask   │ pending  │ 2026-06-23T10:00:00Z │ 0        │
+│ recurring │ recurring@0192f3a2-...  │ App\BarTask   │ playing  │ 2026-06-23T11:00:00Z │ 0        │
+└───────────┴─────────────────────────┴───────────────┴──────────┴──────────────────────┴──────────┘
+```
+
+### Points d'attention
+
+- **Pas de `_`** — chaque alias est une valeur réelle dans le variadic.
+- **Recherche séquentielle** : unique d'abord, puis recurring.
+- **Signale les alias introuvables** un par un, sans interrompre le traitement.
 
 ---
 
