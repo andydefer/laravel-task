@@ -6,8 +6,8 @@ namespace AndyDefer\Task\ValueObjects;
 
 use AndyDefer\DomainStructures\Abstracts\AbstractValueObject;
 use Carbon\Carbon;
-use Carbon\Exceptions\InvalidFormatException;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * Value Object representing a datetime.
@@ -29,17 +29,11 @@ final class Iso8601DateTimeVO extends AbstractValueObject
         }
 
         try {
-            $this->carbon = Carbon::createFromFormat(self::ISO_FORMAT, $value);
+            $this->carbon = Carbon::parse($value);
 
             return;
-        } catch (InvalidFormatException $e) {
-            try {
-                $this->carbon = Carbon::createFromFormat(self::DB_FORMAT, $value);
-
-                return;
-            } catch (InvalidFormatException $e) {
-                throw new InvalidArgumentException("Invalid datetime value: {$value}");
-            }
+        } catch (Throwable $e) {
+            throw new InvalidArgumentException("Invalid datetime value: {$value}");
         }
     }
 
